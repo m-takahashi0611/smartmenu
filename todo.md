@@ -41,6 +41,27 @@
 - [x] LINE Webhook署名検証（X-Line-Signature）
 
 ## Phase 5: 納品
-- [ ] 動作確認
-- [ ] チェックポイント保存
-- [ ] デプロイ手順書作成
+- [x] 動作確認（TypeScript: エラーなし、テスト: 4/4通過、サーバー: 正常稼働）
+- [x] チェックポイント保存（version: 3e2f914a）
+- [x] デプロイ手順書作成（README参照）
+
+## Phase 6: LINE Webhook接続
+- [ ] LINE Channel Access Token・Channel Secretをシークレットに設定
+- [ ] Webhook URLをLINEデベロッパーコンソールに登録
+- [ ] Webhook署名検証の動作確認
+- [ ] LINE友だち追加時の自動返信テスト
+
+## Phase 7: レシートOCR機能（冷蔵庫自動登録）
+- [ ] レシート画像アップロードUI（Fridge.tsx）
+- [ ] S3へのレシート画像アップロード処理
+- [ ] OpenAI Vision APIによるレシートOCR（品目・金額抽出）
+- [ ] 抽出結果の確認・編集UI（登録前プレビュー）
+- [ ] 冷蔵庫DBへの一括登録処理
+- [ ] receipts テーブル追加（画像URL・抽出データ保存）
+
+## Phase 8: 家計簿機能（課金オプション）
+- [ ] householdExpenses テーブル追加（日付・品目・金額・カテゴリ）
+- [ ] レシートOCRと家計簿の連携（自動仕訳）
+- [ ] 家計簿ページ（Household.tsx）- 月別集計・グラフ
+- [ ] 課金プラン設計（フリー/プレミアム）
+- [ ] Stripe課金オプション統合
