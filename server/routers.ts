@@ -2,9 +2,15 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import { familyRouter } from "./routers/family";
+import { fridgeRouter } from "./routers/fridge";
+import { storeRouter } from "./routers/store";
+import { menuRouter } from "./routers/menu";
+import { shoppingRouter } from "./routers/shopping";
+import { adminRouter } from "./routers/admin";
+import { lineRouter } from "./routers/line";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -16,13 +22,13 @@ export const appRouter = router({
       } as const;
     }),
   }),
-
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  family: familyRouter,
+  fridge: fridgeRouter,
+  store: storeRouter,
+  menu: menuRouter,
+  shopping: shoppingRouter,
+  admin: adminRouter,
+  line: lineRouter,
 });
 
 export type AppRouter = typeof appRouter;

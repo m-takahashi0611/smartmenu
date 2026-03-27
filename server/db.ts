@@ -1,6 +1,25 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import {
+  InsertUser,
+  deliveryLogs,
+  familyMembers,
+  familyProfiles,
+  fridgeItems,
+  lineUsers,
+  menuPlans,
+  shoppingListItems,
+  stores,
+  users,
+  type InsertDeliveryLog,
+  type InsertFamilyMember,
+  type InsertFamilyProfile,
+  type InsertFridgeItem,
+  type InsertLineUser,
+  type InsertMenuPlan,
+  type InsertShoppingListItem,
+  type InsertStore,
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +108,201 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function getAllUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(users);
+}
+
+// ─── LINE Users ───────────────────────────────────────────────────────────────
+
+export async function upsertLineUser(data: InsertLineUser) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .insert(lineUsers)
+    .values(data)
+    .onDuplicateKeyUpdate({
+      set: { displayName: data.displayName, pictureUrl: data.pictureUrl, updatedAt: new Date() },
+    });
+}
+
+export async function getLineUserByLineId(lineUserId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(lineUsers).where(eq(lineUsers.lineUserId, lineUserId)).limit(1);
+  return result[0];
+}
+
+export async function getLineUserByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(lineUsers).where(eq(lineUsers.userId, userId)).limit(1);
+  return result[0];
+}
+
+export async function getAllActiveLineUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(lineUsers).where(eq(lineUsers.isActive, true));
+}
+
+export async function updateLineUserDeliveryTime(userId: number, hour: number, minute: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(lineUsers).set({ deliveryHour: hour, deliveryMinute: minute, updatedAt: new Date() }).where(eq(lineUsers.userId, userId));
+}
+
+// ─── Family Profile ───────────────────────────────────────────────────────────
+
+export async function getFamilyProfile(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(familyProfiles).where(eq(familyProfiles.userId, userId)).limit(1);
+  return result[0];
+}
+
+export async function upsertFamilyProfile(data: InsertFamilyProfile) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(familyProfiles).values(data).onDuplicateKeyUpdate({
+    set: { familyName: data.familyName, notes: data.notes, updatedAt: new Date() },
+  });
+}
+
+export async function getFamilyMembers(familyProfileId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(familyMembers).where(eq(familyMembers.familyProfileId, familyProfileId));
+}
+
+export async function addFamilyMember(data: InsertFamilyMember) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(familyMembers).values(data);
+}
+
+export async function updateFamilyMember(id: number, data: Partial<InsertFamilyMember>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(familyMembers).set({ ...data, updatedAt: new Date() }).where(eq(familyMembers.id, id));
+}
+
+export async function deleteFamilyMember(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(familyMembers).where(eq(familyMembers.id, id));
+}
+
+// ─── Fridge Items ─────────────────────────────────────────────────────────────
+
+export async function getFridgeItems(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(fridgeItems).where(eq(fridgeItems.userId, userId));
+}
+
+export async function addFridgeItem(data: InsertFridgeItem) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(fridgeItems).values(data);
+}
+
+export async function deleteFridgeItem(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(fridgeItems).where(and(eq(fridgeItems.id, id), eq(fridgeItems.userId, userId)));
+}
+
+// ─── Stores ───────────────────────────────────────────────────────────────────
+
+export async function getStores(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(stores).where(eq(stores.userId, userId));
+}
+
+export async function addStore(data: InsertStore) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(stores).values(data);
+}
+
+export async function updateStore(id: number, userId: number, data: Partial<InsertStore>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(stores).set({ ...data, updatedAt: new Date() }).where(and(eq(stores.id, id), eq(stores.userId, userId)));
+}
+
+export async function deleteStore(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(stores).where(and(eq(stores.id, id), eq(stores.userId, userId)));
+}
+
+// ─── Menu Plans ───────────────────────────────────────────────────────────────
+
+export async function getMenuPlanByDate(userId: number, planDate: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(menuPlans).where(and(eq(menuPlans.userId, userId), eq(menuPlans.planDate, planDate as any))).limit(1);
+  return result[0];
+}
+
+export async function getRecentMenuPlans(userId: number, limit = 7) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(menuPlans).where(eq(menuPlans.userId, userId)).limit(limit);
+}
+
+export async function insertMenuPlan(data: InsertMenuPlan) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(menuPlans).values(data);
+}
+
+export async function markMenuPlanDelivered(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(menuPlans).set({ isDelivered: true, updatedAt: new Date() }).where(eq(menuPlans.id, id));
+}
+
+// ─── Shopping List ────────────────────────────────────────────────────────────
+
+export async function getShoppingList(userId: number, listDate: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(shoppingListItems).where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.listDate, listDate as any)));
+}
+
+export async function insertShoppingListItems(items: InsertShoppingListItem[]) {
+  const db = await getDb();
+  if (!db || items.length === 0) return;
+  await db.insert(shoppingListItems).values(items);
+}
+
+export async function toggleShoppingItem(id: number, userId: number, isChecked: boolean) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(shoppingListItems).set({ isChecked, updatedAt: new Date() }).where(and(eq(shoppingListItems.id, id), eq(shoppingListItems.userId, userId)));
+}
+
+export async function deleteShoppingItem(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(shoppingListItems).where(and(eq(shoppingListItems.id, id), eq(shoppingListItems.userId, userId)));
+}
+
+// ─── Delivery Logs ────────────────────────────────────────────────────────────
+
+export async function insertDeliveryLog(data: InsertDeliveryLog) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(deliveryLogs).values(data);
+}
+
+export async function getDeliveryLogs(limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(deliveryLogs).limit(limit);
+}
