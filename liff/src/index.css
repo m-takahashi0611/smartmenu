@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+:root {
+  --color-primary: #4caf50;
+  --color-primary-dark: #388e3c;
+  --color-bg: #f9fafb;
+}
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* LINE風のセーフエリア対応 */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }

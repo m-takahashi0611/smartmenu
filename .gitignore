@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+functions/node_modules/
+liff/node_modules/
+
+# Build outputs
+functions/lib/
+liff/dist/
+
+# Environment files（絶対にコミットしないこと）
+.env
+.env.local
+.env.*.local
+functions/.env
+liff/.env
+liff/.env.local
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+.firebaserc
+
+# Vercel
+.vercel/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ユーザー自身のデータのみアクセス可能
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/{collection}/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // 管理者のみアクセス可能
+    match /admin/{document=**} {
+      allow read, write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    // LINE連携テーブル（サーバーサイドのみ）
+    match /lineUsers/{lineUserId} {
+      allow read, write: if false; // Cloud Functionsのみ（Admin SDK）
+    }
+    // 配信ログ（サーバーサイドのみ）
+    match /deliveryLogs/{logId} {
+      allow read, write: if false;
+    }
+  }
+}

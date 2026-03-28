@@ -1,0 +1,13 @@
+{
+  "name": "smartmenu",
+  "private": true,
+  "workspaces": ["functions", "liff"],
+  "scripts": {
+    "dev:liff": "cd liff && npm run dev",
+    "build:liff": "cd liff && npm run build",
+    "build:functions": "cd functions && npm run build",
+    "build": "npm run build:functions && npm run build:liff",
+    "deploy:functions": "npm run build:functions && firebase deploy --only functions",
+    "deploy:all": "npm run build && firebase deploy"
+  }
+}
