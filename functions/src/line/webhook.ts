@@ -124,7 +124,7 @@ async function handleEvent(event: any) {
 
 // ─── Cloud Functions エントリーポイント ──────────────────────
 export const lineWebhook = onRequest(
-  { secrets: ["LINE_CHANNEL_SECRET", "LINE_CHANNEL_ACCESS_TOKEN"] },
+  { secrets: ["LINE_CHANNEL_SECRET", "LINE_CHANNEL_ACCESS_TOKEN"], invoker: "public" },
   async (req, res) => {
     if (req.method !== "POST") {
       res.status(405).send("Method Not Allowed");
