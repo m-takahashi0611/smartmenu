@@ -49,7 +49,7 @@ export default function Home() {
   const { user, loading } = useAuth();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       {/* ナビゲーション */}
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -82,10 +82,10 @@ export default function Home() {
       </header>
 
       {/* ヒーローセクション */}
-      <section className="relative overflow-hidden">
+      <section className="relative">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-background pointer-events-none" />
-        <div className="max-w-6xl mx-auto px-4 py-20 md:py-32">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
+        <div className="max-w-6xl mx-auto px-4 py-12 md:py-32">
+          <div className="grid md:grid-cols-2 gap-8 items-center">
             <div>
               <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">
                 🤖 AI搭載 × LINE連携
@@ -120,7 +120,7 @@ export default function Home() {
                 </a>
               </div>
             </div>
-            <div className="relative">
+            <div className="relative hidden md:block">
               <div className="bg-card rounded-2xl shadow-xl border border-border p-6 max-w-sm mx-auto">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-xl">🤖</div>

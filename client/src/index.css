@@ -113,6 +113,16 @@
   --sidebar-ring: oklch(0.488 0.243 264.376);
 }
 
+/* White-label: hide platform badge */
+[class*="manus-badge"],
+[id*="manus-badge"],
+[data-manus],
+iframe[src*="manus"],
+a[href*="manus.im"],
+a[href*="manus.space"] {
+  display: none !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
