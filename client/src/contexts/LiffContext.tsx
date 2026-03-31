@@ -72,10 +72,19 @@ export function LiffProvider({ children }: { children: ReactNode }) {
                 displayName: profile.displayName,
                 pictureUrl: profile.pictureUrl ?? undefined,
               });
+              // ログイン成功後、ダッシュボードへリダイレクト
+              if (window.location.pathname === "/") {
+                window.location.href = "/dashboard";
+              }
             }
           } catch (err) {
             console.error("[LIFF] Auto login failed:", err);
             // 自動ログイン失敗は無視
+          }
+        } else if (inClient && !loggedIn) {
+          // LINEアプリ内だがまだログインしていない場合もダッシュボードへ誘導
+          if (window.location.pathname === "/") {
+            window.location.href = "/dashboard";
           }
         }
       } catch (err) {
