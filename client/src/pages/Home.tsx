@@ -49,18 +49,61 @@ const steps = [
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
-  const { isLiff, isInitialized, isLoading: liffLoading, loginWithLine, isLoggingIn } = useLiffContext();
-
-  const isLoading = authLoading || liffLoading;
+  const { isLiff, isLoggingIn, loginWithLine } = useLiffContext();
 
   // デバッグ用ログ
   useEffect(() => {
-    console.log("[Home] isLiff:", isLiff, "isInitialized:", isInitialized, "isLoading:", isLoading, "user:", !!user);
-  }, [isLiff, isInitialized, isLoading, user]);
+    console.log("[Home] isLiff:", isLiff, "isLoggingIn:", isLoggingIn, "user:", !!user);
+  }, [isLiff, isLoggingIn, user]);
+
+  // LINEログインボタン（常に押せる）
+  const LineLoginButton = ({ size = "lg" }: { size?: "sm" | "lg" }) => (
+    <button
+      type="button"
+      onTouchEnd={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isLoggingIn) {
+          console.log("[Home] LINE login button touchEnd");
+          loginWithLine();
+        }
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isLoggingIn) {
+          console.log("[Home] LINE login button clicked");
+          loginWithLine();
+        }
+      }}
+      disabled={isLoggingIn}
+      style={{
+        backgroundColor: isLoggingIn ? '#aaa' : '#06C755',
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: size === 'lg' ? '18px' : '15px',
+        padding: size === 'lg' ? '18px 32px' : '10px 20px',
+        borderRadius: '12px',
+        border: 'none',
+        cursor: isLoggingIn ? 'not-allowed' : 'pointer',
+        width: size === 'lg' ? '100%' : 'auto',
+        display: 'block',
+        WebkitTapHighlightColor: 'transparent',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+        touchAction: 'manipulation',
+        outline: 'none',
+        WebkitAppearance: 'none',
+        minHeight: size === 'lg' ? '56px' : '44px',
+      }}
+    >
+      {isLoggingIn ? "ログイン中..." : "🟢 LINEでログイン"}
+    </button>
+  );
 
   // CTAボタンのレンダリング
   const renderCTA = (size: "sm" | "lg" = "lg") => {
-    if (isLoading) {
+    if (authLoading) {
       return (
         <Button size={size} disabled className="opacity-60">
           読み込み中...
@@ -77,49 +120,7 @@ export default function Home() {
       );
     }
     if (isLiff) {
-      return (
-        <button
-          type="button"
-          onTouchEnd={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!isLoggingIn && isInitialized) {
-              console.log("[Home] LINE login button touchEnd, isInitialized:", isInitialized);
-              loginWithLine();
-            }
-          }}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!isLoggingIn && isInitialized) {
-              console.log("[Home] LINE login button clicked, isInitialized:", isInitialized);
-              loginWithLine();
-            }
-          }}
-          disabled={isLoggingIn || !isInitialized}
-          style={{
-            backgroundColor: isLoggingIn || !isInitialized ? '#aaa' : '#06C755',
-            color: 'white',
-            fontWeight: 'bold',
-            fontSize: size === 'lg' ? '18px' : '15px',
-            padding: size === 'lg' ? '18px 32px' : '10px 20px',
-            borderRadius: '12px',
-            border: 'none',
-            cursor: isLoggingIn || !isInitialized ? 'not-allowed' : 'pointer',
-            width: size === 'lg' ? '100%' : 'auto',
-            display: 'block',
-            WebkitTapHighlightColor: 'transparent',
-            WebkitUserSelect: 'none',
-            userSelect: 'none',
-            touchAction: 'manipulation',
-            outline: 'none',
-            WebkitAppearance: 'none',
-            minHeight: size === 'lg' ? '56px' : '44px',
-          }}
-        >
-          {isLoggingIn ? "ログイン中..." : !isInitialized ? "初期化中..." : "🟢 LINEでログイン"}
-        </button>
-      );
+      return <LineLoginButton size={size} />;
     }
     return (
       <a href={getLoginUrl()}>
@@ -139,69 +140,81 @@ export default function Home() {
             <span className="text-2xl">🍽️</span>
             <span className="text-xl font-bold text-primary">SmartMenu</span>
           </div>
-          <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
-            <a href="#features" className="hover:text-foreground transition-colors">機能</a>
-            <a href="#how-it-works" className="hover:text-foreground transition-colors">使い方</a>
+          <nav className="hidden md:flex items-center gap-6">
+            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">機能</a>
+            <a href="#how-to-use" className="text-sm text-muted-foreground hover:text-foreground transition-colors">使い方</a>
           </nav>
-          <div className="flex items-center gap-3">
-            {renderCTA("sm")}
+          <div className="flex items-center gap-2">
+            {isLiff ? (
+              <LineLoginButton size="sm" />
+            ) : user ? (
+              <Link href="/dashboard">
+                <Button size="sm" className="bg-primary text-primary-foreground">ダッシュボードへ →</Button>
+              </Link>
+            ) : (
+              <a href={getLoginUrl()}>
+                <Button size="sm" className="bg-primary text-primary-foreground">ログイン</Button>
+              </a>
+            )}
           </div>
         </div>
       </header>
 
       {/* ヒーローセクション */}
-      <section className="relative bg-gradient-to-br from-primary/5 via-background to-background">
-        <div className="max-w-6xl mx-auto px-4 py-16 md:py-28">
-          <div className="flex flex-col items-start max-w-2xl">
-            <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">
-              🤖 AI搭載 × LINE連携
-            </Badge>
-            <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-6 text-foreground">
-              毎日の献立を<br />
-              <span className="text-primary">AIが自動提案</span>
-            </h1>
-            <p className="text-lg text-foreground/70 mb-8 leading-relaxed">
-              家族構成・冷蔵庫の在庫・近隣スーパーの特売情報を組み合わせて、
-              毎朝LINEに最適な献立をお届けします。
-              「今日何作ろう」の悩みから解放されましょう。
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-              {renderCTA("lg")}
-              <a href="#how-it-works">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto text-base px-8 border-border text-foreground">
+      <section className="relative pt-16 pb-24 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-green-50 to-white pointer-events-none" />
+        <div className="relative max-w-6xl mx-auto px-4">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            {/* 左側: テキスト */}
+            <div className="space-y-6">
+              <Badge variant="outline" className="text-primary border-primary/30 bg-primary/5 text-sm px-3 py-1">
+                🤖 AI搭載 × LINE連携
+              </Badge>
+              <h1 className="text-4xl md:text-5xl font-bold text-foreground leading-tight">
+                毎日の献立を<br />
+                <span className="text-primary">AIが自動提案</span>
+              </h1>
+              <p className="text-lg text-muted-foreground leading-relaxed">
+                家族構成・冷蔵庫の在庫・近隣スーパーの特売情報を組み合わせて、
+                毎朝LINEに最適な献立をお届けします。
+                「今日何作ろう」の悩みから解放されましょう。
+              </p>
+              <div className="flex flex-col gap-3 pt-2">
+                {renderCTA("lg")}
+                <Button size="lg" variant="outline" className="bg-transparent">
                   使い方を見る
                 </Button>
-              </a>
+                {isLiff && (
+                  <p className="text-sm text-muted-foreground text-center">
+                    LINEアカウントでログインして、AI献立提案を始めましょう。
+                  </p>
+                )}
+              </div>
             </div>
 
-            {/* LINEログイン中の場合のメッセージ */}
-            {isLiff && !user && !isLoading && (
-              <p className="mt-4 text-sm text-muted-foreground">
-                LINEアカウントでログインして、AI献立提案を始めましょう。
-              </p>
-            )}
-          </div>
-
-          {/* サンプルカード（デスクトップのみ） */}
-          <div className="hidden md:block absolute right-8 top-1/2 -translate-y-1/2 max-w-xs w-full">
-            <div className="bg-card rounded-2xl shadow-xl border border-border p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-xl">🤖</div>
-                <div>
-                  <p className="font-semibold text-sm text-card-foreground">SmartMenu AI</p>
-                  <p className="text-xs text-muted-foreground">今日の献立をお届けします</p>
-                </div>
-              </div>
-              <div className="bg-primary/5 rounded-xl p-4 text-sm space-y-2">
-                <p className="font-semibold text-primary">🍽️ 今日の献立</p>
-                <p className="text-foreground">🌅 朝食：納豆ご飯・味噌汁</p>
-                <p className="text-foreground">☀️ 昼食：野菜たっぷりパスタ</p>
-                <p className="text-foreground">🌙 夕食：鶏の照り焼き・ほうれん草のおひたし</p>
-                <div className="border-t border-border pt-2 mt-2">
-                  <p className="text-xs text-muted-foreground">💰 目安費用：約1,200円</p>
-                  <p className="text-xs text-muted-foreground">🛒 買い物リスト：3品</p>
-                </div>
-              </div>
+            {/* 右側: サンプルカード */}
+            <div className="hidden md:block">
+              <Card className="shadow-xl border-border/50">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xl">🤖</div>
+                    <div>
+                      <p className="font-semibold text-foreground">SmartMenu AI</p>
+                      <p className="text-sm text-muted-foreground">今日の献立をお届けします</p>
+                    </div>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                    <p className="text-sm font-semibold text-primary">🍱 今日の献立</p>
+                    <p className="text-sm text-foreground">🌅 朝食：納豆ご飯・味噌汁</p>
+                    <p className="text-sm text-foreground">☀️ 昼食：野菜たっぷりパスタ</p>
+                    <p className="text-sm text-foreground">🌙 夕食：鶏の照り焼き・ほうれん草のおひたし</p>
+                    <div className="pt-2 border-t border-border/50">
+                      <p className="text-xs text-muted-foreground">💰 目安費用：約1,200円</p>
+                      <p className="text-xs text-muted-foreground">🛒 買い物リスト：3品</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </div>
@@ -211,16 +224,16 @@ export default function Home() {
       <section id="features" className="py-20 bg-muted/30">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4 text-foreground">SmartMenuの機能</h2>
-            <p className="text-muted-foreground text-lg">毎日の料理をもっと楽に、もっと賢く</p>
+            <h2 className="text-3xl font-bold text-foreground mb-4">SmartMenuの機能</h2>
+            <p className="text-muted-foreground text-lg">毎日の食事計画をスマートに管理</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((feature) => (
-              <Card key={feature.title} className="border-border hover:shadow-md transition-shadow">
+              <Card key={feature.title} className="border-border/50 hover:shadow-md transition-shadow">
                 <CardContent className="p-6">
                   <div className="text-3xl mb-3">{feature.icon}</div>
-                  <h3 className="font-semibold text-lg mb-2 text-card-foreground">{feature.title}</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">{feature.description}</p>
+                  <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
                 </CardContent>
               </Card>
             ))}
@@ -229,23 +242,22 @@ export default function Home() {
       </section>
 
       {/* 使い方セクション */}
-      <section id="how-it-works" className="py-20 bg-background">
-        <div className="max-w-6xl mx-auto px-4">
+      <section id="how-to-use" className="py-20">
+        <div className="max-w-4xl mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4 text-foreground">かんたん4ステップ</h2>
-            <p className="text-muted-foreground text-lg">設定は最短5分で完了します</p>
+            <h2 className="text-3xl font-bold text-foreground mb-4">使い方</h2>
+            <p className="text-muted-foreground text-lg">4ステップで始められます</p>
           </div>
-          <div className="grid md:grid-cols-4 gap-6">
-            {steps.map((step, index) => (
-              <div key={step.step} className="text-center relative">
-                {index < steps.length - 1 && (
-                  <div className="hidden md:block absolute top-8 left-1/2 w-full h-0.5 bg-border" />
-                )}
-                <div className="relative z-10 w-16 h-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xl font-bold mx-auto mb-4">
+          <div className="space-y-6">
+            {steps.map((step) => (
+              <div key={step.step} className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm shrink-0">
                   {step.step}
                 </div>
-                <h3 className="font-semibold mb-2 text-foreground">{step.title}</h3>
-                <p className="text-sm text-muted-foreground">{step.desc}</p>
+                <div className="pt-2">
+                  <h3 className="font-semibold text-foreground mb-1">{step.title}</h3>
+                  <p className="text-sm text-muted-foreground">{step.desc}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -254,71 +266,69 @@ export default function Home() {
 
       {/* CTAセクション */}
       <section className="py-20 bg-primary text-primary-foreground">
-        <div className="max-w-4xl mx-auto px-4 text-center">
+        <div className="max-w-3xl mx-auto px-4 text-center">
           <h2 className="text-3xl font-bold mb-4">今すぐ始めましょう</h2>
           <p className="text-primary-foreground/80 text-lg mb-8">
-            毎日の「今日何作ろう」から解放されて、家族との時間を大切に。
+            毎日の献立の悩みから解放されて、家族との食卓をもっと楽しく。
           </p>
-          {user ? (
-            <Link href="/dashboard">
-              <Button size="lg" variant="secondary" className="text-base px-10">
-                ダッシュボードへ →
-              </Button>
-            </Link>
-          ) : isLiff ? (
-            <button
-              type="button"
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!isLoggingIn && isInitialized) loginWithLine();
-              }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!isLoggingIn && isInitialized) loginWithLine();
-              }}
-              disabled={isLoggingIn || !isInitialized}
-              style={{
-                backgroundColor: isLoggingIn || !isInitialized ? '#aaa' : 'white',
-                color: '#06C755',
-                fontWeight: 'bold',
-                fontSize: '18px',
-                padding: '18px 40px',
-                borderRadius: '12px',
-                border: 'none',
-                cursor: isLoggingIn || !isInitialized ? 'not-allowed' : 'pointer',
-                WebkitTapHighlightColor: 'transparent',
-                WebkitUserSelect: 'none',
-                userSelect: 'none',
-                touchAction: 'manipulation',
-                outline: 'none',
-                WebkitAppearance: 'none',
-                minHeight: '56px',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-              }}
-            >
-              {isLoggingIn ? "ログイン中..." : !isInitialized ? "初期化中..." : "🟢 LINEでログイン"}
-            </button>
-          ) : (
-            <a href={getLoginUrl()}>
-              <Button size="lg" variant="secondary" className="text-base px-10">
-                無料で始める →
-              </Button>
-            </a>
-          )}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            {user ? (
+              <Link href="/dashboard">
+                <Button size="lg" variant="secondary" className="text-base px-10">
+                  ダッシュボードへ →
+                </Button>
+              </Link>
+            ) : isLiff ? (
+              <button
+                type="button"
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!isLoggingIn) loginWithLine();
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!isLoggingIn) loginWithLine();
+                }}
+                disabled={isLoggingIn}
+                style={{
+                  backgroundColor: isLoggingIn ? '#aaa' : 'white',
+                  color: '#06C755',
+                  fontWeight: 'bold',
+                  fontSize: '18px',
+                  padding: '18px 40px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  cursor: isLoggingIn ? 'not-allowed' : 'pointer',
+                  WebkitTapHighlightColor: 'transparent',
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none',
+                  touchAction: 'manipulation',
+                  outline: 'none',
+                  WebkitAppearance: 'none',
+                  minHeight: '56px',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                }}
+              >
+                {isLoggingIn ? "ログイン中..." : "🟢 LINEでログイン"}
+              </button>
+            ) : (
+              <a href={getLoginUrl()}>
+                <Button size="lg" variant="secondary" className="text-base px-10">
+                  無料で始める →
+                </Button>
+              </a>
+            )}
+          </div>
         </div>
       </section>
 
       {/* フッター */}
-      <footer className="py-8 border-t border-border bg-background">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🍽️</span>
-            <span className="font-bold text-primary">SmartMenu</span>
-          </div>
+      <footer className="py-8 border-t border-border">
+        <div className="max-w-6xl mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">
-            © 2025 SmartMenu. AI献立提案サービス
+            © 2024 SmartMenu. AI献立提案サービス
           </p>
         </div>
       </footer>

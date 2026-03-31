@@ -48,13 +48,13 @@ export default function DashboardLayout({
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
   const { loading, user } = useAuth();
-  const { isLiff, isLoading: liffLoading, loginWithLine, isLoggingIn } = useLiffContext();
+  const { isLiff, loginWithLine, isLoggingIn } = useLiffContext();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
-  if (loading || liffLoading) {
+  if (loading) {
     return <DashboardLayoutSkeleton />
   }
 

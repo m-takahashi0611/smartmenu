@@ -1,47 +1,68 @@
 /**
- * LIFF Context
- * LINEアプリ内ブラウザ・外部ブラウザ両方でLIFF機能を提供する
+ * LIFF Context - シンプル版
  *
- * 重要: liffオブジェクトをstateで保持することで、初期化完了後のみログインが可能になる
+ * 設計方針:
+ * - liff.init()の完了を待ってボタンを有効化するのではなく、
+ *   ボタンタップ時にinit→loginを直列実行する
+ * - ボタンは常に押せる状態（disabledにしない）
+ * - isLiff判定はURLパラメータ（liff.state）で行う（init不要）
  */
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode, useRef } from "react";
+import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { trpc } from "@/lib/trpc";
 
 const LIFF_ID = import.meta.env.VITE_LIFF_ID as string;
 
-type LiffSDK = typeof import("@line/liff").default;
-
 type LiffContextType = {
   isLiff: boolean;
-  isInClient: boolean;
-  isInitialized: boolean;
-  isLoggedIn: boolean;
-  isLoading: boolean;
   isLoggingIn: boolean;
-  error: string | null;
-  loginWithLine: () => void;
+  loginWithLine: () => Promise<void>;
 };
 
 const LiffContext = createContext<LiffContextType>({
   isLiff: false,
-  isInClient: false,
-  isInitialized: false,
-  isLoggedIn: false,
-  isLoading: true,
   isLoggingIn: false,
-  error: null,
-  loginWithLine: () => {},
+  loginWithLine: async () => {},
 });
 
+/**
+ * LIFF URLから開かれたかどうかをURLパラメータで判定する
+ * liff.init()不要で即座に判定可能
+ */
+function detectIsLiff(): boolean {
+  // LIFF URLから開かれた場合、URLに liff.state パラメータが含まれる
+  // または、URLが https://liff.line.me/ から始まる場合
+  const url = window.location.href;
+  const search = window.location.search;
+
+  // liff.stateパラメータが存在する場合はLIFF環境
+  if (search.includes("liff.state") || search.includes("liffClientId")) {
+    return true;
+  }
+
+  // LIFF_IDが設定されていて、かつLINEのUser-Agentを持つ場合
+  const ua = navigator.userAgent;
+  if (LIFF_ID && (ua.includes("Line/") || ua.includes("LIFF"))) {
+    return true;
+  }
+
+  // URLにliff関連パラメータがある場合
+  if (url.includes("liff") || search.includes("code=") && search.includes("state=")) {
+    // OAuthコールバックの可能性もあるので、より厳密に判定
+    if (search.includes("liff")) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function LiffProvider({ children }: { children: ReactNode }) {
-  const [isLiff, setIsLiff] = useState(false);
-  const [isInClient, setIsInClient] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  // URLパラメータで即座にisLiffを判定（init不要）
+  const [isLiff] = useState(() => {
+    if (!LIFF_ID) return false;
+    return detectIsLiff();
+  });
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const liffRef = useRef<LiffSDK | null>(null);
 
   const utils = trpc.useUtils();
   const loginMutation = trpc.lineAuth.loginWithLine.useMutation({
@@ -52,121 +73,62 @@ export function LiffProvider({ children }: { children: ReactNode }) {
     onError: (err) => {
       console.error("[LIFF] Session creation failed:", err);
       setIsLoggingIn(false);
+      alert("ログインに失敗しました。もう一度お試しください。");
     },
   });
 
-  useEffect(() => {
+  const loginWithLine = useCallback(async () => {
     if (!LIFF_ID) {
-      setIsLoading(false);
+      console.error("[LIFF] LIFF_ID not configured");
       return;
     }
 
-    const initLiff = async () => {
-      try {
-        const liff = (await import("@line/liff")).default;
-        await liff.init({ liffId: LIFF_ID });
+    setIsLoggingIn(true);
+    console.log("[LIFF] Starting login flow...");
 
-        // 初期化成功後にliffオブジェクトをrefに保存
-        liffRef.current = liff;
+    try {
+      // 毎回liff.init()を実行（ボタンタップ時）
+      const liff = (await import("@line/liff")).default;
 
-        const inClient = liff.isInClient();
-        const loggedIn = liff.isLoggedIn();
+      console.log("[LIFF] Initializing...");
+      await liff.init({ liffId: LIFF_ID });
+      console.log("[LIFF] Initialized. isLoggedIn:", liff.isLoggedIn(), "isInClient:", liff.isInClient());
 
-        setIsLiff(true);
-        setIsInClient(inClient);
-        setIsLoggedIn(loggedIn);
-        setIsInitialized(true);
-        setIsLoading(false);
-
-        console.log("[LIFF] Initialized. inClient:", inClient, "loggedIn:", loggedIn);
-
-        // LINEアプリ内でログイン済みなら自動セッション発行
-        if (inClient && loggedIn) {
-          try {
-            setIsLoggingIn(true);
-            const idToken = liff.getIDToken();
-            const profile = await liff.getProfile();
-            if (idToken) {
-              await loginMutation.mutateAsync({
-                idToken,
-                lineUserId: profile.userId,
-                displayName: profile.displayName,
-                pictureUrl: profile.pictureUrl ?? undefined,
-              });
-            }
-          } catch (err) {
-            console.error("[LIFF] Auto login failed:", err);
-            setIsLoggingIn(false);
-          }
-        } else if (!inClient && loggedIn) {
-          // 外部ブラウザでliff.login()コールバック後（ログイン済み）
-          // → IDトークンでセッション発行
-          try {
-            setIsLoggingIn(true);
-            const idToken = liff.getIDToken();
-            const profile = await liff.getProfile();
-            if (idToken) {
-              await loginMutation.mutateAsync({
-                idToken,
-                lineUserId: profile.userId,
-                displayName: profile.displayName,
-                pictureUrl: profile.pictureUrl ?? undefined,
-              });
-            }
-          } catch (err) {
-            console.error("[LIFF] External browser login failed:", err);
-            setIsLoggingIn(false);
-          }
-        }
-      } catch (err) {
-        console.error("[LIFF] Init failed:", err);
-        setIsLiff(false);
-        setError(null); // 通常ブラウザではエラー表示しない
-        setIsLoading(false);
+      if (!liff.isLoggedIn()) {
+        // 未ログイン → LINE認証画面へリダイレクト
+        console.log("[LIFF] Not logged in, redirecting to LINE login...");
+        liff.login({ redirectUri: window.location.href });
+        // リダイレクト後はここには戻らない
+        return;
       }
-    };
 
-    initLiff();
-  }, []);
+      // ログイン済み → IDトークンでセッション発行
+      console.log("[LIFF] Already logged in, getting profile...");
+      const idToken = liff.getIDToken();
+      const profile = await liff.getProfile();
 
-  const loginWithLine = useCallback(() => {
-    const liff = liffRef.current;
-    if (!liff) {
-      console.error("[LIFF] liff not initialized yet");
-      return;
-    }
-    if (!liff.isLoggedIn()) {
-      console.log("[LIFF] Calling liff.login()...");
-      liff.login({ redirectUri: window.location.href });
-    } else {
-      // すでにログイン済みの場合はセッション発行
-      setIsLoggingIn(true);
-      liff.getProfile().then((profile) => {
-        const idToken = liff.getIDToken();
-        if (idToken) {
-          loginMutation.mutate({
-            idToken,
-            lineUserId: profile.userId,
-            displayName: profile.displayName,
-            pictureUrl: profile.pictureUrl ?? undefined,
-          });
-        }
-      }).catch((err) => {
-        console.error("[LIFF] Get profile failed:", err);
-        setIsLoggingIn(false);
+      if (!idToken) {
+        throw new Error("IDトークンが取得できませんでした");
+      }
+
+      console.log("[LIFF] Got profile:", profile.displayName);
+      await loginMutation.mutateAsync({
+        idToken,
+        lineUserId: profile.userId,
+        displayName: profile.displayName,
+        pictureUrl: profile.pictureUrl ?? undefined,
       });
+    } catch (err) {
+      console.error("[LIFF] Login flow failed:", err);
+      setIsLoggingIn(false);
+      alert(`ログインエラー: ${err instanceof Error ? err.message : "不明なエラー"}`);
     }
   }, [loginMutation]);
 
   return (
     <LiffContext.Provider value={{
       isLiff,
-      isInClient,
-      isInitialized,
-      isLoggedIn,
-      isLoading,
       isLoggingIn: isLoggingIn || loginMutation.isPending,
-      error,
       loginWithLine,
     }}>
       {children}
