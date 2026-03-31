@@ -80,23 +80,41 @@ export default function Home() {
       return (
         <button
           type="button"
-          onClick={() => {
-            console.log("[Home] LINE login button clicked, isInitialized:", isInitialized);
-            loginWithLine();
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!isLoggingIn && isInitialized) {
+              console.log("[Home] LINE login button touchEnd, isInitialized:", isInitialized);
+              loginWithLine();
+            }
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!isLoggingIn && isInitialized) {
+              console.log("[Home] LINE login button clicked, isInitialized:", isInitialized);
+              loginWithLine();
+            }
           }}
           disabled={isLoggingIn || !isInitialized}
           style={{
-            backgroundColor: isLoggingIn || !isInitialized ? '#ccc' : '#06C755',
+            backgroundColor: isLoggingIn || !isInitialized ? '#aaa' : '#06C755',
             color: 'white',
             fontWeight: 'bold',
-            fontSize: size === 'lg' ? '16px' : '14px',
-            padding: size === 'lg' ? '14px 32px' : '8px 16px',
-            borderRadius: '8px',
+            fontSize: size === 'lg' ? '18px' : '15px',
+            padding: size === 'lg' ? '18px 32px' : '10px 20px',
+            borderRadius: '12px',
             border: 'none',
             cursor: isLoggingIn || !isInitialized ? 'not-allowed' : 'pointer',
             width: size === 'lg' ? '100%' : 'auto',
             display: 'block',
-            WebkitTapHighlightColor: 'rgba(0,0,0,0.1)',
+            WebkitTapHighlightColor: 'transparent',
+            WebkitUserSelect: 'none',
+            userSelect: 'none',
+            touchAction: 'manipulation',
+            outline: 'none',
+            WebkitAppearance: 'none',
+            minHeight: size === 'lg' ? '56px' : '44px',
           }}
         >
           {isLoggingIn ? "ログイン中..." : !isInitialized ? "初期化中..." : "🟢 LINEでログイン"}
@@ -248,14 +266,40 @@ export default function Home() {
               </Button>
             </Link>
           ) : isLiff ? (
-            <Button
-              size="lg"
-              onClick={loginWithLine}
-              disabled={isLoggingIn}
-              className="bg-white text-[#06C755] hover:bg-gray-100 font-bold text-base px-10 shadow-lg"
+            <button
+              type="button"
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isLoggingIn && isInitialized) loginWithLine();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isLoggingIn && isInitialized) loginWithLine();
+              }}
+              disabled={isLoggingIn || !isInitialized}
+              style={{
+                backgroundColor: isLoggingIn || !isInitialized ? '#aaa' : 'white',
+                color: '#06C755',
+                fontWeight: 'bold',
+                fontSize: '18px',
+                padding: '18px 40px',
+                borderRadius: '12px',
+                border: 'none',
+                cursor: isLoggingIn || !isInitialized ? 'not-allowed' : 'pointer',
+                WebkitTapHighlightColor: 'transparent',
+                WebkitUserSelect: 'none',
+                userSelect: 'none',
+                touchAction: 'manipulation',
+                outline: 'none',
+                WebkitAppearance: 'none',
+                minHeight: '56px',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+              }}
             >
-              {isLoggingIn ? "ログイン中..." : "🟢 LINEでログイン"}
-            </Button>
+              {isLoggingIn ? "ログイン中..." : !isInitialized ? "初期化中..." : "🟢 LINEでログイン"}
+            </button>
           ) : (
             <a href={getLoginUrl()}>
               <Button size="lg" variant="secondary" className="text-base px-10">

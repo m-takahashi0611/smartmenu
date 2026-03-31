@@ -197,3 +197,11 @@ div[class*="made-with-manus"] {
   opacity: 0 !important;
   pointer-events: none !important;
 }
+
+/* iOS LINEブラウザ向け: ボタンのテキスト選択を防ぐ */
+button {
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
