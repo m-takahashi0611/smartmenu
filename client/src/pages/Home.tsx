@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLiffContext } from "@/contexts/LiffContext";
 import { getLoginUrl } from "@/const";
+import { useEffect } from "react";
 
 const features = [
   {
@@ -48,9 +49,14 @@ const steps = [
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
-  const { isLiff, isLoading: liffLoading, loginWithLine, isLoggingIn } = useLiffContext();
+  const { isLiff, isInitialized, isLoading: liffLoading, loginWithLine, isLoggingIn } = useLiffContext();
 
   const isLoading = authLoading || liffLoading;
+
+  // デバッグ用ログ
+  useEffect(() => {
+    console.log("[Home] isLiff:", isLiff, "isInitialized:", isInitialized, "isLoading:", isLoading, "user:", !!user);
+  }, [isLiff, isInitialized, isLoading, user]);
 
   // CTAボタンのレンダリング
   const renderCTA = (size: "sm" | "lg" = "lg") => {
@@ -72,14 +78,29 @@ export default function Home() {
     }
     if (isLiff) {
       return (
-        <Button
-          size={size}
-          onClick={loginWithLine}
-          disabled={isLoggingIn}
-          className="bg-[#06C755] hover:bg-[#05b34d] text-white font-bold shadow-lg"
+        <button
+          type="button"
+          onClick={() => {
+            console.log("[Home] LINE login button clicked, isInitialized:", isInitialized);
+            loginWithLine();
+          }}
+          disabled={isLoggingIn || !isInitialized}
+          style={{
+            backgroundColor: isLoggingIn || !isInitialized ? '#ccc' : '#06C755',
+            color: 'white',
+            fontWeight: 'bold',
+            fontSize: size === 'lg' ? '16px' : '14px',
+            padding: size === 'lg' ? '14px 32px' : '8px 16px',
+            borderRadius: '8px',
+            border: 'none',
+            cursor: isLoggingIn || !isInitialized ? 'not-allowed' : 'pointer',
+            width: size === 'lg' ? '100%' : 'auto',
+            display: 'block',
+            WebkitTapHighlightColor: 'rgba(0,0,0,0.1)',
+          }}
         >
-          {isLoggingIn ? "ログイン中..." : "🟢 LINEでログイン"}
-        </Button>
+          {isLoggingIn ? "ログイン中..." : !isInitialized ? "初期化中..." : "🟢 LINEでログイン"}
+        </button>
       );
     }
     return (

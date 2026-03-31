@@ -186,3 +186,14 @@ a[href*="manus.space"] {
     }
   }
 }
+/* Made with Manus バッジを非表示 */
+[data-manus-badge],
+.manus-badge,
+a[href*="manus.im"],
+div[class*="manus-watermark"],
+div[class*="made-with-manus"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
