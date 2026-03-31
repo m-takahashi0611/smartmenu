@@ -20,6 +20,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
+import { useLiffContext } from "@/contexts/LiffContext";
 import { useIsMobile } from "@/hooks/useMobile";
 import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -47,36 +48,50 @@ export default function DashboardLayout({
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
   const { loading, user } = useAuth();
+  const { isLiff, isLoading: liffLoading, loginWithLine, isLoggingIn } = useLiffContext();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
-  if (loading) {
+  if (loading || liffLoading) {
     return <DashboardLayoutSkeleton />
   }
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-center">
-              Sign in to continue
+          <div className="flex flex-col items-center gap-4">
+            <div className="text-4xl">🍽️</div>
+            <h1 className="text-2xl font-bold tracking-tight text-center text-foreground">
+              SmartMenu
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
+              AIが毎日の献立をご提案します。
+              {isLiff ? "LINEアカウントでログインしてください。" : "ログインして始めましょう。"}
             </p>
           </div>
-          <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
-            size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all"
-          >
-            Sign in
-          </Button>
+          {isLiff ? (
+            <Button
+              onClick={loginWithLine}
+              disabled={isLoggingIn}
+              size="lg"
+              className="w-full bg-[#06C755] hover:bg-[#05b34d] text-white shadow-lg"
+            >
+              {isLoggingIn ? "ログイン中..." : "LINEでログイン"}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => {
+                window.location.href = getLoginUrl();
+              }}
+              size="lg"
+              className="w-full shadow-lg hover:shadow-xl transition-all"
+            >
+              ログイン
+            </Button>
+          )}
         </div>
       </div>
     );
