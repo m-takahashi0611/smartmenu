@@ -5,12 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"users" | "logs" | "broadcast">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "logs" | "broadcast" | "richmenu">("users");
 
   const { data: users, isLoading: usersLoading } = trpc.admin.listUsers.useQuery(undefined, {
     enabled: user?.role === "admin",
@@ -22,6 +23,26 @@ export default function Admin() {
     { limit: 50 },
     { enabled: user?.role === "admin" && activeTab === "logs" }
   );
+
+  const { data: richMenuData, isLoading: richMenuLoading, refetch: refetchRichMenu } = trpc.richMenu.list.useQuery(undefined, {
+    enabled: user?.role === "admin" && activeTab === "richmenu",
+  });
+
+  const createRichMenu = trpc.richMenu.create.useMutation({
+    onSuccess: (result) => {
+      toast.success("リッチメニューを作成しました", { description: result.message });
+      refetchRichMenu();
+    },
+    onError: (err) => toast.error("作成に失敗しました", { description: err.message }),
+  });
+
+  const deleteRichMenu = trpc.richMenu.delete.useMutation({
+    onSuccess: () => {
+      toast.success("リッチメニューを削除しました");
+      refetchRichMenu();
+    },
+    onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
+  });
 
   const broadcast = trpc.admin.broadcastMenus.useMutation({
     onSuccess: (result) => {
@@ -72,6 +93,7 @@ export default function Admin() {
             { id: "users", label: "👥 ユーザー" },
             { id: "logs", label: "📊 配信ログ" },
             { id: "broadcast", label: "📣 一括配信" },
+            { id: "richmenu", label: "📱 リッチメニュー" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -199,6 +221,75 @@ export default function Admin() {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {/* リッチメニュー管理 */}
+        {activeTab === "richmenu" && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">📱 LINEリッチメニュー管理</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-6">
+                  <img
+                    src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/richmenu-i7XRyxkG5Zb8UsUr2NcL3p.png"
+                    alt="リッチメニュープレビュー"
+                    className="w-full max-w-md rounded-lg border border-border mb-4"
+                  />
+                  <p className="text-sm text-muted-foreground mb-4">
+                    上記の画像をLINEリッチメニューとして設定します。4つのボタン（今日の献立・冷蔵庫管理・家族設定・買い物リスト）が含まれています。
+                  </p>
+                  <Button
+                    onClick={() => createRichMenu.mutate({})}
+                    disabled={createRichMenu.isPending}
+                    className="bg-primary text-primary-foreground"
+                  >
+                    {createRichMenu.isPending ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />作成中...</>
+                    ) : (
+                      "リッチメニューを作成・設定する"
+                    )}
+                  </Button>
+                </div>
+
+                {richMenuLoading ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>読み込み中...</span>
+                  </div>
+                ) : richMenuData?.menus && richMenuData.menus.length > 0 ? (
+                  <div>
+                    <p className="text-sm font-medium mb-3">登録済みリッチメニュー</p>
+                    <div className="space-y-2">
+                      {richMenuData.menus.map((menu: any) => (
+                        <div key={menu.richMenuId} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                          <div>
+                            <p className="text-sm font-medium">{menu.name}</p>
+                            <p className="text-xs text-muted-foreground">ID: {menu.richMenuId}</p>
+                            {richMenuData.defaultId === menu.richMenuId && (
+                              <Badge className="text-xs mt-1 bg-green-100 text-green-700">デフォルト設定中</Badge>
+                            )}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteRichMenu.mutate({ richMenuId: menu.richMenuId })}
+                            disabled={deleteRichMenu.isPending}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            削除
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">リッチメニューはまだ設定されていません</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {/* 一括配信 */}
