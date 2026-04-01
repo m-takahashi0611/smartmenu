@@ -5,7 +5,7 @@ import { eq, and, lt } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
-import { users } from "../../drizzle/schema";
+import { users, lineUsers } from "../../drizzle/schema";
 import { sendLineMessage } from "./line";
 import { sdk } from "../_core/sdk";
 import { getSessionCookieOptions } from "../_core/cookies";
@@ -91,9 +91,41 @@ export const adminAuthRouter = router({
       );
 
       // LINEにOTPを送信
-      const lineUserId = matchedAdmin.openId?.startsWith("line:")
+      // 1. openIdがline:で始まる場合はそのままLINE IDとして使用
+      // 2. それ以外の場合はline_usersテーブルからLINE IDを検索
+      let lineUserId: string | null = matchedAdmin.openId?.startsWith("line:")
         ? matchedAdmin.openId.replace("line:", "")
         : null;
+
+      if (!lineUserId) {
+        // line_usersテーブルからこのユーザーのLINE IDを検索
+        const lineUserRows = await db
+          .select()
+          .from(lineUsers)
+          .where(eq(lineUsers.userId, matchedAdmin.id))
+          .limit(1);
+        if (lineUserRows.length > 0) {
+          lineUserId = lineUserRows[0].lineUserId;
+        } else {
+          // 同じメールアドレスを持つLINEユーザーを検索
+          const sameEmailUsers = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, matchedAdmin.email ?? ""))
+            .limit(10);
+          for (const u of sameEmailUsers) {
+            if (u.openId.startsWith("line:")) {
+              lineUserId = u.openId.replace("line:", "");
+              break;
+            }
+            const lu = await db.select().from(lineUsers).where(eq(lineUsers.userId, u.id)).limit(1);
+            if (lu.length > 0) {
+              lineUserId = lu[0].lineUserId;
+              break;
+            }
+          }
+        }
+      }
 
       if (lineUserId) {
         try {
@@ -103,9 +135,12 @@ export const adminAuthRouter = router({
               text: `【献立日和 管理者ログイン認証】\n\n認証コード：${otp}\n\nこのコードは10分間有効です。\n心当たりのない場合は無視してください。`,
             },
           ]);
+          console.log(`[AdminAuth] OTP sent to LINE user: ${lineUserId}`);
         } catch (err) {
           console.error("[AdminAuth] Failed to send OTP via LINE:", err);
         }
+      } else {
+        console.warn("[AdminAuth] No LINE user found for admin, OTP not sent via LINE");
       }
 
       const maskedInfo = lineUserId
