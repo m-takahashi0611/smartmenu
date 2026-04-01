@@ -11,6 +11,7 @@ import { adminRouter } from "./routers/admin";
 import { lineRouter } from "./routers/line";
 import { lineAuthRouter } from "./routers/lineAuth";
 import { richMenuRouter } from "./routers/richMenu";
+import { adminAuthRouter } from "./routers/adminAuth";
 
 export const appRouter = router({
   system: systemRouter,
@@ -33,6 +34,7 @@ export const appRouter = router({
   line: lineRouter,
   lineAuth: lineAuthRouter,
   richMenu: richMenuRouter,
+  adminAuth: adminAuthRouter,
 });
 
 export type AppRouter = typeof appRouter;

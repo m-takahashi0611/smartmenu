@@ -1,8 +1,19 @@
 import * as crypto from "crypto";
 import * as https from "https";
 import { z } from "zod";
-import { getLineUserByLineId, getDb, insertDeliveryLog, getFridgeItems, getFamilyProfile, getFamilyMembers, getRecentMenuPlans } from "../db";
-import { lineUsers } from "../../drizzle/schema";
+import {
+  getLineUserByLineId,
+  getDb,
+  insertDeliveryLog,
+  getFridgeItems,
+  getFamilyProfile,
+  getFamilyMembers,
+  getRecentMenuPlans,
+  getConversationHistory,
+  addConversationMessage,
+  updateLineUserLocation,
+} from "../db";
+import { lineUsers, fridgeItems as fridgeItemsTable } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { generateMenuPlan } from "./menu";
 import { publicProcedure, router } from "../_core/trpc";
@@ -128,34 +139,69 @@ export function verifyLineSignature(body: string, signature: string): boolean {
   return hash === signature;
 }
 
-// ─── AI文脈理解型チャット応答 ─────────────────────────────────────────────────
+// ─── 地名から緯度経度を取得（Open-Meteo Geocoding API） ──────────────────────
 
-/**
- * ユーザーのメッセージに対してAIが文脈を理解して献立に関連する返答を生成する
- * 天気・冷蔵庫・家族情報を活用して、常に「食」に結びつけた応答を返す
- */
+async function geocodeRegion(regionName: string): Promise<{ lat: number; lon: number } | null> {
+  return new Promise((resolve) => {
+    const encoded = encodeURIComponent(regionName);
+    const req = https.request(
+      {
+        hostname: "geocoding-api.open-meteo.com",
+        path: `/v1/search?name=${encoded}&count=1&language=ja&format=json`,
+        method: "GET",
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.results && json.results.length > 0) {
+              resolve({ lat: json.results[0].latitude, lon: json.results[0].longitude });
+            } else {
+              resolve(null);
+            }
+          } catch {
+            resolve(null);
+          }
+        });
+      }
+    );
+    req.on("error", () => resolve(null));
+    req.end();
+  });
+}
+
+// ─── AI文脈理解型チャット応答（会話履歴・位置情報対応） ──────────────────────
+
 async function generateContextualReply(
   userMessage: string,
+  lineUserId: string,
   userId: number | null,
-  displayName: string
+  displayName: string,
+  userLat?: number | null,
+  userLon?: number | null
 ): Promise<string> {
-  // 天気情報を取得（東京デフォルト）
+  // 位置情報から天気を取得（ユーザー登録位置 or デフォルト東京）
+  const lat = userLat ?? 35.68;
+  const lon = userLon ?? 139.69;
+
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().split("T")[0];
   const today = new Date().toISOString().split("T")[0];
 
   const [todayWeather, tomorrowWeather] = await Promise.all([
-    getWeatherInfo(35.68, 139.69, today),
-    getWeatherInfo(35.68, 139.69, tomorrowStr),
+    getWeatherInfo(lat, lon, today),
+    getWeatherInfo(lat, lon, tomorrowStr),
   ]);
 
   const todayWeatherDesc = formatWeatherForPrompt(todayWeather);
   const tomorrowWeatherDesc = formatWeatherForPrompt(tomorrowWeather);
 
-  // ユーザー情報を取得（ログイン済みの場合）
-  let fridgeDesc = "冷蔵庫情報なし";
-  let familyDesc = "家族情報なし";
+  // ユーザー情報を取得
+  let fridgeDesc = "冷蔵庫情報なし（ダッシュボードで登録してください）";
+  let familyDesc = "家族情報なし（ダッシュボードで登録してください）";
   let recentMenuDesc = "なし";
 
   if (userId) {
@@ -172,7 +218,12 @@ async function generateContextualReply(
     if (familyProfile) {
       const members = await getFamilyMembers(familyProfile.id);
       if (members.length > 0) {
-        familyDesc = members.map((m) => `${m.name}（${m.ageGroup}）`).join("、");
+        familyDesc = members
+          .map((m) => {
+            const allergyStr = m.allergies ? `アレルギー:${m.allergies}` : "";
+            return `${m.name}（${m.ageGroup}${allergyStr ? " " + allergyStr : ""}）`;
+          })
+          .join("、");
       }
     }
 
@@ -182,60 +233,145 @@ async function generateContextualReply(
           try {
             const data = typeof p.menuData === "string" ? JSON.parse(p.menuData) : p.menuData;
             return [data?.dinner].filter(Boolean);
-          } catch { return []; }
+          } catch {
+            return [];
+          }
         })
         .join("、");
     }
   }
 
-  // 天気が雨かどうか
+  // 天気条件の判定
   const isTomorrowRainy = tomorrowWeather && tomorrowWeather.weatherCode >= 51;
   const isTodayRainy = todayWeather && todayWeather.weatherCode >= 51;
   const isTodayHot = todayWeather && todayWeather.temperatureMax >= 28;
   const isTodayCold = todayWeather && todayWeather.temperatureMax <= 10;
 
-  const rainyTomorrowMsg = isTomorrowRainy
-    ? "雨だと買い物が面倒ですよね。冷蔵庫の食材だけで作れる料理を提案しましょうか？"
-    : "外出しやすい天気ですね！新鮮な食材を買いに行けそうです。";
-  const hotMsg = isTodayHot ? "暑い日はさっぱりした料理がおすすめです！" : "";
-  const coldMsg = isTodayCold ? "寒い日は体を温めるお鍋やシチューはいかがでしょう？" : "";
+  // 会話履歴を取得（直近10ターン）
+  const history = await getConversationHistory(lineUserId, 10);
+  const historyMessages = history.map((h) => ({
+    role: h.role as "user" | "assistant",
+    content: h.content,
+  }));
 
-  const systemPrompt = `あなたはエプロン執事という名前の、日本の家庭向け献立アシスタントです。
+  const systemPrompt = `あなたは「エプロン執事」という名前の、日本の家庭向け献立アシスタントです。
 LINEでユーザーと会話しており、どんな質問も必ず食事・献立・料理に結びつけて答えることが最大の特徴です。
 
-[絶対ルール]
-1. 献立に関係のない質問を返してはいけない（どんな風に過ごす予定なの？はNG）
-2. 天気の質問には天気情報とそれに合った料理提案をセットで答える
-3. 雨・悪天候の場合は買い物が大変だから冷蔵庫の食材で作れるものを提案する
+【絶対ルール】
+1. 「どんな風に過ごす予定なの？」のような献立に関係のない質問を返してはいけない
+2. 天気の質問には天気情報と料理提案をセットで答える
+3. 雨・悪天候の場合は「買い物が面倒ですよね、冷蔵庫の食材で作れるものを提案しましょうか？」と提案する
 4. 暑い日はさっぱりした料理、寒い日は体を温める料理を提案する
 5. 常に親しみやすく、主婦に寄り添うトーンで話す（執事らしく丁寧だが温かい）
 6. 返答は3〜5行程度に収める（長すぎない）
-7. ユーザーの名前 ${displayName}さん を適度に使う
+7. ユーザーの名前「${displayName}さん」を適度に使う
+8. 冷蔵庫の食材が登録されていれば、それを使った具体的な料理名を提案する
 
-[現在の情報]
+【現在の情報】
 今日の天気：${todayWeatherDesc}
 明日の天気：${tomorrowWeatherDesc}
 冷蔵庫の食材：${fridgeDesc}
 家族構成：${familyDesc}
 最近の夕食：${recentMenuDesc}
+${isTomorrowRainy ? "【明日は雨】買い物が面倒な可能性あり。冷蔵庫の食材を優先した提案を心がける。" : ""}
+${isTodayHot ? "【今日は暑い】さっぱりした料理を優先して提案する。" : ""}
+${isTodayCold ? "【今日は寒い】体を温める料理を優先して提案する。" : ""}`;
 
-[応答パターン例]
-天気を聞かれたら：明日は${tomorrowWeatherDesc}の予報です。${rainyTomorrowMsg}
-暑い日：${hotMsg}
-寒い日：${coldMsg}`;
   try {
     const response = await invokeLLM({
       messages: [
         { role: "system", content: systemPrompt },
+        ...historyMessages,
         { role: "user", content: userMessage },
       ],
     });
 
-    return response.choices[0]?.message?.content as string ?? "申し訳ありません、うまく答えられませんでした。「献立」と送ると今日の献立を提案します🍽️";
+    const reply =
+      (response.choices[0]?.message?.content as string) ??
+      "申し訳ありません、うまく答えられませんでした。「献立」と送ると今日の献立を提案します";
+
+    // 会話履歴を保存
+    await addConversationMessage({ lineUserId, role: "user", content: userMessage });
+    await addConversationMessage({ lineUserId, role: "assistant", content: reply });
+
+    return reply;
   } catch (err) {
     console.error("[LINE] AI reply generation failed:", err);
-    return "申し訳ありません、少し混み合っています。「献立」と送ると今日の献立を提案します🍽️";
+    return "申し訳ありません、少し混み合っています。「献立」と送ると今日の献立を提案します";
   }
+}
+
+// ─── LINE上での冷蔵庫食材登録処理 ────────────────────────────────────────────
+
+async function handleFridgeRegistration(
+  text: string,
+  userId: number,
+  lineUserId: string,
+  replyToken: string
+): Promise<boolean> {
+  // 「冷蔵庫に〇〇を追加」「〇〇を冷蔵庫に入れた」などのパターンを検出
+  const addPatterns = [
+    /冷蔵庫に(.+?)を?(追加|入れ|登録)/,
+    /(.+?)を冷蔵庫に(追加|入れ|登録)/,
+    /冷蔵庫[:：](.+)/,
+  ];
+
+  for (const pattern of addPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const itemsText = match[1];
+      // カンマや読点で分割して複数食材に対応
+      const items = itemsText.split(/[、,，・]/).map((s) => s.trim()).filter((s) => s.length > 0);
+
+      const db = await getDb();
+      if (!db || items.length === 0) return false;
+
+      for (const item of items) {
+        await db.insert(fridgeItemsTable).values({
+          userId,
+          name: item,
+          quantity: null,
+          category: "other",
+        });
+      }
+
+      const itemList = items.join("、");
+      await replyLineMessage(replyToken, [
+        {
+          type: "text",
+          text: `冷蔵庫に「${itemList}」を登録しました！\n\nこれらの食材を使った献立を提案しましょうか？「献立」と送ってください`,
+        },
+      ]);
+      return true;
+    }
+  }
+
+  // 「冷蔵庫を見せて」「冷蔵庫の中身」などの確認パターン
+  const viewPatterns = [/冷蔵庫(を見せ|の中身|の食材|確認|一覧)/];
+  for (const pattern of viewPatterns) {
+    if (pattern.test(text)) {
+      const items = await getFridgeItems(userId);
+      if (items.length === 0) {
+        await replyLineMessage(replyToken, [
+          {
+            type: "text",
+            text: "冷蔵庫に食材が登録されていません。\n\n「冷蔵庫に〇〇を追加」と送ると登録できます！\n例：「冷蔵庫に豚肉、キャベツ、卵を追加」",
+          },
+        ]);
+      } else {
+        const itemList = items.map((f) => `・${f.name}${f.quantity ? "（" + f.quantity + "）" : ""}`).join("\n");
+        await replyLineMessage(replyToken, [
+          {
+            type: "text",
+            text: `現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください`,
+          },
+        ]);
+      }
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // ─── Webhook event handler ────────────────────────────────────────────────────
@@ -247,7 +383,6 @@ export async function handleLineWebhookEvent(event: any) {
   if (!lineUserId) return;
 
   if (type === "follow") {
-    // ユーザーが友達追加したとき
     const profile = await getLineUserProfile(lineUserId);
     const db = await getDb();
     if (db) {
@@ -255,31 +390,62 @@ export async function handleLineWebhookEvent(event: any) {
       if (!existing) {
         console.log(`[LINE] New follower: ${lineUserId}`);
       } else {
-        await db.update(lineUsers).set({
-          displayName: profile?.displayName ?? "ユーザー",
-          pictureUrl: profile?.pictureUrl ?? null,
-          isActive: true,
-          updatedAt: new Date(),
-        }).where(eq(lineUsers.lineUserId, lineUserId));
+        await db
+          .update(lineUsers)
+          .set({
+            displayName: profile?.displayName ?? "ユーザー",
+            pictureUrl: profile?.pictureUrl ?? null,
+            isActive: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(lineUsers.lineUserId, lineUserId));
       }
     }
 
     await replyLineMessage(replyToken, [
       {
         type: "text",
-        text: `こんにちは、${profile?.displayName ?? "ゲスト"}さん！\n献立日和～coto coto～へようこそ🍽️\n\n毎日の献立をAIがご提案します✨\n\nまずはダッシュボードから家族構成や冷蔵庫の食材を登録してください🥕\n\n👇 ダッシュボードはこちら\nhttps://www.kondatebiyori.com`,
+        text: `こんにちは、${profile?.displayName ?? "ゲスト"}さん！\n献立日和～coto coto～へようこそ\n\n毎日の献立をAIがご提案します！\n\nまずはダッシュボードから家族構成や冷蔵庫の食材を登録してください\n\n設定はこちらから\nhttps://www.kondatebiyori.com`,
       },
     ]);
   } else if (type === "unfollow") {
     const db = await getDb();
     if (db) {
-      await db.update(lineUsers).set({ isActive: false, updatedAt: new Date() }).where(eq(lineUsers.lineUserId, lineUserId));
+      await db
+        .update(lineUsers)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(eq(lineUsers.lineUserId, lineUserId));
     }
-  } else if (type === "message" && event.message?.type === "text") {
-    const text: string = event.message.text.trim();
+  } else if (type === "message") {
     const lineUser = await getLineUserByLineId(lineUserId);
     const userId = lineUser?.userId ?? null;
     const displayName = lineUser?.displayName ?? "ゲスト";
+
+    // ─── 位置情報メッセージの処理 ────────────────────────────────────────────
+    if (event.message?.type === "location") {
+      const { latitude, longitude, address } = event.message;
+      const region = address ?? "不明";
+
+      await updateLineUserLocation(lineUserId, latitude, longitude, region);
+
+      // 位置情報に基づいた天気を取得
+      const today = new Date().toISOString().split("T")[0];
+      const weather = await getWeatherInfo(latitude, longitude, today);
+      const weatherDesc = formatWeatherForPrompt(weather);
+
+      await replyLineMessage(replyToken, [
+        {
+          type: "text",
+          text: `位置情報を登録しました！\n場所：${region}\n\n現在の天気：${weatherDesc}\n\nこれからはあなたの地域の天気に合った献立を提案します！`,
+        },
+      ]);
+      return;
+    }
+
+    // ─── テキストメッセージの処理 ─────────────────────────────────────────────
+    if (event.message?.type !== "text") return;
+
+    const text: string = event.message.text.trim();
 
     // ─── キーワードマッチング（優先） ───────────────────────────────────────
     if (text === "献立" || text === "今日の献立" || text === "献立を教えて") {
@@ -287,7 +453,7 @@ export async function handleLineWebhookEvent(event: any) {
         await replyLineMessage(replyToken, [
           {
             type: "text",
-            text: `${displayName}さん、まずはアプリにログインして家族情報を登録してください🙏\n\n👇 こちらから\nhttps://www.kondatebiyori.com`,
+            text: `${displayName}さん、まずはアプリにログインして家族情報を登録してください\n\nこちらから\nhttps://www.kondatebiyori.com`,
           },
         ]);
         return;
@@ -309,7 +475,10 @@ export async function handleLineWebhookEvent(event: any) {
       } catch (err) {
         console.error("[LINE] Menu generation failed:", err);
         await replyLineMessage(replyToken, [
-          { type: "text", text: "申し訳ありません。献立の生成に失敗しました。しばらくしてからもう一度お試しください。" },
+          {
+            type: "text",
+            text: "申し訳ありません。献立の生成に失敗しました。しばらくしてからもう一度お試しください。",
+          },
         ]);
       }
       return;
@@ -319,20 +488,33 @@ export async function handleLineWebhookEvent(event: any) {
       await replyLineMessage(replyToken, [
         {
           type: "text",
-          text: "【献立日和～coto coto～ の使い方】\n\n📋 献立 → 今日の献立を提案\n🌤️ 天気 → 天気に合った料理を提案\n🧊 冷蔵庫 → 在庫で作れる料理を提案\n\n⚙️ 設定（家族構成・冷蔵庫・店舗）はアプリから\n👇 https://www.kondatebiyori.com",
+          text: "【献立日和 coto coto の使い方】\n\n献立 → 今日の献立を提案\n天気 → 天気に合った料理を提案\n冷蔵庫 → 在庫で作れる料理を提案\n\n位置情報を送ると地域の天気に合わせた提案ができます！\n\n設定（家族構成・冷蔵庫・店舗）はアプリから\nhttps://www.kondatebiyori.com",
         },
       ]);
       return;
     }
 
-    // ─── AI文脈理解型応答（その他すべての発言） ─────────────────────────────
+    // ─── 冷蔵庫登録・確認コマンド ─────────────────────────────────────────────
+    if (userId) {
+      const handled = await handleFridgeRegistration(text, userId, lineUserId, replyToken);
+      if (handled) return;
+    }
+
+    // ─── AI文脈理解型応答（会話履歴・位置情報対応） ──────────────────────────
     try {
-      const reply = await generateContextualReply(text, userId, displayName);
+      const reply = await generateContextualReply(
+        text,
+        lineUserId,
+        userId,
+        displayName,
+        lineUser?.latitude,
+        lineUser?.longitude
+      );
       await replyLineMessage(replyToken, [{ type: "text", text: reply }]);
     } catch (err) {
       console.error("[LINE] Contextual reply failed:", err);
       await replyLineMessage(replyToken, [
-        { type: "text", text: "「献立」と送ると今日の献立を提案します🍽️" },
+        { type: "text", text: "「献立」と送ると今日の献立を提案します" },
       ]);
     }
   }

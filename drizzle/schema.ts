@@ -8,6 +8,7 @@ import {
   boolean,
   date,
   json,
+  double,
 } from "drizzle-orm/mysql-core";
 
 /**
@@ -23,6 +24,7 @@ export const users = mysqlTable("users", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  adminPasswordHash: varchar("adminPasswordHash", { length: 255 }),
 });
 
 export type User = typeof users.$inferSelect;
@@ -41,6 +43,10 @@ export const lineUsers = mysqlTable("line_users", {
   deliveryHour: int("deliveryHour").default(7).notNull(), // 配信時間（時）
   deliveryMinute: int("deliveryMinute").default(0).notNull(), // 配信時間（分）
   isActive: boolean("isActive").default(true).notNull(),
+  // 位置情報（LINEの位置情報メッセージから取得）
+  latitude: double("latitude"),
+  longitude: double("longitude"),
+  region: varchar("region", { length: 100 }), // 地域名（例: 東京都渋谷区）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -185,3 +191,18 @@ export const deliveryLogs = mysqlTable("delivery_logs", {
 
 export type DeliveryLog = typeof deliveryLogs.$inferSelect;
 export type InsertDeliveryLog = typeof deliveryLogs.$inferInsert;
+
+/**
+ * LINE会話履歴テーブル
+ * AIが文脈を維持するために直近の会話を保存
+ */
+export const lineConversationHistory = mysqlTable("line_conversation_history", {
+  id: int("id").autoincrement().primaryKey(),
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull(),
+  role: mysqlEnum("role", ["user", "assistant"]).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type LineConversationHistory = typeof lineConversationHistory.$inferSelect;
+export type InsertLineConversationHistory = typeof lineConversationHistory.$inferInsert;

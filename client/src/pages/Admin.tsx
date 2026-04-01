@@ -8,10 +8,31 @@ import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function Admin() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState<"users" | "logs" | "broadcast" | "richmenu">("users");
+  const [showPasswordSetup, setShowPasswordSetup] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const { data: passwordStatus } = trpc.adminAuth.checkPasswordSet.useQuery(undefined, {
+    enabled: user?.role === "admin",
+  });
+
+  const setPasswordMutation = trpc.adminAuth.setAdminPassword.useMutation({
+    onSuccess: () => {
+      toast.success("パスワードを設定しました");
+      setShowPasswordSetup(false);
+      setNewPassword("");
+      setConfirmPassword("");
+    },
+    onError: (err) => toast.error("パスワード設定に失敗しました", { description: err.message }),
+  });
 
   const { data: users, isLoading: usersLoading } = trpc.admin.listUsers.useQuery(undefined, {
     enabled: user?.role === "admin",
@@ -59,9 +80,12 @@ export default function Admin() {
         <div className="text-center">
           <div className="text-5xl mb-4">🔒</div>
           <p className="text-muted-foreground mb-4">管理者権限が必要です</p>
-          <Link href="/dashboard">
-            <Button>ダッシュボードに戻る</Button>
-          </Link>
+          <div className="flex gap-2 justify-center">
+            <Button onClick={() => setLocation("/admin-login")}>管理者ログイン</Button>
+            <Link href="/dashboard">
+              <Button variant="outline">ダッシュボードに戻る</Button>
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -82,9 +106,74 @@ export default function Admin() {
             </Link>
             <h1 className="font-bold text-lg">⚙️ 管理画面</h1>
           </div>
-          <Badge className="bg-primary/10 text-primary border-primary/20">管理者</Badge>
+          <div className="flex items-center gap-2">
+            <Badge className="bg-primary/10 text-primary border-primary/20">管理者</Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPasswordSetup(!showPasswordSetup)}
+              className="text-xs"
+            >
+              🔑 {passwordStatus?.passwordSet ? "パスワード変更" : "パスワード設定"}
+            </Button>
+          </div>
         </div>
       </header>
+
+      {/* パスワード設定パネル */}
+      {showPasswordSetup && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-4">
+          <div className="max-w-md mx-auto">
+            <h3 className="font-semibold text-amber-900 mb-3">🔑 管理者パスワード設定</h3>
+            <p className="text-sm text-amber-700 mb-3">
+              このパスワードは /admin-login からのログインに使用します。
+              LINEへの2段階認証コードと組み合わせて管理画面を保護します。
+            </p>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-amber-800">新しいパスワード（8文字以上）</Label>
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="8文字以上のパスワード"
+                  className="mt-1 border-amber-200"
+                />
+              </div>
+              <div>
+                <Label className="text-amber-800">パスワード確認</Label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="同じパスワードを再入力"
+                  className="mt-1 border-amber-200"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    if (newPassword.length < 8) {
+                      toast.error("パスワードは8文字以上にしてください");
+                      return;
+                    }
+                    if (newPassword !== confirmPassword) {
+                      toast.error("パスワードが一致しません");
+                      return;
+                    }
+                    setPasswordMutation.mutate({ password: newPassword });
+                  }}
+                  disabled={setPasswordMutation.isPending}
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  {setPasswordMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "設定する"}
+                </Button>
+                <Button variant="ghost" onClick={() => setShowPasswordSetup(false)}>キャンセル</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         {/* タブ */}

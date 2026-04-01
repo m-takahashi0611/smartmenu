@@ -13,6 +13,7 @@ import Stores from "./pages/Stores";
 import Shopping from "./pages/Shopping";
 import History from "./pages/History";
 import Admin from "./pages/Admin";
+import AdminLogin from "./pages/AdminLogin";
 
 function Router() {
   return (
@@ -25,6 +26,7 @@ function Router() {
       <Route path={"/shopping"} component={Shopping} />
       <Route path={"/history"} component={History} />
       <Route path={"/admin"} component={Admin} />
+      <Route path={"/admin-login"} component={AdminLogin} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

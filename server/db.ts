@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -7,6 +7,7 @@ import {
   familyProfiles,
   fridgeItems,
   lineUsers,
+  lineConversationHistory,
   menuPlans,
   shoppingListItems,
   stores,
@@ -16,6 +17,7 @@ import {
   type InsertFamilyProfile,
   type InsertFridgeItem,
   type InsertLineUser,
+  type InsertLineConversationHistory,
   type InsertMenuPlan,
   type InsertShoppingListItem,
   type InsertStore,
@@ -305,4 +307,53 @@ export async function getDeliveryLogs(limit = 50) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(deliveryLogs).limit(limit);
+}
+
+// ─── LINE Conversation History ─────────────────────────────────────────────────────────────────────────────────
+
+/** 直近Nターンの会話履歴を取得 */
+export async function getConversationHistory(lineUserId: string, limit = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select()
+    .from(lineConversationHistory)
+    .where(eq(lineConversationHistory.lineUserId, lineUserId))
+    .orderBy(desc(lineConversationHistory.createdAt))
+    .limit(limit);
+  return rows.reverse(); // 古い順に並び替え
+}
+
+/** 会話履歴にメッセージを追加 */
+export async function addConversationMessage(data: InsertLineConversationHistory) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(lineConversationHistory).values(data);
+  // 古い履歴を削除（20件以上は削除）
+  const all = await db
+    .select({ id: lineConversationHistory.id })
+    .from(lineConversationHistory)
+    .where(eq(lineConversationHistory.lineUserId, data.lineUserId))
+    .orderBy(desc(lineConversationHistory.createdAt));
+  if (all.length > 20) {
+    const toDelete = all.slice(20).map((r) => r.id);
+    for (const id of toDelete) {
+      await db.delete(lineConversationHistory).where(eq(lineConversationHistory.id, id));
+    }
+  }
+}
+
+/** 位置情報を更新 */
+export async function updateLineUserLocation(
+  lineUserId: string,
+  latitude: number,
+  longitude: number,
+  region: string
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(lineUsers)
+    .set({ latitude, longitude, region, updatedAt: new Date() })
+    .where(eq(lineUsers.lineUserId, lineUserId));
 }
