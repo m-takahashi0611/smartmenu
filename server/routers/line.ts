@@ -158,7 +158,7 @@ export async function handleLineWebhookEvent(event: any) {
     await replyLineMessage(replyToken, [
       {
         type: "text",
-        text: `こんにちは！献立日和～coto coto～へようこそ🍽️\n\n毎日の献立をAIがご提案します。\n\nまずは家族構成や冷蔵庫の食材を登録してください。\n\n👇 設定はこちらから`,
+        text: `こんにちは、${profile?.displayName ?? "ゲスト"}さん！\n献立日和～coto coto～へようこそ🍽️\n\n毎日の献立をAIがご提案します✨\n\nまずはダッシュボードから家族構成や冷蔵庫の食材を登録してください🥕\n\n👇 ダッシュボードはこちら\nhttps://www.kondatebiyori.com`,
       },
     ]);
   } else if (type === "unfollow") {
