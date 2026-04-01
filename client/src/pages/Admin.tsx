@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { Loader2 } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -15,6 +15,17 @@ import { Label } from "@/components/ui/label";
 export default function Admin() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      toast.success("ログアウトしました");
+      setLocation("/");
+    },
+    onError: () => {
+      // エラーでも強制的にトップへ
+      setLocation("/");
+    },
+  });
   const [activeTab, setActiveTab] = useState<"users" | "logs" | "broadcast" | "richmenu">("users");
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -115,6 +126,19 @@ export default function Admin() {
               className="text-xs"
             >
               🔑 {passwordStatus?.passwordSet ? "パスワード変更" : "パスワード設定"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => logoutMutation.mutate()}
+              disabled={logoutMutation.isPending}
+              className="text-xs text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
+            >
+              {logoutMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <><LogOut className="h-3 w-3 mr-1" />ログアウト</>
+              )}
             </Button>
           </div>
         </div>
