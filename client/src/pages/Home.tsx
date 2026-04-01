@@ -56,6 +56,18 @@ export default function Home() {
     console.log("[Home] isLiff:", isLiff, "isLoggingIn:", isLoggingIn, "user:", !!user);
   }, [isLiff, isLoggingIn, user]);
 
+  // LIFF環境でセッション切れの場合、自動的にLINEログインを再試行
+  useEffect(() => {
+    if (isLiff && !authLoading && !user && !isLoggingIn) {
+      console.log("[Home] LIFF session expired, auto-retrying LINE login...");
+      // 少し遅延させてUIが表示されてから実行
+      const timer = setTimeout(() => {
+        loginWithLine();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isLiff, authLoading, user, isLoggingIn, loginWithLine]);
+
   // LINEログインボタン（常に押せる）
   const LineLoginButton = ({ size = "lg" }: { size?: "sm" | "lg" }) => (
     <button

@@ -10,6 +10,18 @@ import "./index.css";
 
 const queryClient = new QueryClient();
 
+/**
+ * LIFF環境（LINE内ブラウザ）かどうかを判定する
+ * liff.init()不要でUAやURLパラメータから判定
+ */
+const isLiffEnvironment = (): boolean => {
+  const ua = navigator.userAgent;
+  const search = window.location.search;
+  // LINE内ブラウザのUser-AgentまたはLIFFパラメータがある場合
+  return ua.includes("Line/") || ua.includes("LIFF") ||
+    search.includes("liff.state") || search.includes("liffClientId");
+};
+
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
@@ -17,6 +29,15 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
 
   if (!isUnauthorized) return;
+
+  // LIFF環境（LINE内ブラウザ）の場合はトップページにリダイレクト（LINEログインボタンがある画面）
+  // Manus OAuthサインイン画面に飛ばさない
+  if (isLiffEnvironment()) {
+    if (!window.location.pathname.startsWith("/") || window.location.pathname !== "/") {
+      window.location.href = "/";
+    }
+    return;
+  }
 
   window.location.href = getLoginUrl();
 };
