@@ -468,7 +468,10 @@ export async function handleLineWebhookEvent(event: any) {
     // ─── テキストメッセージの処理 ─────────────────────────────────────────────
     if (event.message?.type !== "text") return;
 
-    const text: string = event.message.text.trim();
+    // 全角スペース・不可視文字を除去して正規化
+    const rawText: string = event.message.text;
+    const text: string = rawText.replace(/[\u3000\u00a0\ufeff]/g, ' ').trim();
+    console.log(`[LINE] RAW text bytes: ${Buffer.from(rawText).toString('hex').slice(0, 60)}`);
 
     // ─── キーワードマッチング（優先） ───────────────────────────────────────
     if (text === "献立" || text === "今日の献立" || text === "献立を教えて") {
@@ -518,8 +521,11 @@ export async function handleLineWebhookEvent(event: any) {
     }
 
     // ─── リッチメニュー「冷蔵庫管理」ボタンからのトーク返信 ───────────────────────────────────────────────
-    console.log(`[LINE] Received text: "${text}" from userId=${userId} (lineUserId=${lineUserId})`);
-    if (text === "冷蔵庫の中身を教えて") {
+    console.log(`[LINE] Received text: "${text}" (len=${text.length}) from userId=${userId} (lineUserId=${lineUserId})`);
+    console.log(`[LINE] text===冷蔵庫の中身を教えて: ${text === '冷蔵庫の中身を教えて'}, text===買い物リストを教えて: ${text === '買い物リストを教えて'}`);
+    // 正規化テキストで比較
+    const normalizedText = text.normalize('NFC');
+    if (normalizedText === "冷蔵庫の中身を教えて" || text.includes("冷蔵庫の中身を教えて")) {
       if (!userId) {
         await replyLineMessage(replyToken, [{
           type: "text",
@@ -545,7 +551,7 @@ https://www.kondatebiyori.com`,
     }
 
     // ─── リッチメニュー「買い物リスト」ボタンからのトーク返信 ──────────────────────────
-    if (text === "買い物リストを教えて") {
+    if (normalizedText === "買い物リストを教えて" || text.includes("買い物リストを教えて")) {
       if (!userId) {
         await replyLineMessage(replyToken, [{
           type: "text",
