@@ -55,16 +55,16 @@ export async function broadcastMenus(date?: string) {
   return results;
 }
 
-// スタンドアロン実行
-async function main() {
-  console.log("[Batch] 献立自動配信バッチ開始:", new Date().toISOString());
-  try {
-    const result = await broadcastMenus();
-    console.log("[Batch] 配信完了:", result);
-  } catch (err) {
-    console.error("[Batch] 配信エラー:", err);
-    process.exit(1);
-  }
-}
-
-main();
+// スタンドアロン実行用（直接呼び出しはしない。Adminページまたは手動実行時のみ使用）
+// 実行方法: npx tsx server/batch/deliverMenus.ts
+// async function main() {
+//   console.log("[Batch] 献立自動配信バッチ開始:", new Date().toISOString());
+//   try {
+//     const result = await broadcastMenus();
+//     console.log("[Batch] 配信完了:", result);
+//   } catch (err) {
+//     console.error("[Batch] 配信エラー:", err);
+//     process.exit(1);
+//   }
+// }
+// main();
