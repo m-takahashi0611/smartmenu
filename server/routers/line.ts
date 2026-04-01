@@ -494,13 +494,76 @@ export async function handleLineWebhookEvent(event: any) {
       return;
     }
 
-    // ─── 冷蔵庫登録・確認コマンド ─────────────────────────────────────────────
+    // ─── リッチメニュー「冷蔵庫管理」ボタンからのトーク返信 ───────────────────────────
+    if (text === "冷蔵庫の中身を教えて") {
+      if (!userId) {
+        await replyLineMessage(replyToken, [{
+          type: "text",
+          text: `${displayName}さん、まずはダッシュボードから家族情報を登録してください
+https://www.kondatebiyori.com`,
+        }]);
+        return;
+      }
+      const items = await getFridgeItems(userId);
+      if (items.length === 0) {
+        await replyLineMessage(replyToken, [{
+          type: "text",
+          text: "冷蔵庫に食材が登録されていません。\n\n「冷蔵庫に　を追加」と送ると登録できます！\n例：「冷蔵庫に豚肉、キャベツ、卵を追加」",
+        }]);
+      } else {
+        const itemList = items.map((f) => `・${f.name}${f.quantity ? "（" + f.quantity + "）" : ""}`).join("\n");
+        await replyLineMessage(replyToken, [{
+          type: "text",
+          text: `❄️ 現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください`,
+        }]);
+      }
+      return;
+    }
+
+    // ─── リッチメニュー「買い物リスト」ボタンからのトーク返信 ──────────────────────────
+    if (text === "買い物リストを教えて") {
+      if (!userId) {
+        await replyLineMessage(replyToken, [{
+          type: "text",
+          text: `${displayName}さん、まずはダッシュボードから家族情報を登録してください
+https://www.kondatebiyori.com`,
+        }]);
+        return;
+      }
+      const db = await getDb();
+      if (!db) {
+        await replyLineMessage(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
+        return;
+      }
+      const { shoppingListItems } = await import("../../drizzle/schema");
+      const { isNull } = await import("drizzle-orm");
+      const today = new Date().toISOString().split("T")[0];
+      const shoppingItems = await db
+        .select()
+        .from(shoppingListItems)
+        .where(eq(shoppingListItems.userId, userId))
+        .orderBy(shoppingListItems.createdAt);
+      const pendingItems = shoppingItems.filter((s) => !s.isChecked);
+      if (pendingItems.length === 0) {
+        await replyLineMessage(replyToken, [{
+          type: "text",
+          text: "買い物リストは空です。\n\nダッシュボードから献立を生成すると自動で買い物リストが作成されます！\nhttps://www.kondatebiyori.com",
+        }]);
+      } else {
+        const itemList = pendingItems.map((s) => `・${s.name}${s.quantity ? " " + s.quantity : ""}`).join("\n");
+        await replyLineMessage(replyToken, [{
+          type: "text",
+          text: `🛒 買い物リスト（${pendingItems.length}件）：\n${itemList}\n\n買い物が完了したらダッシュボードからチェックできます！`,
+        }]);
+      }
+      return;
+    }
+
+    // ─── 冷蔵庫登録・確認コマンド ─────────────────────────────────────────────────────
     if (userId) {
       const handled = await handleFridgeRegistration(text, userId, lineUserId, replyToken);
       if (handled) return;
-    }
-
-    // ─── AI文脈理解型応答（会話履歴・位置情報対応） ──────────────────────────
+    }    // ─── AI文脈理解型応答（会話履歴・位置情報対応） ──────────────────────────
     try {
       const reply = await generateContextualReply(
         text,

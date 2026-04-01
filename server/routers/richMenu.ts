@@ -97,31 +97,31 @@ function buildRichMenuBody() {
           text: "今日の献立",
         },
       },
-      // 冷蔵庫管理（右上）
+      // 冷蔵庫管理（右上）→ LINEトーク返信
       {
         bounds: { x: 1250, y: 0, width: 1250, height: 843 },
         action: {
-          type: "uri",
+          type: "message",
           label: "冷蔵庫管理",
-          uri: "https://www.kondatebiyori.com/fridge",
+          text: "冷蔵庫の中身を教えて",
         },
       },
-      // 家族設定（左下）
+      // ダッシュボードへ（左下）→ LIFF遷移
       {
         bounds: { x: 0, y: 843, width: 1250, height: 843 },
         action: {
           type: "uri",
-          label: "家族設定",
-          uri: "https://www.kondatebiyori.com/family",
+          label: "ダッシュボードへ",
+          uri: "https://liff.line.me/2009630713-AotlJytF",
         },
       },
-      // 買い物リスト（右下）
+      // 買い物リスト（右下）→ LINEトーク返信
       {
         bounds: { x: 1250, y: 843, width: 1250, height: 843 },
         action: {
-          type: "uri",
+          type: "message",
           label: "買い物リスト",
-          uri: "https://www.kondatebiyori.com/shopping",
+          text: "買い物リストを教えて",
         },
       },
     ],
@@ -142,7 +142,7 @@ export async function createAndSetRichMenu(imageUrl?: string): Promise<{
   const richMenuId: string = createRes.data.richMenuId;
 
   // 2. 画像をアップロード（URLから取得してアップロード）
-  const imgUrl = imageUrl ?? "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/richmenu_2500x1686_73305061.jpg";
+  const imgUrl = imageUrl ?? "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/rich_menu_dashboard_2500x1686_42be9ca0.jpg";
 
   // URLから画像を取得
   const imageBuffer = await new Promise<Buffer>((resolve, reject) => {

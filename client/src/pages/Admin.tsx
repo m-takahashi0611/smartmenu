@@ -346,7 +346,7 @@ export default function Admin() {
               <CardContent>
                 <div className="mb-6">
                   <img
-                    src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/richmenu_2500x1686_73305061.jpg"
+                    src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/rich_menu_dashboard_2500x1686_42be9ca0.jpg"
                     alt="リッチメニュープレビュー"
                     className="w-full max-w-md rounded-lg border border-border mb-4"
                   />
