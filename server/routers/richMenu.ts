@@ -142,7 +142,7 @@ export async function createAndSetRichMenu(imageUrl?: string): Promise<{
   const richMenuId: string = createRes.data.richMenuId;
 
   // 2. 画像をアップロード（URLから取得してアップロード）
-  const imgUrl = imageUrl ?? "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/richmenu_compressed_e65d2cd6.jpg";
+  const imgUrl = imageUrl ?? "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/richmenu_2500x1686_73305061.jpg";
 
   // URLから画像を取得
   const imageBuffer = await new Promise<Buffer>((resolve, reject) => {
