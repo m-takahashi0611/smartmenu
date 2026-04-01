@@ -41,7 +41,7 @@ const features = [
 ];
 
 const steps = [
-  { step: "01", title: "LINEで友達追加", desc: "SmartMenuの公式LINEアカウントを友達追加します" },
+  { step: "01", title: "LINEで友達追加", desc: "献立日和～coto coto～の公式LINEアカウントを友達追加します" },
   { step: "02", title: "家族情報を登録", desc: "家族の人数・年齢・アレルギーなどを設定します" },
   { step: "03", title: "冷蔵庫を登録", desc: "今ある食材と消費期限を入力します" },
   { step: "04", title: "毎朝LINEで受け取る", desc: "指定した時間に献立と買い物リストが届きます" },
@@ -138,7 +138,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-2xl">🍽️</span>
-            <span className="text-xl font-bold text-primary">SmartMenu</span>
+            <span className="text-xl font-bold text-primary">献立日和～coto coto～</span>
           </div>
           <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">機能</a>
@@ -199,7 +199,7 @@ export default function Home() {
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xl">🤖</div>
                     <div>
-                      <p className="font-semibold text-foreground">SmartMenu AI</p>
+                      <p className="font-semibold text-foreground">献立日和 AI</p>
                       <p className="text-sm text-muted-foreground">今日の献立をお届けします</p>
                     </div>
                   </div>
@@ -224,7 +224,7 @@ export default function Home() {
       <section id="features" className="py-20 bg-muted/30">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-foreground mb-4">SmartMenuの機能</h2>
+            <h2 className="text-3xl font-bold text-foreground mb-4">献立日和～coto coto～の機能</h2>
             <p className="text-muted-foreground text-lg">毎日の食事計画をスマートに管理</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -328,7 +328,7 @@ export default function Home() {
       <footer className="py-8 border-t border-border">
         <div className="max-w-6xl mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">
-            © 2024 SmartMenu. AI献立提案サービス
+            © 2025 献立日和～coto coto～. AI献立提案サービス
           </p>
         </div>
       </footer>

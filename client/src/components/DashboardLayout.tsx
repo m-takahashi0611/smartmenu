@@ -65,7 +65,7 @@ export default function DashboardLayout({
           <div className="flex flex-col items-center gap-4">
             <div className="text-4xl">🍽️</div>
             <h1 className="text-2xl font-bold tracking-tight text-center text-foreground">
-              SmartMenu
+              献立日和～coto coto～
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
               AIが毎日の献立をご提案します。

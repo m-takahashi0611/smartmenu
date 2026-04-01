@@ -66,7 +66,7 @@ export default function Dashboard() {
           <Link href="/">
             <div className="flex items-center gap-2 cursor-pointer">
               <span className="text-xl">🍽️</span>
-              <span className="font-bold text-primary">SmartMenu</span>
+              <span className="font-bold text-primary">献立日和〜coto coto〜</span>
             </div>
           </Link>
           <nav className="flex items-center gap-2">

@@ -158,7 +158,7 @@ export async function handleLineWebhookEvent(event: any) {
     await replyLineMessage(replyToken, [
       {
         type: "text",
-        text: `こんにちは！SmartMenuへようこそ🍽️\n\n毎日の献立をAIがご提案します。\n\nまずは家族構成や冷蔵庫の食材を登録してください。\n\n👇 設定はこちらから`,
+        text: `こんにちは！献立日和～coto coto～へようこそ🍽️\n\n毎日の献立をAIがご提案します。\n\nまずは家族構成や冷蔵庫の食材を登録してください。\n\n👇 設定はこちらから`,
       },
     ]);
   } else if (type === "unfollow") {
@@ -214,7 +214,7 @@ export async function handleLineWebhookEvent(event: any) {
       await replyLineMessage(replyToken, [
         {
           type: "text",
-          text: "【SmartMenu の使い方】\n\n📋 「献立」と送ると今日の献立を提案します\n\n⚙️ 設定（家族構成・冷蔵庫・店舗）はアプリから行えます\n\n🛒 買い物リストも自動生成されます",
+          text: "【献立日和～coto coto～ の使い方】\n\n📋 「献立」と送ると今日の献立を提案します\n\n⚙️ 設定（家族構成・冷蔵庫・店舗）はアプリから行えます\n\n🛒 買い物リストも自動生成されます",
         },
       ]);
     }
