@@ -98,7 +98,9 @@ export function LiffProvider({ children }: { children: ReactNode }) {
         // 未ログイン → LINE認証画面へリダイレクト
         // redirectUriはLINEデベロッパーコンソールに登録したエンドポイントURLのオリジンを使用
         // window.location.hrefを使うと登録URLと不一致になり400エラーが発生するため
-        const redirectUri = window.location.origin + "/";
+        // エンドポイントURLはLINEデベロッパーコンソールに登録された値と完全一致させる必要がある
+        const endpointOrigin = "https://www.kondatebiyori.com";
+        const redirectUri = endpointOrigin + "/";
         console.log("[LIFF] Not logged in, redirecting to LINE login... redirectUri:", redirectUri);
         liff.login({ redirectUri });
         // リダイレクト後はここには戻らない
