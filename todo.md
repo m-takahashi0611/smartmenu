@@ -87,7 +87,9 @@
 
 ## バグ修正
 
-- [ ] リッチメニュー画像アップロード時に「413 Request Entity Too Large」エラー → 画像を圧縮してLINE API制限（1MB以下）に合わせる
+- [x] リッチメニュー画像アップロード時に「413 Request Entity Too Large」エラー → 画像を圧縮してLINE API制限（1MB以下）に合わせる（779KB JPEGに圧縮済み）
+- [x] usersテーブルのNULL重複レコード生成バグを修正（SELECT→INSERT/UPDATEパターンに変更、openIdにUNIQUEインデックス追加）
+- [x] 既存のNULLレコードをDBから削除（24件削除完了）
 
 ## 完了した機能（フェーズ2B・2C）
 
@@ -101,6 +103,6 @@
 ## 残タスク
 
 - [ ] 管理者権限をDBで付与（usersテーブルのroleをadminに変更）
-- [ ] リッチメニュー画像の圧縮（413エラー解消）
+- [x] リッチメニュー画像の圧縮（413エラー解消）
 - [ ] 定時プッシュ通知の有効化（TEST_MODE_DISABLE_SCHEDULED_DELIVERY = false）
 - [ ] テストユーザーへの案内開始

@@ -51,9 +51,10 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 
   try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
+    // TiDBではINSERT ... ON DUPLICATE KEY UPDATEが正しく動作しない場合があるため
+    // SELECT→存在確認→INSERT or UPDATEパターンを使用
+    const existing = await db.select().from(users).where(eq(users.openId, user.openId)).limit(1);
+
     const updateSet: Record<string, unknown> = {};
 
     const textFields = ["name", "email", "loginMethod"] as const;
@@ -62,36 +63,48 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     const assignNullable = (field: TextField) => {
       const value = user[field];
       if (value === undefined) return;
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
+      updateSet[field] = value ?? null;
     };
 
     textFields.forEach(assignNullable);
 
     if (user.lastSignedIn !== undefined) {
-      values.lastSignedIn = user.lastSignedIn;
       updateSet.lastSignedIn = user.lastSignedIn;
-    }
-    if (user.role !== undefined) {
-      values.role = user.role;
-      updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
-    }
-
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
-
-    if (Object.keys(updateSet).length === 0) {
+    } else {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
+    if (user.role !== undefined) {
+      updateSet.role = user.role;
+    }
+
+    if (existing.length > 0) {
+      // 既存ユーザーを更新（roleは既存値を保持、明示的に指定された場合のみ上書き）
+      const safeUpdateSet: Record<string, unknown> = { ...updateSet };
+      if (user.role === undefined) {
+        delete safeUpdateSet.role; // roleを明示指定していない場合は既存値を保持
+      }
+      await db.update(users).set(safeUpdateSet).where(eq(users.openId, user.openId));
+    } else {
+      // 新規ユーザーを作成
+      const values: InsertUser = {
+        openId: user.openId,
+        lastSignedIn: (updateSet.lastSignedIn as Date) ?? new Date(),
+      };
+
+      if (updateSet.name !== undefined) values.name = updateSet.name as string | null;
+      if (updateSet.email !== undefined) values.email = updateSet.email as string | null;
+      if (updateSet.loginMethod !== undefined) values.loginMethod = updateSet.loginMethod as string | null;
+
+      // ownerOpenIdの場合はadmin権限を付与
+      if (user.openId === ENV.ownerOpenId) {
+        values.role = 'admin';
+      } else if (user.role !== undefined) {
+        values.role = user.role;
+      }
+
+      await db.insert(users).values(values);
+    }
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
     throw error;

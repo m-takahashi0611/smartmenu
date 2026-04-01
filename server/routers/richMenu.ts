@@ -142,7 +142,7 @@ export async function createAndSetRichMenu(imageUrl?: string): Promise<{
   const richMenuId: string = createRes.data.richMenuId;
 
   // 2. 画像をアップロード（URLから取得してアップロード）
-  const imgUrl = imageUrl ?? "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/richmenu-i7XRyxkG5Zb8UsUr2NcL3p.png";
+  const imgUrl = imageUrl ?? "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/richmenu_compressed_e65d2cd6.jpg";
 
   // URLから画像を取得
   const imageBuffer = await new Promise<Buffer>((resolve, reject) => {
@@ -155,7 +155,9 @@ export async function createAndSetRichMenu(imageUrl?: string): Promise<{
     }).on("error", reject);
   });
 
-  await uploadRichMenuImage(richMenuId, imageBuffer, "image/png");
+  // Content-Typeを画像URLの拡張子から判定
+  const contentType = imgUrl.endsWith(".jpg") || imgUrl.endsWith(".jpeg") ? "image/jpeg" : "image/png";
+  await uploadRichMenuImage(richMenuId, imageBuffer, contentType);
 
   // 3. デフォルトリッチメニューとして設定
   const setDefaultRes = await lineApiRequest("POST", `/v2/bot/user/all/richmenu/${richMenuId}`);
