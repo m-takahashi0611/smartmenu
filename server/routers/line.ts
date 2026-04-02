@@ -495,9 +495,29 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // 数量が入力された場合
+    // 数量が入力された場合（単位付き「300g」「2枚」なども正しく処理）
+    // まず単位付きの数量表現を検出（g, ml, kg, L, 枚, 本, 個, 袋, パック, 缶, 切れ, 匹, 尾, 頭, 羽, 束, 房, 玉, 串, 瓶, 箱, 丁, 合, カップ）
+    const unitMatch = text.trim().match(/^([0-9０-９]+(?:[.,][0-9０-９]+)?)\s*(g|ml|kg|L|l|cc|枚|本|個|袋|パック|缶|切れ|匹|尾|頭|羽|束|房|玉|串|瓶|箱|丁|合|カップ|グラム|キロ|リットル|ミリ|ミリリットル)$/);
+    if (unitMatch) {
+      // 単位付きの場合はそのまま文字列として保存
+      const quantityStr = unitMatch[1] + unitMatch[2];
+      const db = await getDb();
+      if (db && existingId) {
+        await db.update(fridgeItemsTable)
+          .set({ quantity: quantityStr, updatedAt: new Date() })
+          .where(eq(fridgeItemsTable.id, existingId));
+      } else if (db) {
+        await db.insert(fridgeItemsTable).values({ userId, name: itemName, quantity: quantityStr, category: 'other' });
+      }
+      await setLineUserPendingAction(lineUserId, null);
+      const msg = `✅ ${itemName}を${quantityStr}追加しました！`;
+      await replyLineMessage(replyToken, [{ type: 'text', text: msg }]);
+      return true;
+    }
+
     const qty = parseQuantityNumber(text);
     if (qty !== null && qty > 0) {
+      // 単位なし数字の場合は「個」を付ける
       const newQty = (existingQty ?? 0) + qty;
       const db = await getDb();
       if (db && existingId) {
