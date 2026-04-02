@@ -15,6 +15,7 @@ import {
   setLineUserPendingAction,
   getLineUserPendingAction,
   moveCheckedShoppingItemsToFridge,
+  getMenuPlanByDate,
 } from "../db";
 import { lineUsers, fridgeItems as fridgeItemsTable, shoppingListItems } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
@@ -547,6 +548,27 @@ ${dinnerResult.message}`;
         const result = await generateMenuPlan(userId, targetDate, mealType);
         await replyLineMessage(replyToken, [{ type: 'text', text: result.message }]);
 
+        // 夕食・翌日朝食の場合は3案提示するのでmenu_option_selectionをセット
+        if (mealType === 'dinner' || mealType === 'tomorrow_breakfast') {
+          // DBからdinnerOptionsを取得してpendingActionに保存
+          const savedPlan = await getMenuPlanByDate(userId, targetDate);
+          if (savedPlan) {
+            try {
+              const planData = typeof savedPlan.menuData === 'string' ? JSON.parse(savedPlan.menuData) : savedPlan.menuData;
+              if (planData?.dinnerOptions) {
+                await setLineUserPendingAction(lineUserId, {
+                  type: 'menu_option_selection',
+                  options: planData.dinnerOptions,
+                  mealType,
+                  targetDate,
+                  menuPlanId: savedPlan.id,
+                  askedAt: Date.now(),
+                });
+              }
+            } catch { /* ignore parse error */ }
+          }
+        }
+
         await insertDeliveryLog({
           userId,
           lineUserId,
@@ -560,6 +582,110 @@ ${dinnerResult.message}`;
       await replyLineMessage(replyToken, [{ type: 'text', text: '申し訳ありません。献立の生成に失敗しました。しばらくしてからもう一度お試しください。' }]);
     }
     return true;
+  }
+
+  // ─── 献立候補選択待ちの場合（1/2/3の番号入力に対して復唱確認）─────────────────────────────────────────────────────
+  if (pending?.type === 'menu_option_selection') {
+    const { options, mealType, targetDate, menuPlanId } = pending as {
+      options: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
+      mealType: string;
+      targetDate: string;
+      menuPlanId: number;
+    };
+    const trimmed = text.trim();
+
+    // キャンセル
+    if (/^(キャンセル|やめる|やめて|cancel|いいえ)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。またいつでも「献立」と送ってください！' }]);
+      return true;
+    }
+
+    // 「1」「2」「3」の番号入力 → 復唱確認
+    const numMatch = trimmed.match(/^([1-3１-３])$/);
+    if (numMatch) {
+      const numStr = numMatch[1].replace(/[１-３]/g, (c) => String(c.charCodeAt(0) - 0xFF10));
+      const idx = parseInt(numStr, 10) - 1;
+      const selected = options[idx];
+      if (selected) {
+        await setLineUserPendingAction(lineUserId, {
+          type: 'menu_option_confirm',
+          selectedIndex: idx,
+          selectedName: selected.name,
+          options,
+          mealType,
+          targetDate,
+          menuPlanId,
+          askedAt: Date.now(),
+        });
+        await replyLineMessage(replyToken, [{
+          type: 'text',
+          text: `『${numStr}』とお送りいただきましたが、先ほどの献立候補から${numStr}番（${selected.name}）を選ぶということでしょうか？\n\n「はい」→ ${selected.name}のレシピを表示します\n「レシピ」→ 詳しいレシピを見る\n「キャンセル」→ 選び直す`,
+        }]);
+        return true;
+      }
+    }
+
+    // 「レシピ」「教えて」などのキーワード → 全候補を再表示
+    if (/レシピ|教えて|見せて/.test(trimmed)) {
+      const optionLines = options.map((o, i) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
+      await replyLineMessage(replyToken, [{ type: 'text', text: `どの献立のレシピを見ますか？\n\n${optionLines}\n\n番号で教えてください😊` }]);
+      return true;
+    }
+
+    // それ以外 → pendingActionをクリアして通常処理へ
+    await setLineUserPendingAction(lineUserId, null);
+  }
+
+  // ─── 献立候補確認待ちの場合（復唱後の「はい」「レシピ」）─────────────────────────────────────────────────────
+  if (pending?.type === 'menu_option_confirm') {
+    const { selectedIndex, selectedName, options, mealType, targetDate } = pending as {
+      selectedIndex: number;
+      selectedName: string;
+      options: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
+      mealType: string;
+      targetDate: string;
+      menuPlanId: number;
+    };
+    const trimmed = text.trim();
+
+    // キャンセル → 選び直し
+    if (/^(キャンセル|やめる|やめて|cancel|いいえ)$/i.test(trimmed)) {
+      const optionLines = options.map((o, i) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
+      await setLineUserPendingAction(lineUserId, {
+        type: 'menu_option_selection',
+        options,
+        mealType,
+        targetDate,
+        askedAt: Date.now(),
+      });
+      await replyLineMessage(replyToken, [{ type: 'text', text: `わかりました！どれにしますか？\n\n${optionLines}\n\n番号で教えてください😊` }]);
+      return true;
+    }
+
+    // 「はい」または「レシピ」→ レシピを生成して返す
+    if (/^(はい|yes|ok|おねがい|そうして|大丈夫|だいじょうぶ|レシピ|教えて|見せて|詳しく)/.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      try {
+        const selected = options[selectedIndex];
+        const ingredientList = selected.mainIngredients.join('・');
+        const recipeResponse = await invokeLLM({
+          messages: [
+            { role: 'system', content: 'あなたは日本の主婦向け料理レシピAIです。簡潔で分かりやすいレシピをLINEメッセージ形式で返してください。' },
+            { role: 'user', content: `「${selected.name}」のレシピを教えてください。\n主な食材：${ingredientList}\n\n以下の形式で返してください：\n【材料】（4人分目安）\n・食材名 分量\n\n【作り方】\n1. 手順\n2. 手順\n（5〜7ステップ程度）\n\n【ポイント】\nコツや注意点を1〜2行で` },
+          ],
+        });
+        const recipeText = recipeResponse.choices[0]?.message?.content ?? 'レシピの取得に失敗しました。';
+        await replyLineMessage(replyToken, [{ type: 'text', text: `🍳 ${selected.name} のレシピ\n\n${recipeText}` }]);
+      } catch (err) {
+        console.error('[LINE] Recipe generation failed:', err);
+        await replyLineMessage(replyToken, [{ type: 'text', text: '申し訳ありません。レシピの取得に失敗しました。しばらくしてからもう一度お試しください。' }]);
+      }
+      return true;
+    }
+
+    // それ以外 → pendingActionをクリアして通常処理へ
+    await setLineUserPendingAction(lineUserId, null);
   }
 
   // ─── 音声復唱確認待ちの場合 ─────────────────────────────────────────────────────
