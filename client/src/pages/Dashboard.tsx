@@ -62,6 +62,14 @@ export default function Dashboard() {
     onError: (err) => toast.error("送信エラー", { description: err.message }),
   });
 
+  const deleteChecked = trpc.shopping.deleteChecked.useMutation({
+    onSuccess: (data) => {
+      utils.shopping.list.invalidate({ date: today });
+      toast.success(`購入済み ${data.deletedCount} 件を削除しました`);
+    },
+    onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
+  });
+
   const toggleItem = trpc.shopping.toggle.useMutation({
     onSuccess: () => utils.shopping.list.invalidate({ date: today }),
   });
@@ -229,9 +237,22 @@ export default function Dashboard() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">🛒 今日の買い物リスト</h2>
-              <Link href="/shopping">
-                <Button variant="ghost" size="sm" className="text-xs">すべて見る →</Button>
-              </Link>
+              <div className="flex items-center gap-2">
+                {shoppingList && shoppingList.filter(i => i.isChecked).length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteChecked.mutate()}
+                    disabled={deleteChecked.isPending}
+                    className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2"
+                  >
+                    {deleteChecked.isPending ? "削除中..." : "購入済みを削除"}
+                  </Button>
+                )}
+                <Link href="/shopping">
+                  <Button variant="ghost" size="sm" className="text-xs">すべて見る →</Button>
+                </Link>
+              </div>
             </div>
 
             {/* 献立生成後の買い物候補選択UI */}
