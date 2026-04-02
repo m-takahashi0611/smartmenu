@@ -66,7 +66,14 @@ export const familyProfiles = mysqlTable("family_profiles", {
   familyName: varchar("familyName", { length: 100 }),
   notes: text("notes"), // 備考・特記事項
   shoppingFrequency: int("shoppingFrequency").default(2), // 週の買い物回数（回/週）
-  cookingFrequency: int("cookingFrequency").default(5), // 週の自炊回数（回/週）
+  shoppingDays: json("shoppingDays").$type<string[]>(), // 買い物に行く曜日リスト（["mon","wed"] / ["everyday"] / ["irregular"]）
+  cookingFrequency: int("cookingFrequency").default(5), // 週の自炊回数（回/週）—御庁用合計
+  breakfastCookCount: int("breakfastCookCount").default(0), // 週の朝食自炊回数
+  lunchCookCount: int("lunchCookCount").default(0), // 週の昼食自炊回数
+  dinnerCookCount: int("dinnerCookCount").default(5), // 週の夕食自炊回数
+  breakfastAttendees: json("breakfastAttendees").$type<string[]>(), // 朝食に食べる家族メンバー名リスト
+  lunchAttendees: json("lunchAttendees").$type<string[]>(), // 昼食に食べる家族メンバー名リスト
+  dinnerAttendees: json("dinnerAttendees").$type<string[]>(), // 夕食に食べる家族メンバー名リスト
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

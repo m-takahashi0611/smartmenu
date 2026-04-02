@@ -160,3 +160,32 @@
 - [ ] server/routers/family.ts: updateProfileにshoppingFrequency・cookingFrequencyを追加
 - [ ] client/src/pages/Family.tsx: 「週の買い物回数」「週の自炊回数」セレクトを追加
 - [ ] menu.ts: generateMenuPlanのプロンプトにshoppingFrequency・cookingFrequencyを活用
+
+## 詳細プロフィール拡張（2026-04-02 第2弾）
+
+- [ ] drizzle/schema.ts: family_profilesに追加カラム
+  - shoppingDays: json（買い物曜日リスト、例: ["mon","wed","sat"] または "everyday"/"irregular"）
+  - breakfastCookCount: int（週の朝食自炊回数）
+  - lunchCookCount: int（週の昼食自炊回数）
+  - dinnerCookCount: int（週の夕食自炊回数）
+  - breakfastAttendees: json（朝食を食べる家族メンバーIDリスト）
+  - lunchAttendees: json（昼食を食べる家族メンバーIDリスト）
+  - dinnerAttendees: json（夕食を食べる家族メンバーIDリスト）
+- [ ] DBマイグレーション実行
+- [ ] server/db.ts: upsertFamilyProfileに新カラムを追加
+- [ ] server/routers/family.ts: upsertProfileのzodスキーマに新フィールドを追加
+- [ ] client/src/pages/Family.tsx: 詳細プロフィール入力UI
+  - 買い物曜日（毎日/曜日選択/不定期）
+  - 食事別自炊回数（朝・昼・夜）
+  - 食事別参加メンバー（朝・昼・夜）
+- [ ] menu.ts: generateMenuPlanのプロンプトに食事別人数・自炊回数を反映
+- [ ] line.ts: 朝0回・昼0回なら朝食・昼食の提案選択肢を非表示
+- [ ] line.ts: 週1〜2回の自炊なら「今日は自炊予定？」と確認してから献立生成
+
+## ダッシュボードナビ変更・初回登録フロー（2026-04-02 第3弾）
+
+- [x] line.ts: 404行目の未終端文字列リテラルを修正（既に正常動作確認済み）
+- [x] Dashboard.tsx: 上部タブを「冷蔵庫・買い物リスト・レシピ」の3つに変更
+- [x] Dashboard.tsx: 家族構成セクションと履歴セクションはタブ下のスクロールエリアに移動
+- [x] line.ts: 新規ユーザー（家族未登録）が初回メッセージ送信時に家族構成登録を促すメッセージを送信
+- [x] line.ts: 家族登録促進メッセージにダッシュボードへのリンクを含める

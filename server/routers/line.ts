@@ -794,6 +794,27 @@ export async function handleLineWebhookEvent(event: any) {
     console.log(`[LINE] RAW hex: ${Buffer.from(rawText).toString('hex').slice(0, 80)}`);
     console.log(`[LINE] Normalized text: "${text}" (len=${text.length})`);
 
+    // ─── 初回メッセージ時：家族未登録チェック ──────────────────────────────────
+    // userId がある（ログイン済み）が家族情報が未登録の場合、登録を促す
+    // ただし pendingAction 中・位置情報・特定コマンドは除く
+    if (userId) {
+      const familyProfile = await getFamilyProfile(userId);
+      const familyMembers = await getFamilyMembers(userId);
+      const hasFamilySetup = familyProfile && familyMembers.length > 0;
+      // createdAt と updatedAt がほぼ同じ（5分以内）なら初回メッセージとみなす
+      const isFirstMessage = lineUser && (lineUser.updatedAt.getTime() - lineUser.createdAt.getTime()) < 5 * 60 * 1000;
+      if (!hasFamilySetup && isFirstMessage) {
+        // 初回メッセージ時のみ家族登録を促す
+        await replyLineMessage(replyToken, [
+          {
+            type: "text",
+            text: `${displayName}さん、はじめまして！\n\nAIが献立を提案するために、まず家族情報を登録しましょう👨‍👩‍👧\n\n家族の人数・アレルギー・買い物回数などを登録すると、より精度の高い献立を提案できます！\n\n📝 ダッシュボードで登録\nhttps://www.kondatebiyori.com/family\n\n登録後に「献立」と送ってください😊`,
+          },
+        ]);
+        return;
+      }
+    }
+
     // ─── キーワードマッチング（優先） ───────────────────────────────────────
     if (text === "献立" || text === "今日の献立" || text === "献立を教えて" || text === "献立提案") {
       if (!userId) {

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -31,9 +32,20 @@ const PORTION_SIZES = [
   { value: "large", label: "多め" },
 ] as const;
 
+const WEEKDAYS = [
+  { value: "mon", label: "月" },
+  { value: "tue", label: "火" },
+  { value: "wed", label: "水" },
+  { value: "thu", label: "木" },
+  { value: "fri", label: "金" },
+  { value: "sat", label: "土" },
+  { value: "sun", label: "日" },
+];
+
 type AgeGroup = (typeof AGE_GROUPS)[number]["value"];
 type Gender = (typeof GENDERS)[number]["value"];
 type PortionSize = (typeof PORTION_SIZES)[number]["value"];
+type ShoppingDayMode = "everyday" | "weekdays" | "irregular";
 
 export default function Family() {
   const [addOpen, setAddOpen] = useState(false);
@@ -44,9 +56,16 @@ export default function Family() {
   const [preferences, setPreferences] = useState("");
   const [portionSize, setPortionSize] = useState<PortionSize>("normal");
 
-  // プロフィール設定用state
+  // 買い物・自炊プロフィール state
   const [shoppingFrequency, setShoppingFrequency] = useState<number>(2);
-  const [cookingFrequency, setCookingFrequency] = useState<number>(5);
+  const [shoppingDayMode, setShoppingDayMode] = useState<ShoppingDayMode>("weekdays");
+  const [selectedWeekdays, setSelectedWeekdays] = useState<string[]>([]);
+  const [breakfastCookCount, setBreakfastCookCount] = useState<number>(0);
+  const [lunchCookCount, setLunchCookCount] = useState<number>(0);
+  const [dinnerCookCount, setDinnerCookCount] = useState<number>(5);
+  const [breakfastAttendees, setBreakfastAttendees] = useState<string[]>([]);
+  const [lunchAttendees, setLunchAttendees] = useState<string[]>([]);
+  const [dinnerAttendees, setDinnerAttendees] = useState<string[]>([]);
   const [profileSaved, setProfileSaved] = useState(false);
 
   const { data: familyData, isLoading } = trpc.family.getProfile.useQuery();
@@ -55,8 +74,25 @@ export default function Family() {
   // プロフィールデータが取得できたらstateを初期化
   useEffect(() => {
     if (familyData?.profile) {
-      setShoppingFrequency(familyData.profile.shoppingFrequency ?? 2);
-      setCookingFrequency(familyData.profile.cookingFrequency ?? 5);
+      const p = familyData.profile;
+      setShoppingFrequency(p.shoppingFrequency ?? 2);
+      setBreakfastCookCount(p.breakfastCookCount ?? 0);
+      setLunchCookCount(p.lunchCookCount ?? 0);
+      setDinnerCookCount(p.dinnerCookCount ?? 5);
+      setBreakfastAttendees((p.breakfastAttendees as string[]) ?? []);
+      setLunchAttendees((p.lunchAttendees as string[]) ?? []);
+      setDinnerAttendees((p.dinnerAttendees as string[]) ?? []);
+      const days = (p.shoppingDays as string[]) ?? [];
+      if (days.includes("everyday")) {
+        setShoppingDayMode("everyday");
+        setSelectedWeekdays([]);
+      } else if (days.includes("irregular")) {
+        setShoppingDayMode("irregular");
+        setSelectedWeekdays([]);
+      } else if (days.length > 0) {
+        setShoppingDayMode("weekdays");
+        setSelectedWeekdays(days);
+      }
     }
   }, [familyData?.profile?.id]);
 
@@ -99,6 +135,38 @@ export default function Family() {
   const getPortionLabel = (val: string) =>
     PORTION_SIZES.find((p) => p.value === val)?.label ?? val;
 
+  // 買い物曜日の計算
+  const computeShoppingDays = (): string[] => {
+    if (shoppingDayMode === "everyday") return ["everyday"];
+    if (shoppingDayMode === "irregular") return ["irregular"];
+    return selectedWeekdays;
+  };
+
+  // メンバー名リスト
+  const memberNames = familyData?.members.map((m) => m.name) ?? [];
+
+  const toggleAttendee = (meal: "breakfast" | "lunch" | "dinner", name: string) => {
+    const setters = { breakfast: setBreakfastAttendees, lunch: setLunchAttendees, dinner: setDinnerAttendees };
+    const getters = { breakfast: breakfastAttendees, lunch: lunchAttendees, dinner: dinnerAttendees };
+    const current = getters[meal];
+    setters[meal](current.includes(name) ? current.filter((n) => n !== name) : [...current, name]);
+  };
+
+  const handleSaveProfile = () => {
+    upsertProfile.mutate({
+      familyName: familyData?.profile?.familyName ?? undefined,
+      notes: familyData?.profile?.notes ?? undefined,
+      shoppingFrequency,
+      shoppingDays: computeShoppingDays(),
+      breakfastCookCount,
+      lunchCookCount,
+      dinnerCookCount,
+      breakfastAttendees,
+      lunchAttendees,
+      dinnerAttendees,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
@@ -122,7 +190,7 @@ export default function Family() {
                   <Label htmlFor="member-name">名前 *</Label>
                   <Input
                     id="member-name"
-                    placeholder="例：お母さん、太郎"
+                    placeholder="例：ママ、太郎"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="mt-1"
@@ -131,12 +199,10 @@ export default function Family() {
                 <div>
                   <Label>年齢層 *</Label>
                   <Select value={ageGroup} onValueChange={(v) => setAgeGroup(v as AgeGroup)}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {AGE_GROUPS.map((ag) => (
-                        <SelectItem key={ag.value} value={ag.value}>{ag.label}</SelectItem>
+                      {AGE_GROUPS.map((a) => (
+                        <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -144,9 +210,7 @@ export default function Family() {
                 <div>
                   <Label>性別</Label>
                   <Select value={gender} onValueChange={(v) => setGender(v as Gender)}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {GENDERS.map((g) => (
                         <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
@@ -178,9 +242,7 @@ export default function Family() {
                 <div>
                   <Label>食事量</Label>
                   <Select value={portionSize} onValueChange={(v) => setPortionSize(v as PortionSize)}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {PORTION_SIZES.map((p) => (
                         <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
@@ -202,16 +264,19 @@ export default function Family() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        {/* 買い物・自炊プロフィール設定カード */}
+
+        {/* ── 買い物・自炊プロフィール ── */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">🛒 買い物・自炊プロフィール</CardTitle>
-            <p className="text-xs text-muted-foreground">AIがまとめ買いの提案などに活用します</p>
+            <p className="text-xs text-muted-foreground">登録内容をAIが献立提案に活用します</p>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
+
+            {/* 買い物回数 */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label className="text-sm">🛒 週の買い物回数</Label>
+                <Label className="text-sm font-medium">週の買い物回数</Label>
                 <Select value={String(shoppingFrequency)} onValueChange={(v) => setShoppingFrequency(Number(v))}>
                   <SelectTrigger className="mt-1">
                     <SelectValue />
@@ -223,38 +288,155 @@ export default function Family() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-sm">🍳 週の自炊回数</Label>
-                <Select value={String(cookingFrequency)} onValueChange={(v) => setCookingFrequency(Number(v))}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[0,1,2,3,4,5,6,7,10,14,21].map(n => (
-                      <SelectItem key={n} value={String(n)}>{n}回/週</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
+
+            {/* 買い物に行く曜日 */}
+            <div>
+              <Label className="text-sm font-medium">買い物に行く曜日</Label>
+              <div className="flex gap-2 mt-2 flex-wrap">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={shoppingDayMode === "everyday" ? "default" : "outline"}
+                  onClick={() => setShoppingDayMode("everyday")}
+                  className="text-xs"
+                >
+                  毎日
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={shoppingDayMode === "irregular" ? "default" : "outline"}
+                  onClick={() => setShoppingDayMode("irregular")}
+                  className="text-xs"
+                >
+                  不定期
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={shoppingDayMode === "weekdays" ? "default" : "outline"}
+                  onClick={() => setShoppingDayMode("weekdays")}
+                  className="text-xs"
+                >
+                  曜日を選ぶ
+                </Button>
+              </div>
+              {shoppingDayMode === "weekdays" && (
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  {WEEKDAYS.map((day) => (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() => {
+                        setSelectedWeekdays(prev =>
+                          prev.includes(day.value)
+                            ? prev.filter(d => d !== day.value)
+                            : [...prev, day.value]
+                        );
+                      }}
+                      className={`w-9 h-9 rounded-full text-sm font-medium border transition-colors ${
+                        selectedWeekdays.includes(day.value)
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background text-foreground border-border hover:bg-muted"
+                      }`}
+                    >
+                      {day.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 食事別自炊回数 */}
+            <div>
+              <Label className="text-sm font-medium">週の自炊回数（食事別）</Label>
+              <div className="grid grid-cols-3 gap-3 mt-2">
+                {[
+                  { label: "朝食", value: breakfastCookCount, setter: setBreakfastCookCount },
+                  { label: "昼食", value: lunchCookCount, setter: setLunchCookCount },
+                  { label: "夕食", value: dinnerCookCount, setter: setDinnerCookCount },
+                ].map(({ label, value, setter }) => (
+                  <div key={label}>
+                    <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                    <Select value={String(value)} onValueChange={(v) => setter(Number(v))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[0,1,2,3,4,5,6,7].map(n => (
+                          <SelectItem key={n} value={String(n)}>{n}回/週</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+              {(breakfastCookCount === 0 || lunchCookCount === 0) && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  💡 0回の食事は献立提案の対象外になります
+                </p>
+              )}
+            </div>
+
+            {/* 食事別参加メンバー（メンバーが登録されている場合のみ表示） */}
+            {memberNames.length > 0 && (
+              <div>
+                <Label className="text-sm font-medium">食事別の参加メンバー</Label>
+                <p className="text-xs text-muted-foreground mt-1 mb-3">誰が食べるかを設定するとレシピの人数が最適化されます</p>
+                <div className="space-y-4">
+                  {[
+                    { label: "🌅 朝食", attendees: breakfastAttendees, meal: "breakfast" as const, count: breakfastCookCount },
+                    { label: "☀️ 昼食", attendees: lunchAttendees, meal: "lunch" as const, count: lunchCookCount },
+                    { label: "🌙 夕食", attendees: dinnerAttendees, meal: "dinner" as const, count: dinnerCookCount },
+                  ].map(({ label, attendees, meal, count }) => (
+                    <div key={meal} className={count === 0 ? "opacity-40" : ""}>
+                      <p className="text-sm font-medium mb-2">{label} {count === 0 && <span className="text-xs text-muted-foreground">（自炊なし）</span>}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {memberNames.map((mName) => (
+                          <button
+                            key={mName}
+                            type="button"
+                            disabled={count === 0}
+                            onClick={() => toggleAttendee(meal, mName)}
+                            className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                              attendees.includes(mName)
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-background text-foreground border-border hover:bg-muted"
+                            }`}
+                          >
+                            {mName}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          disabled={count === 0}
+                          onClick={() => {
+                            const setters = { breakfast: setBreakfastAttendees, lunch: setLunchAttendees, dinner: setDinnerAttendees };
+                            setters[meal](attendees.length === memberNames.length ? [] : [...memberNames]);
+                          }}
+                          className="px-3 py-1 rounded-full text-xs border border-dashed border-muted-foreground text-muted-foreground hover:bg-muted"
+                        >
+                          {attendees.length === memberNames.length ? "全解除" : "全員"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <Button
-              size="sm"
-              className="bg-primary text-primary-foreground"
+              className="bg-primary text-primary-foreground w-full"
               disabled={upsertProfile.isPending}
-              onClick={() => {
-                upsertProfile.mutate({
-                  familyName: familyData?.profile?.familyName ?? undefined,
-                  notes: familyData?.profile?.notes ?? undefined,
-                  shoppingFrequency,
-                  cookingFrequency,
-                });
-              }}
+              onClick={handleSaveProfile}
             >
-              {upsertProfile.isPending ? "保存中..." : profileSaved ? "✓ 保存済み" : "保存する"}
+              {upsertProfile.isPending ? "保存中..." : profileSaved ? "✓ 保存済み" : "プロフィールを保存する"}
             </Button>
           </CardContent>
         </Card>
 
+        {/* ── 家族メンバー一覧 ── */}
         {isLoading ? (
           <div className="text-center py-12 text-muted-foreground">読み込み中...</div>
         ) : !familyData || familyData.members.length === 0 ? (

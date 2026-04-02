@@ -7,9 +7,12 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
+type TabKey = "fridge" | "shopping" | "recipe";
+
 export default function Dashboard() {
   const { user } = useAuth();
   const today = new Date().toISOString().split("T")[0];
+  const [activeTab, setActiveTab] = useState<TabKey>("recipe");
 
   // 献立生成後の買い物リスト候補（選択制）
   const [shoppingCandidates, setShoppingCandidates] = useState<string[]>([]);
@@ -18,7 +21,7 @@ export default function Dashboard() {
 
   const { data: todayMenu, isLoading: menuLoading } = trpc.menu.getByDate.useQuery({ date: today });
   const { data: shoppingList, isLoading: shoppingLoading } = trpc.shopping.list.useQuery({ date: today });
-  const { data: fridgeItems } = trpc.fridge.list.useQuery();
+  const { data: fridgeItems, isLoading: fridgeLoading } = trpc.fridge.list.useQuery();
   const { data: familyData } = trpc.family.getProfile.useQuery();
 
   const utils = trpc.useUtils();
@@ -26,29 +29,22 @@ export default function Dashboard() {
   const generateMenu = trpc.menu.getOrGenerate.useMutation({
     onSuccess: (data) => {
       utils.menu.getByDate.invalidate({ date: today });
-      // 買い物リスト候補をセット（自動追加はしない）
       if (data.shoppingList && data.shoppingList.length > 0) {
         setShoppingCandidates(data.shoppingList);
-        setSelectedItems(new Set(data.shoppingList)); // デフォルト全選択
+        setSelectedItems(new Set(data.shoppingList));
         setShowShoppingSelector(true);
+        setActiveTab("shopping");
       }
-      toast.success("献立を生成しました！", {
-        description: "下の買い物リストから必要なものを選んで追加してください。",
-      });
+      toast.success("献立を生成しました！");
     },
-    onError: (err) => {
-      toast.error("エラー", { description: err.message });
-    },
+    onError: (err) => toast.error("エラー", { description: err.message }),
   });
 
   const addShoppingItem = trpc.shopping.add.useMutation();
 
   const handleAddSelectedToShoppingList = async () => {
     const itemsToAdd = Array.from(selectedItems);
-    if (itemsToAdd.length === 0) {
-      toast.info("追加する項目が選択されていません");
-      return;
-    }
+    if (itemsToAdd.length === 0) { toast.info("追加する項目が選択されていません"); return; }
     try {
       for (const item of itemsToAdd) {
         await addShoppingItem.mutateAsync({ name: item, date: today });
@@ -58,24 +54,20 @@ export default function Dashboard() {
       setShoppingCandidates([]);
       setSelectedItems(new Set());
       toast.success(`${itemsToAdd.length}品を買い物リストに追加しました！`);
-    } catch {
-      toast.error("追加に失敗しました");
-    }
+    } catch { toast.error("追加に失敗しました"); }
   };
 
   const sendToLine = trpc.menu.sendToLine.useMutation({
-    onSuccess: () => {
-      toast.success("LINEに送信しました！", { description: "献立をLINEに送信しました。" });
-    },
-    onError: (err) => {
-      toast.error("送信エラー", { description: err.message });
-    },
+    onSuccess: () => toast.success("LINEに送信しました！"),
+    onError: (err) => toast.error("送信エラー", { description: err.message }),
   });
 
   const toggleItem = trpc.shopping.toggle.useMutation({
-    onSuccess: () => {
-      utils.shopping.list.invalidate({ date: today });
-    },
+    onSuccess: () => utils.shopping.list.invalidate({ date: today }),
+  });
+
+  const deleteFridgeItem = trpc.fridge.delete.useMutation({
+    onSuccess: () => utils.fridge.list.invalidate(),
   });
 
   const menuData = todayMenu?.menuData as {
@@ -98,78 +90,239 @@ export default function Dashboard() {
   const toggleCandidate = (item: string) => {
     setSelectedItems((prev) => {
       const next = new Set(prev);
-      if (next.has(item)) next.delete(item);
-      else next.add(item);
+      if (next.has(item)) next.delete(item); else next.add(item);
       return next;
     });
   };
+
+  const TABS: { key: TabKey; label: string; icon: string }[] = [
+    { key: "fridge", label: "冷蔵庫", icon: "🥦" },
+    { key: "shopping", label: "買い物リスト", icon: "🛒" },
+    { key: "recipe", label: "レシピ・献立", icon: "🍽️" },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
       {/* ヘッダー */}
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link href="/">
             <div className="flex items-center gap-2 cursor-pointer">
-              <span className="text-xl">🍽️</span>
-              <span className="font-bold text-primary">献立日和〜coto coto〜</span>
+              <span className="text-lg">🍽️</span>
+              <span className="font-bold text-primary text-sm">献立日和〜coto coto〜</span>
             </div>
           </Link>
-          <nav className="flex items-center gap-2">
-            <Link href="/fridge">
-              <Button variant="ghost" size="sm">🥦 冷蔵庫</Button>
-            </Link>
+          <div className="flex items-center gap-1">
             <Link href="/family">
-              <Button variant="ghost" size="sm">👨‍👩‍👧 家族</Button>
-            </Link>
-            <Link href="/stores">
-              <Button variant="ghost" size="sm">🏪 店舗</Button>
+              <Button variant="ghost" size="sm" className="text-xs px-2">👨‍👩‍👧 家族</Button>
             </Link>
             <Link href="/history">
-              <Button variant="ghost" size="sm">📋 履歴</Button>
+              <Button variant="ghost" size="sm" className="text-xs px-2">📋 履歴</Button>
             </Link>
-          </nav>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-8">
-        {/* ウェルカムメッセージ */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold mb-1">
+      {/* タブナビゲーション */}
+      <div className="sticky top-14 z-40 bg-background border-b border-border">
+        <div className="max-w-2xl mx-auto px-4">
+          <div className="flex">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${
+                  activeTab === tab.key
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab.icon} {tab.label}
+                {tab.key === "shopping" && shoppingList && shoppingList.filter(i => !i.isChecked).length > 0 && (
+                  <span className="ml-1 bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">
+                    {shoppingList.filter(i => !i.isChecked).length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <main className="max-w-2xl mx-auto px-4 py-4">
+
+        {/* ウェルカム */}
+        <div className="mb-4">
+          <h1 className="text-lg font-bold">
             こんにちは、{user?.name ?? "ゲスト"}さん 👋
           </h1>
-          <p className="text-muted-foreground">{formatDate(today)}の献立</p>
+          <p className="text-sm text-muted-foreground">{formatDate(today)}の献立</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          {/* 今日の献立カード */}
-          <div className="md:col-span-2 space-y-4">
+        {/* ── 冷蔵庫タブ ── */}
+        {activeTab === "fridge" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold">🥦 冷蔵庫の食材</h2>
+              <Link href="/fridge">
+                <Button size="sm" className="bg-primary text-primary-foreground text-xs">+ 食材を追加</Button>
+              </Link>
+            </div>
+            {fridgeLoading ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">読み込み中...</div>
+            ) : fridgeItems && fridgeItems.length > 0 ? (
+              <div className="space-y-2">
+                {fridgeItems.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                    <div>
+                      <span className="text-sm font-medium">{item.name}</span>
+                      {item.quantity && (
+                        <span className="text-xs text-muted-foreground ml-2">{item.quantity}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {item.expiryDate && (
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(item.expiryDate) < new Date() ? "⚠️ 期限切れ" : `〜${new Date(item.expiryDate).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}`}
+                        </span>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-muted-foreground h-7 px-2"
+                        onClick={() => deleteFridgeItem.mutate({ id: item.id })}
+                      >
+                        削除
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16">
+                <div className="text-5xl mb-4">🥦</div>
+                <p className="text-muted-foreground mb-2">食材が登録されていません</p>
+                <p className="text-sm text-muted-foreground mb-4">LINEで「冷蔵庫に〇〇を追加」と送るか、下のボタンから登録できます</p>
+                <Link href="/fridge">
+                  <Button className="bg-primary text-primary-foreground">食材を登録する</Button>
+                </Link>
+              </div>
+            )}
+
+            {/* 家族情報（未登録の場合のみ促進） */}
+            {familyData && familyData.members.length === 0 && (
+              <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+                <CardContent className="p-4">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-1">👨‍👩‍👧 家族構成を登録しましょう</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">家族情報を登録すると、人数・アレルギーを考慮した献立を提案できます</p>
+                  <Link href="/family">
+                    <Button size="sm" variant="outline" className="text-xs border-amber-400 text-amber-700">登録する</Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ── 買い物リストタブ ── */}
+        {activeTab === "shopping" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold">🛒 今日の買い物リスト</h2>
+              <Link href="/shopping">
+                <Button variant="ghost" size="sm" className="text-xs">すべて見る →</Button>
+              </Link>
+            </div>
+
+            {/* 献立生成後の買い物候補選択UI */}
+            {showShoppingSelector && shoppingCandidates.length > 0 && (
+              <Card className="border-primary/40 bg-primary/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base text-primary">🛒 買い物リストに追加する</CardTitle>
+                  <p className="text-xs text-muted-foreground">必要なものにチェックを入れて「追加する」を押してください</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-2 mb-3">
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => setSelectedItems(new Set(shoppingCandidates))}>全て選択</Button>
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => setSelectedItems(new Set())}>全て解除</Button>
+                  </div>
+                  <div className="space-y-2 mb-4">
+                    {shoppingCandidates.map((item) => (
+                      <div key={item} className="flex items-center gap-3 cursor-pointer py-1" onClick={() => toggleCandidate(item)}>
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${selectedItems.has(item) ? "bg-primary border-primary" : "border-border bg-background"}`}>
+                          {selectedItems.has(item) && <span className="text-primary-foreground text-xs">✓</span>}
+                        </div>
+                        <span className={`text-sm ${!selectedItems.has(item) ? "text-muted-foreground line-through" : ""}`}>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={handleAddSelectedToShoppingList} disabled={addShoppingItem.isPending || selectedItems.size === 0} className="bg-primary text-primary-foreground" size="sm">
+                      {addShoppingItem.isPending ? "追加中..." : `✓ ${selectedItems.size}品を追加`}
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => { setShowShoppingSelector(false); setShoppingCandidates([]); setSelectedItems(new Set()); }}>
+                      スキップ
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {shoppingLoading ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">読み込み中...</div>
+            ) : shoppingList && shoppingList.length > 0 ? (
+              <div className="space-y-1">
+                {shoppingList.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 cursor-pointer py-2.5 border-b border-border last:border-0"
+                    onClick={() => toggleItem.mutate({ id: item.id, isChecked: !item.isChecked })}
+                  >
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${item.isChecked ? "bg-primary border-primary" : "border-border"}`}>
+                      {item.isChecked && <span className="text-primary-foreground text-xs">✓</span>}
+                    </div>
+                    <span className={`text-sm flex-1 ${item.isChecked ? "line-through text-muted-foreground" : ""}`}>{item.name}</span>
+                    {item.quantity && <span className="text-xs text-muted-foreground">{item.quantity}</span>}
+                  </div>
+                ))}
+                <div className="pt-2 text-xs text-muted-foreground">
+                  {shoppingList.filter(i => i.isChecked).length}/{shoppingList.length} 完了
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-16">
+                <div className="text-5xl mb-4">🛒</div>
+                <p className="text-muted-foreground mb-2">買い物リストが空です</p>
+                <p className="text-sm text-muted-foreground mb-4">献立を生成すると買い物リスト候補が表示されます</p>
+                <Button
+                  onClick={() => { generateMenu.mutate({ date: today }); setActiveTab("recipe"); }}
+                  disabled={generateMenu.isPending}
+                  className="bg-primary text-primary-foreground"
+                >
+                  {generateMenu.isPending ? "生成中..." : "献立を生成する"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── レシピ・献立タブ ── */}
+        {activeTab === "recipe" && (
+          <div className="space-y-4">
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">🍽️ 今日の献立</CardTitle>
+                  <CardTitle className="text-base">🍽️ 今日の献立</CardTitle>
                   <div className="flex gap-2">
                     {!todayMenu && (
-                      <Button
-                        size="sm"
-                        onClick={() => generateMenu.mutate({ date: today })}
-                        disabled={generateMenu.isPending}
-                        className="bg-primary text-primary-foreground"
-                      >
+                      <Button size="sm" onClick={() => generateMenu.mutate({ date: today })} disabled={generateMenu.isPending} className="bg-primary text-primary-foreground">
                         {generateMenu.isPending ? "生成中..." : "献立を生成"}
                       </Button>
                     )}
                     {todayMenu && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => sendToLine.mutate({ date: today })}
-                          disabled={sendToLine.isPending}
-                        >
-                          {sendToLine.isPending ? "送信中..." : "📱 LINEに送信"}
-                        </Button>
-                      </>
+                      <Button size="sm" variant="outline" onClick={() => sendToLine.mutate({ date: today })} disabled={sendToLine.isPending}>
+                        {sendToLine.isPending ? "送信中..." : "📱 LINEに送信"}
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -196,8 +349,7 @@ export default function Dashboard() {
                         ))}
                       </div>
                     ) : (
-                      /* 旧形式・朝食/昼食の単品表示 */
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-3 gap-2">
                         {[
                           { label: "🌅 朝食", value: menuData.breakfast },
                           { label: "☀️ 昼食", value: menuData.lunch },
@@ -212,7 +364,7 @@ export default function Dashboard() {
                     )}
                     {menuData.dinnerRecipe && (
                       <div className="bg-primary/5 rounded-lg p-3">
-                        <p className="text-xs font-semibold text-primary mb-1">📝 夕食レシピ</p>
+                        <p className="text-xs font-semibold text-primary mb-1">📝 レシピ</p>
                         <p className="text-sm text-muted-foreground whitespace-pre-line">{menuData.dinnerRecipe}</p>
                       </div>
                     )}
@@ -222,31 +374,25 @@ export default function Dashboard() {
                         <p className="text-muted-foreground">{menuData.tips}</p>
                       </div>
                     )}
-                    {menuData.estimatedCost && (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">💰 目安費用：約{menuData.estimatedCost.toLocaleString()}円</Badge>
-                        {todayMenu.isDelivered && <Badge variant="outline" className="text-green-600 border-green-200">✓ LINE配信済み</Badge>}
-                      </div>
-                    )}
-                    {!menuData.estimatedCost && todayMenu.isDelivered && (
-                      <Badge variant="outline" className="text-green-600 border-green-200">✓ LINE配信済み</Badge>
-                    )}
-                    {/* 買い物リスト候補（既存献立から表示） */}
+                    <div className="flex flex-wrap gap-2">
+                      {menuData.estimatedCost && (
+                        <Badge variant="secondary">💰 約{menuData.estimatedCost.toLocaleString()}円</Badge>
+                      )}
+                      {todayMenu.isDelivered && (
+                        <Badge variant="outline" className="text-green-600 border-green-200">✓ LINE配信済み</Badge>
+                      )}
+                    </div>
+                    {/* 買い物リスト候補 */}
                     {!showShoppingSelector && menuData.shoppingList && menuData.shoppingList.length > 0 && shoppingList && shoppingList.length === 0 && (
                       <div className="border border-dashed border-primary/40 rounded-lg p-3 bg-primary/5">
-                        <p className="text-xs font-semibold text-primary mb-2">🛒 買い物リスト候補</p>
-                        <p className="text-xs text-muted-foreground mb-2">必要なものを選んで買い物リストに追加できます</p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs"
-                          onClick={() => {
-                            setShoppingCandidates(menuData.shoppingList!);
-                            setSelectedItems(new Set(menuData.shoppingList!));
-                            setShowShoppingSelector(true);
-                          }}
-                        >
-                          🛒 買い物リストを選択して追加
+                        <p className="text-xs font-semibold text-primary mb-2">🛒 買い物リスト候補があります</p>
+                        <Button size="sm" variant="outline" className="text-xs" onClick={() => {
+                          setShoppingCandidates(menuData.shoppingList!);
+                          setSelectedItems(new Set(menuData.shoppingList!));
+                          setShowShoppingSelector(true);
+                          setActiveTab("shopping");
+                        }}>
+                          買い物リストに追加する →
                         </Button>
                       </div>
                     )}
@@ -255,223 +401,73 @@ export default function Dashboard() {
                   <div className="text-center py-12">
                     <div className="text-5xl mb-4">🍽️</div>
                     <p className="text-muted-foreground mb-4">今日の献立がまだ生成されていません</p>
-                    <Button
-                      onClick={() => generateMenu.mutate({ date: today })}
-                      disabled={generateMenu.isPending}
-                      className="bg-primary text-primary-foreground"
-                    >
-                      {generateMenu.isPending ? "AI が献立を考えています..." : "献立を生成する"}
+                    <Button onClick={() => generateMenu.mutate({ date: today })} disabled={generateMenu.isPending} className="bg-primary text-primary-foreground">
+                      {generateMenu.isPending ? "AIが献立を考えています..." : "献立を生成する"}
                     </Button>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* 買い物リスト選択UI（献立生成直後に表示） */}
-            {showShoppingSelector && shoppingCandidates.length > 0 && (
-              <Card className="border-primary/40 bg-primary/5">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg text-primary">🛒 買い物リストに追加する</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    必要なものにチェックを入れて「追加する」を押してください
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 mb-4">
-                    <div className="flex gap-2 mb-3">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs"
-                        onClick={() => setSelectedItems(new Set(shoppingCandidates))}
-                      >
-                        全て選択
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs"
-                        onClick={() => setSelectedItems(new Set())}
-                      >
-                        全て解除
-                      </Button>
-                    </div>
-                    {shoppingCandidates.map((item) => (
-                      <div
-                        key={item}
-                        className="flex items-center gap-3 cursor-pointer py-1"
-                        onClick={() => toggleCandidate(item)}
-                      >
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${selectedItems.has(item) ? "bg-primary border-primary" : "border-border bg-background"}`}>
-                          {selectedItems.has(item) && <span className="text-primary-foreground text-xs">✓</span>}
-                        </div>
-                        <span className={`text-sm ${!selectedItems.has(item) ? "text-muted-foreground line-through" : ""}`}>
-                          {item}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleAddSelectedToShoppingList}
-                      disabled={addShoppingItem.isPending || selectedItems.size === 0}
-                      className="bg-primary text-primary-foreground"
-                      size="sm"
-                    >
-                      {addShoppingItem.isPending ? "追加中..." : `✓ ${selectedItems.size}品を買い物リストに追加`}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs text-muted-foreground"
-                      onClick={() => {
-                        setShowShoppingSelector(false);
-                        setShoppingCandidates([]);
-                        setSelectedItems(new Set());
-                      }}
-                    >
-                      スキップ
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* 買い物リスト */}
+            {/* 家族情報サマリー（スクロールで見える位置） */}
             <Card>
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">🛒 今日の買い物リスト</CardTitle>
-                  <Link href="/shopping">
-                    <Button variant="ghost" size="sm" className="text-xs">すべて見る →</Button>
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {shoppingLoading ? (
-                  <div className="text-muted-foreground text-sm">読み込み中...</div>
-                ) : shoppingList && shoppingList.length > 0 ? (
-                  <div className="space-y-2">
-                    {shoppingList.slice(0, 6).map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-3 cursor-pointer"
-                        onClick={() => toggleItem.mutate({ id: item.id, isChecked: !item.isChecked })}
-                      >
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${item.isChecked ? "bg-primary border-primary" : "border-border"}`}>
-                          {item.isChecked && <span className="text-primary-foreground text-xs">✓</span>}
-                        </div>
-                        <span className={`text-sm ${item.isChecked ? "line-through text-muted-foreground" : ""}`}>
-                          {item.name}
-                        </span>
-                      </div>
-                    ))}
-                    {shoppingList.length > 6 && (
-                      <p className="text-xs text-muted-foreground">他 {shoppingList.length - 6} 品...</p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {todayMenu ? "献立の買い物リスト候補から必要なものを選んで追加してください" : "献立を生成すると買い物リストが作成できます"}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* サイドバー */}
-          <div className="space-y-4">
-            {/* 家族情報 */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">👨‍👩‍👧 家族</CardTitle>
+                  <CardTitle className="text-sm">👨‍👩‍👧 家族構成</CardTitle>
                   <Link href="/family">
                     <Button variant="ghost" size="sm" className="text-xs">編集</Button>
                   </Link>
                 </div>
               </CardHeader>
-              <CardContent>
-                {familyData ? (
-                  <div>
-                    <p className="text-sm font-medium mb-2">{familyData.profile.familyName ?? "家族"}</p>
-                    <p className="text-sm text-muted-foreground">{familyData.members.length}人</p>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {familyData.members.map((m) => (
-                        <Badge key={m.id} variant="secondary" className="text-xs">{m.name}</Badge>
-                      ))}
-                    </div>
+              <CardContent className="pt-0">
+                {familyData && familyData.members.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {familyData.members.map((m) => (
+                      <Badge key={m.id} variant="secondary" className="text-xs">{m.name}</Badge>
+                    ))}
                   </div>
                 ) : (
-                  <div className="text-center py-2">
-                    <p className="text-sm text-muted-foreground mb-2">家族情報を登録してください</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">家族情報を登録すると提案精度が上がります</p>
                     <Link href="/family">
-                      <Button size="sm" variant="outline" className="text-xs">登録する</Button>
+                      <Button size="sm" variant="outline" className="text-xs ml-2">登録</Button>
                     </Link>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* 冷蔵庫在庫 */}
+            {/* 冷蔵庫サマリー */}
             <Card>
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">🥦 冷蔵庫</CardTitle>
-                  <Link href="/fridge">
-                    <Button variant="ghost" size="sm" className="text-xs">管理</Button>
-                  </Link>
+                  <CardTitle className="text-sm">🥦 冷蔵庫</CardTitle>
+                  <Button variant="ghost" size="sm" className="text-xs" onClick={() => setActiveTab("fridge")}>管理</Button>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0">
                 {fridgeItems && fridgeItems.length > 0 ? (
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-2">{fridgeItems.length}品登録中</p>
-                    <div className="flex flex-wrap gap-1">
-                      {fridgeItems.slice(0, 5).map((item) => (
-                        <Badge key={item.id} variant="outline" className="text-xs">{item.name}</Badge>
-                      ))}
-                      {fridgeItems.length > 5 && (
-                        <Badge variant="outline" className="text-xs">+{fridgeItems.length - 5}</Badge>
-                      )}
-                    </div>
+                  <div className="flex flex-wrap gap-1">
+                    {fridgeItems.slice(0, 6).map((item) => (
+                      <Badge key={item.id} variant="outline" className="text-xs">{item.name}</Badge>
+                    ))}
+                    {fridgeItems.length > 6 && <Badge variant="outline" className="text-xs">+{fridgeItems.length - 6}</Badge>}
                   </div>
                 ) : (
-                  <div className="text-center py-2">
-                    <p className="text-sm text-muted-foreground mb-2">食材を登録してください</p>
-                    <Link href="/fridge">
-                      <Button size="sm" variant="outline" className="text-xs">登録する</Button>
-                    </Link>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">食材を登録してください</p>
+                    <Button size="sm" variant="outline" className="text-xs ml-2" onClick={() => setActiveTab("fridge")}>登録</Button>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* クイックリンク */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">⚡ クイックアクション</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Link href="/fridge">
-                  <Button variant="outline" size="sm" className="w-full justify-start text-sm">
-                    🥦 食材を追加
-                  </Button>
-                </Link>
-                <Link href="/stores">
-                  <Button variant="outline" size="sm" className="w-full justify-start text-sm">
-                    🏪 特売情報を更新
-                  </Button>
-                </Link>
-                <Link href="/history">
-                  <Button variant="outline" size="sm" className="w-full justify-start text-sm">
-                    📋 過去の献立を見る
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+            {/* 過去の献立へのリンク */}
+            <Link href="/history">
+              <Button variant="outline" className="w-full text-sm">📋 過去の献立を見る</Button>
+            </Link>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );

@@ -29,17 +29,33 @@ export const familyRouter = router({
       z.object({
         familyName: z.string().max(100).optional(),
         notes: z.string().optional(),
-        shoppingFrequency: z.number().int().min(1).max(7).optional(), // 週の買い物回数
-        cookingFrequency: z.number().int().min(0).max(21).optional(), // 週の自炊回数
+        shoppingFrequency: z.number().int().min(1).max(7).optional(),
+        shoppingDays: z.array(z.string()).optional(), // ["mon","wed"] / ["everyday"] / ["irregular"]
+        cookingFrequency: z.number().int().min(0).max(21).optional(),
+        breakfastCookCount: z.number().int().min(0).max(7).optional(),
+        lunchCookCount: z.number().int().min(0).max(7).optional(),
+        dinnerCookCount: z.number().int().min(0).max(7).optional(),
+        breakfastAttendees: z.array(z.string()).optional(), // 家族メンバー名リスト
+        lunchAttendees: z.array(z.string()).optional(),
+        dinnerAttendees: z.array(z.string()).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // cookingFrequencyは3食の合計を自動計算
+      const totalCooking = (input.breakfastCookCount ?? 0) + (input.lunchCookCount ?? 0) + (input.dinnerCookCount ?? 5);
       await upsertFamilyProfile({
         userId: ctx.user.id,
         familyName: input.familyName ?? null,
         notes: input.notes ?? null,
         shoppingFrequency: input.shoppingFrequency ?? 2,
-        cookingFrequency: input.cookingFrequency ?? 5,
+        shoppingDays: input.shoppingDays ?? null,
+        cookingFrequency: totalCooking,
+        breakfastCookCount: input.breakfastCookCount ?? 0,
+        lunchCookCount: input.lunchCookCount ?? 0,
+        dinnerCookCount: input.dinnerCookCount ?? 5,
+        breakfastAttendees: input.breakfastAttendees ?? null,
+        lunchAttendees: input.lunchAttendees ?? null,
+        dinnerAttendees: input.dinnerAttendees ?? null,
       });
       return { success: true };
     }),
