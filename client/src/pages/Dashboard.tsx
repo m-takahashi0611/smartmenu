@@ -3,6 +3,16 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -18,6 +28,7 @@ export default function Dashboard() {
   const [shoppingCandidates, setShoppingCandidates] = useState<string[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showShoppingSelector, setShowShoppingSelector] = useState(false);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ id: number; name: string } | null>(null);
 
   const { data: todayMenu, isLoading: menuLoading } = trpc.menu.getByDate.useQuery({ date: today });
   const { data: shoppingList, isLoading: shoppingLoading } = trpc.shopping.list.useQuery({ date: today });
@@ -74,14 +85,29 @@ export default function Dashboard() {
     onSuccess: () => utils.shopping.list.invalidate({ date: today }),
   });
 
-  const deleteFridgeItem = trpc.fridge.delete.useMutation({
-    onSuccess: () => utils.fridge.list.invalidate(),
-  });
-
   const adjustFridgeQty = trpc.fridge.adjustQuantity.useMutation({
     onSuccess: () => utils.fridge.list.invalidate(),
     onError: (err) => toast.error("更新に失敗しました", { description: err.message }),
   });
+
+  const deleteFridgeItem = trpc.fridge.delete.useMutation({
+    onSuccess: () => {
+      utils.fridge.list.invalidate();
+      toast.success("食材を削除しました");
+      setDeleteConfirmItem(null);
+    },
+    onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
+  });
+
+  const handleFridgeMinus = (item: { id: number; name: string; quantity?: string | null }) => {
+    // 数量が1または数値が1以下になる場合は削除確認ダイアログを表示
+    const qtyNum = item.quantity ? parseInt(item.quantity.replace(/[^0-9]/g, ''), 10) : 1;
+    if (isNaN(qtyNum) || qtyNum <= 1) {
+      setDeleteConfirmItem({ id: item.id, name: item.name });
+    } else {
+      adjustFridgeQty.mutate({ id: item.id, delta: -1 });
+    }
+  };
 
   const menuData = todayMenu?.menuData as {
     mealType?: string;
@@ -204,8 +230,8 @@ export default function Dashboard() {
                           variant="outline"
                           size="sm"
                           className="h-7 w-7 p-0 text-base font-bold"
-                          onClick={() => adjustFridgeQty.mutate({ id: item.id, delta: -1 })}
-                          disabled={adjustFridgeQty.isPending}
+                          onClick={() => handleFridgeMinus(item)}
+                          disabled={adjustFridgeQty.isPending || deleteFridgeItem.isPending}
                         >
                           −
                         </Button>
@@ -507,6 +533,27 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* 冷蔵庫削除確認ダイアログ */}
+      <AlertDialog open={!!deleteConfirmItem} onOpenChange={(open) => !open && setDeleteConfirmItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>食材を削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              「{deleteConfirmItem?.name}」の数量が0になります。冷蔵庫から削除しますか？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteConfirmItem(null)}>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteConfirmItem && deleteFridgeItem.mutate({ id: deleteConfirmItem.id })}
+            >
+              削除する
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

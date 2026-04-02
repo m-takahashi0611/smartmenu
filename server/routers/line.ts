@@ -998,6 +998,48 @@ https://www.kondatebiyori.com`,
       return;
     }
 
+    // ─── 買い物リストに追加コマンド ─────────────────────────────────────────────────────
+    // 「買い物リストに〇〇を追加して」「〇〇を買い物リストに入れて」などを検出
+    const shoppingAddPatterns = [
+      /買い物リストに(.+?)を?[追加入れ登録]/,
+      /(.+?)を?買い物リストに[追加入れ登録]/,
+      /(.+?)を?買い物リストに/,
+      /買い物リストに(.+)/,
+    ];
+    const shoppingAddMatch = shoppingAddPatterns.reduce<RegExpMatchArray | null>((acc, p) => acc ?? text.match(p), null);
+    if (shoppingAddMatch && userId) {
+      const rawText = (shoppingAddMatch[1] || '').replace(/[をを]?[追加入れ登録して]+$/, '').trim()
+        || text.replace(/買い物リストに[をを]?[追加入れ登録して]*/, '').trim();
+      const rawItems = rawText.split(/[、,，・\s　とやおよび及び]+/).map((s: string) => s.trim()).filter((s: string) => s.length > 0 && s.length <= 30);
+      const db = await getDb();
+      if (!db || rawItems.length === 0) {
+        await replyLineMessage(replyToken, [{ type: 'text', text: '買い物リストに追加する商品が分かりませんでした。例：「玉ねぎを買い物リストに追加して」' }]);
+        return;
+      }
+      const addedItems: string[] = [];
+      for (const raw of rawItems) {
+        const qtyMatch = raw.match(/^(.+?)([0-9０-９]+[個本枚袋箱パック缶切れ匹尾頭羽束房玉串缶瓶]?)$/);
+        const name = qtyMatch ? qtyMatch[1].trim() : raw;
+        const quantity = qtyMatch && qtyMatch[2] ? qtyMatch[2].trim() : null;
+        if (!name) continue;
+        const existing = await db.select().from(shoppingListItems)
+          .where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.name, name), eq(shoppingListItems.isChecked, false)))
+          .limit(1);
+        if (existing.length === 0) {
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          await db.insert(shoppingListItems).values({ userId, name, quantity, isChecked: false, listDate: today });
+        }
+        addedItems.push(name + (quantity ? ` ${quantity}` : ''));
+      }
+      if (addedItems.length > 0) {
+        const itemList = addedItems.map((i: string) => `・${i}`).join('\n');
+        await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 買い物リストに追加しました！\n${itemList}\n\nダッシュボードで確認・チェックできます🛒` }]);
+      } else {
+        await replyLineMessage(replyToken, [{ type: 'text', text: '追加できる商品が見つかりませんでした。例：「玉ねぎを買い物リストに追加して」' }]);
+      }
+      return;
+    }
+
     // ─── 冷蔵庫登録・確認コマンド ─────────────────────────────────────────────────────
     if (userId) {
       const handled = await handleFridgeRegistration(text, userId, lineUserId, replyToken);
