@@ -184,6 +184,45 @@ async function generateContextualReply(
   userLat?: number | null,
   userLon?: number | null
 ): Promise<string> {
+  // ─── 最優先：冷蔵庫・買い物リストクエリは直接返答（AIに渡さない）──────────────
+  const isFridgeQuery = /冷蔵庫の中身|冷蔵庫.*教えて|冷蔵庫.*見せて|冷蔵庫.*確認|冷蔵庫.*一覧/.test(userMessage);
+  const isShoppingQuery = /買い物リスト.*教えて|買い物リスト.*見せて|買い物リスト.*確認|買い物リスト.*一覧|買い物.*リスト/.test(userMessage);
+
+  if (isFridgeQuery) {
+    console.log(`[LINE] generateContextualReply: Intercepted fridge query: "${userMessage}"`);
+    if (!userId) {
+      return `まずはダッシュボードから家族情報を登録してください\nhttps://www.kondatebiyori.com`;
+    }
+    const items = await getFridgeItems(userId);
+    if (items.length === 0) {
+      return '冷蔵庫に食材が登録されていません。\n\n「冷蔵庫に　を追加」と送ると登録できます！\n例：「冷蔵庫に豚肉、キャベツ、卵を追加」';
+    } else {
+      const itemList = items.map((f) => `・${f.name}${f.quantity ? '（' + f.quantity + '）' : ''}`).join('\n');
+      return `❄️ 現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください`;
+    }
+  }
+
+  if (isShoppingQuery) {
+    console.log(`[LINE] generateContextualReply: Intercepted shopping query: "${userMessage}"`);
+    if (!userId) {
+      return `まずはダッシュボードから家族情報を登録してください\nhttps://www.kondatebiyori.com`;
+    }
+    const db = await getDb();
+    if (!db) return 'エラーが発生しました。しばらくしてから再度お試しください。';
+    const shoppingItems = await db
+      .select()
+      .from(shoppingListItems)
+      .where(eq(shoppingListItems.userId, userId))
+      .orderBy(shoppingListItems.createdAt);
+    const pendingItems = shoppingItems.filter((s) => !s.isChecked);
+    if (pendingItems.length === 0) {
+      return '買い物リストは空です。\n\nダッシュボードから献立を生成すると自動で買い物リストが作成されます！\nhttps://www.kondatebiyori.com';
+    } else {
+      const itemList = pendingItems.map((s) => `・${s.name}${s.quantity ? ' ' + s.quantity : ''}`).join('\n');
+      return `🛒 買い物リスト（${pendingItems.length}件）：\n${itemList}\n\n買い物が完了したらダッシュボードからチェックできます！`;
+    }
+  }
+
   // 位置情報から天気を取得（ユーザー登録位置 or デフォルト東京）
   const lat = userLat ?? 35.68;
   const lon = userLon ?? 139.69;
