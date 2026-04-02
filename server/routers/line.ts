@@ -446,40 +446,51 @@ async function handleFridgeRegistration(
     return true;
   }
 
-  // ─── Step 1.5: 数量訂正パターン（「〇〇を〇個に変更」「〇〇〇個に訂正」など）─────────
-  const correctPatterns: Array<{ regex: RegExp; nameGroup: number; qtyGroup: number }> = [
-    { regex: /^(.+?)を(\d+)個?に(変更|訂正|修正|直して|して)/, nameGroup: 1, qtyGroup: 2 },
-    { regex: /^(.+?)(\d+)個?に(変更|訂正|修正|直して|して)/, nameGroup: 1, qtyGroup: 2 },
-    { regex: /^(.+?)は(\d+)個?だった/, nameGroup: 1, qtyGroup: 2 },
-    { regex: /^(.+?)は(\d+)個?です/, nameGroup: 1, qtyGroup: 2 },
-    { regex: /^(.+?)は(\d+)個?ある/, nameGroup: 1, qtyGroup: 2 },
-    { regex: /^(.+?)は(\d+)個?しかない/, nameGroup: 1, qtyGroup: 2 },
-    { regex: /^(.+?)(\d+)個?に変えて/, nameGroup: 1, qtyGroup: 2 },
-    { regex: /^(.+?)(\d+)個?だよ/, nameGroup: 1, qtyGroup: 2 },
-    { regex: /^(.+?)が(\d+)個?ある/, nameGroup: 1, qtyGroup: 2 },
-  ];
-  for (const { regex, nameGroup, qtyGroup } of correctPatterns) {
-    const match = text.match(regex);
-    if (match) {
-      const itemName = match[nameGroup].trim();
-      const newQty = parseInt(match[qtyGroup]);
-      if (!itemName || isNaN(newQty)) continue;
+  // ─── Step 1.5: 数量訂正パターン（AIで一括処理）─────────────────────────────
+  // 「変更」「訂正」「修正」「直して」などのキーワードを含む場合はAIで解析
+  const correctionKeywords = /[変更訂正修正直して]|に変えて|にして|だよ|だった|です|ある|しかない/;
+  if (correctionKeywords.test(text) || /[\d０-９][個本枚袋]?[にへ]/.test(text) || /[\d０-９]$/.test(text.replace(/[に変更訂正修正直して]+$/, ''))) {
+    try {
       const db = await getDb();
       if (!db) return false;
-      // 既存の食材を名前で検索（部分一致）
       const allItems = await db.select().from(fridgeItemsTable).where(eq(fridgeItemsTable.userId, userId));
-      const existing = allItems.find(r => r.name.includes(itemName) || itemName.includes(r.name));
-      if (existing) {
-        await db.update(fridgeItemsTable)
-          .set({ quantity: String(newQty) + '個', updatedAt: new Date() })
-          .where(eq(fridgeItemsTable.id, existing.id));
-        await replyLineMessage(replyToken, [{ type: 'text', text: `✅ ${existing.name}の数量を${newQty}個に更新しました！` }]);
-      } else {
-        // 見つからない場合は新規追加
-        await db.insert(fridgeItemsTable).values({ userId, name: itemName, quantity: String(newQty) + '個', category: 'other' });
-        await replyLineMessage(replyToken, [{ type: 'text', text: `✅ ${itemName}を${newQty}個として冷蔵庫に登録しました！` }]);
+      const itemNames = allItems.map(r => r.name).join('、');
+      const corrResp = await invokeLLM({
+        messages: [
+          { role: 'system', content: `冷蔵庫の食材数量を更新するアシスタントです。ユーザーのメッセージから「食材名」と「新しい数量（数字のみ）」のペアを抽出してJSON配列で返してください。
+現在の冷蔵庫の食材: ${itemNames || 'なし'}
+例: [{"name":"玉ねぎ","qty":3},{"name":"にんじん","qty":2}]
+数量訂正の意図がない場合は空配列 [] を返してください。` },
+          { role: 'user', content: text },
+        ],
+        response_format: { type: 'json_object' },
+      });
+      const content = corrResp.choices[0]?.message?.content;
+      const contentStr = typeof content === 'string' ? content : JSON.stringify(content ?? '[]');
+      const parsed = JSON.parse(contentStr);
+      const updates: Array<{ name: string; qty: number }> = Array.isArray(parsed) ? parsed : (parsed.items ?? parsed.updates ?? []);
+      if (updates.length > 0) {
+        const results: string[] = [];
+        for (const { name, qty } of updates) {
+          if (!name || isNaN(qty) || qty <= 0) continue;
+          const existing = allItems.find(r => r.name.includes(name) || name.includes(r.name));
+          if (existing) {
+            await db.update(fridgeItemsTable)
+              .set({ quantity: String(qty) + '個', updatedAt: new Date() })
+              .where(eq(fridgeItemsTable.id, existing.id));
+            results.push(`${existing.name}: ${qty}個`);
+          } else {
+            await db.insert(fridgeItemsTable).values({ userId, name, quantity: String(qty) + '個', category: 'other' });
+            results.push(`${name}: ${qty}個（新規追加）`);
+          }
+        }
+        if (results.length > 0) {
+          await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫を更新しました！\n${results.join('\n')}` }]);
+          return true;
+        }
       }
-      return true;
+    } catch (_) {
+      // AI解析失敗時はフォールスルー
     }
   }
 
