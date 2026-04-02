@@ -259,3 +259,7 @@
 - [ ] pendingActionに `menu_option_selection` タイプを追加（献立候補の選択待ち状態を保持）
 - [ ] 献立候補提示時に選択肢情報をpendingActionに保存
 - [ ] 復唱確認後の「はい」で献立選択を確定、「レシピ」で詳細レシピ生成
+
+## 管理機能改善
+- [ ] 全LINEメッセージ（献立・冷蔵庫・買い物リスト含む）をトーク履歴に保存
+- [ ] handleFridgeRegistration内の全処理ルートでaddConversationMessage呼び出しを追加

@@ -362,14 +362,14 @@ export async function addConversationMessage(data: InsertLineConversationHistory
   const db = await getDb();
   if (!db) return;
   await db.insert(lineConversationHistory).values(data);
-  // 古い履歴を削除（20件以上は削除）
+  // 古い履歴を削除（100件以上は削除）
   const all = await db
     .select({ id: lineConversationHistory.id })
     .from(lineConversationHistory)
     .where(eq(lineConversationHistory.lineUserId, data.lineUserId))
     .orderBy(desc(lineConversationHistory.createdAt));
-  if (all.length > 20) {
-    const toDelete = all.slice(20).map((r) => r.id);
+  if (all.length > 100) {
+    const toDelete = all.slice(100).map((r) => r.id);
     for (const id of toDelete) {
       await db.delete(lineConversationHistory).where(eq(lineConversationHistory.id, id));
     }

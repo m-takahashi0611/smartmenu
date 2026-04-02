@@ -1195,7 +1195,11 @@ ${itemList}
     console.log(`[LINE] RAW hex: ${Buffer.from(rawText).toString('hex').slice(0, 80)}`);
     console.log(`[LINE] Normalized text: "${text}" (len=${text.length})`);
 
-    // ─── 初回メッセージ時：家族未登録チェック ──────────────────────────────────
+    // ─── ユーザー発言を履歴に保存（全メッセージ对象）──────────────────────────────────────────────
+    // 管理者がトーク履歴を確認できるよう、全てのテキストメッセージを履歴に保存する
+    await addConversationMessage({ lineUserId, role: 'user', content: text }).catch(() => {});
+
+    // ─── 初回メッセージ時：家族未登録チェック ──────────────────────────────────────────────
     // userId がある（ログイン済み）が家族情報が未登録の場合、登録を促す
     // ただし pendingAction 中・位置情報・特定コマンドは除く
     if (userId) {
@@ -1578,7 +1582,8 @@ https://www.kondatebiyori.com`,
       return;
     }
 
-    // ─── AI文脈理解型応答（会話履歴・位置情報対応） ──────────────────────────
+    // ─── AI文脈理解型応答（会話履歴・位置情報対応） ──────────────────────────────────────────────
+    // generateContextualReply内で履歴保存されるので、ここでは保存不要
     try {
       const reply = await generateContextualReply(
         text,
@@ -1591,9 +1596,9 @@ https://www.kondatebiyori.com`,
       await replyLineMessage(replyToken, [{ type: "text", text: reply }]);
     } catch (err) {
       console.error("[LINE] Contextual reply failed:", err);
-      await replyLineMessage(replyToken, [
-        { type: "text", text: "「献立」と送ると今日の献立を提案します" },
-      ]);
+      const fallbackMsg = "「献立」と送ると今日の献立を提案します";
+      await replyLineMessage(replyToken, [{ type: "text", text: fallbackMsg }]);
+      await addConversationMessage({ lineUserId, role: 'assistant', content: fallbackMsg }).catch(() => {});
     }
   }
 }
