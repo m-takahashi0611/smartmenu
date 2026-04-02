@@ -18,13 +18,41 @@ import { sendLineMessage } from "./line";
 import { getLineUserByUserId } from "../db";
 import { getWeatherInfo, formatWeatherForPrompt } from "../weather";
 
+// ─── 時間帯判定ユーティリティ ─────────────────────────────────────────────────
+
+export type MealType = "breakfast" | "lunch" | "dinner" | "tomorrow_breakfast";
+
+export function getMealTypeByHour(hourJST: number): MealType {
+  if (hourJST >= 5 && hourJST < 11) return "breakfast";
+  if (hourJST >= 11 && hourJST < 15) return "lunch";
+  if (hourJST >= 15 && hourJST < 22) return "dinner";
+  return "tomorrow_breakfast"; // 22時〜翌5時は翌日の朝食
+}
+
+export function getMealLabel(mealType: MealType): string {
+  switch (mealType) {
+    case "breakfast": return "今日の朝食";
+    case "lunch": return "今日の昼食";
+    case "dinner": return "今夜の夕食";
+    case "tomorrow_breakfast": return "明日の朝食";
+  }
+}
+
 // ─── 献立生成コア関数 ─────────────────────────────────────────────────────────
 
 export async function generateMenuPlan(
   userId: number,
-  planDate: string
+  planDate: string,
+  mealType?: MealType
 ): Promise<{ message: string; menuPlanId?: number; shoppingList?: string[] }> {
-  // 既存の献立があればそれを返す
+
+  // 時間帯を決定（引数がなければ現在時刻から判定）
+  const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const currentHour = nowJST.getUTCHours();
+  const resolvedMealType: MealType = mealType ?? getMealTypeByHour(currentHour);
+  const mealLabel = getMealLabel(resolvedMealType);
+
+  // 既存の献立があればそれを返す（同じ日・同じ食事タイプ）
   const existing = await getMenuPlanByDate(userId, planDate);
   if (existing) {
     const existingData = (() => {
@@ -32,11 +60,14 @@ export async function generateMenuPlan(
         return typeof existing.menuData === 'string' ? JSON.parse(existing.menuData) : existing.menuData;
       } catch { return null; }
     })();
-    return {
-      message: existing.messageText ?? "本日の献立は既に生成されています。",
-      menuPlanId: existing.id,
-      shoppingList: existingData?.shoppingList ?? [],
-    };
+    // 同じ食事タイプのデータがあればそのまま返す
+    if (existingData?.mealType === resolvedMealType) {
+      return {
+        message: existing.messageText ?? "本日の献立は既に生成されています。",
+        menuPlanId: existing.id,
+        shoppingList: existingData?.shoppingList ?? [],
+      };
+    }
   }
 
   // 家族情報を取得
@@ -45,18 +76,15 @@ export async function generateMenuPlan(
     ? await getFamilyMembers(familyProfile.id)
     : [];
 
-  // 冷蔵庫在庫を取得（期限切れ間近のものを優先）
+  // 冷蔵庫在庫を取得
   const fridgeItemList = await getFridgeItems(userId);
   const today = new Date(planDate);
   const soonExpiry = fridgeItemList.filter((f) => {
     if (!f.expiryDate) return false;
     const expiry = new Date(f.expiryDate);
     const diff = (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-    return diff <= 3; // 3日以内に期限切れ
+    return diff <= 3;
   });
-
-  // 登録店舗を取得
-  const storeList = await getStores(userId);
 
   // 過去の献立を取得（重複回避用）
   const recentPlans = await getRecentMenuPlans(userId, 7);
@@ -64,6 +92,8 @@ export async function generateMenuPlan(
     .flatMap((p) => {
       try {
         const data = typeof p.menuData === "string" ? JSON.parse(p.menuData) : p.menuData;
+        // 新形式（dinnerOptions）と旧形式（dinner）の両方に対応
+        if (data?.dinnerOptions) return data.dinnerOptions.map((o: any) => o.name);
         return [data?.breakfast, data?.lunch, data?.dinner].filter(Boolean);
       } catch {
         return [];
@@ -71,106 +101,154 @@ export async function generateMenuPlan(
     })
     .join("、");
 
-  // 天気情報を取得（東京をデフォルト、将来的にユーザー地域を使用）
+  // 天気情報を取得
   const weather = await getWeatherInfo(35.68, 139.69, planDate);
   const weatherDesc = formatWeatherForPrompt(weather);
 
-  // ─── プロンプト構築 ───────────────────────────────────────────────────────
-
-  // 家族構成の詳細説明
+  // 家族構成の説明
   const familyDesc =
     familyMemberList.length > 0
       ? familyMemberList
           .map(
             (m) =>
-              `・${m.name}（${m.ageGroup === "baby" ? "乳幼児" : m.ageGroup === "child" ? "子ども" : m.ageGroup === "teen" ? "10代" : m.ageGroup === "adult" ? "大人" : "高齢者"}、${m.gender === "male" ? "男性" : m.gender === "female" ? "女性" : ""}、アレルギー：${m.allergies ?? "なし"}、好み：${m.preferences ?? "特になし"}、食事量：${m.portionSize === "small" ? "少なめ" : m.portionSize === "large" ? "多め" : "普通"}）`
+              `・${m.name}（${m.ageGroup === "baby" ? "乳幼児" : m.ageGroup === "child" ? "子ども" : m.ageGroup === "teen" ? "10代" : m.ageGroup === "adult" ? "大人" : "高齢者"}、${m.gender === "male" ? "男性" : m.gender === "female" ? "女性" : ""}、アレルギー：${m.allergies ?? "なし"}）`
           )
           .join("\n")
       : "家族情報未登録（一般的な4人家族を想定）";
 
-  // アレルギー情報を抽出（重要なので別途強調）
   const allergyList = familyMemberList
     .filter((m) => m.allergies && m.allergies.trim() !== "" && m.allergies !== "なし")
     .map((m) => `${m.name}：${m.allergies}`)
     .join("、");
 
-  // 冷蔵庫在庫の説明（期限切れ間近を強調）
+  // 冷蔵庫在庫の説明
   const fridgeDesc =
     fridgeItemList.length > 0
       ? fridgeItemList
           .map((f) => {
             const isUrgent = soonExpiry.some((s) => s.id === f.id);
-            return `${isUrgent ? "⚠️【要使用】" : ""}${f.name}（${f.quantity ?? "適量"}、期限：${f.expiryDate ?? "不明"}）`;
+            return `${isUrgent ? "⚠️【要使用】" : ""}${f.name}（${f.quantity ?? "適量"}）`;
           })
           .join("、")
       : "在庫情報なし";
 
-  const storeDesc =
-    storeList.length > 0
-      ? storeList.map((s) => `${s.name}${s.saleInfo ? `（特売：${s.saleInfo}）` : ""}`).join("、")
-      : "店舗未登録";
-
   const recentDesc = recentDishes || "なし";
 
-  // 季節・天気に合った料理の方向性
-  const weatherGuidance = weather
-    ? `${weather.season}らしい料理を意識し、${weather.weatherCode >= 61 ? "雨の日なので温かい料理" : weather.temperatureMax >= 28 ? "暑い日なので冷たい料理や食欲増進メニュー" : weather.temperatureMax <= 10 ? "寒い日なので体を温める料理" : "季節感のある料理"}を取り入れてください。`
-    : "";
+  // ─── 食事タイプ別プロンプト ───────────────────────────────────────────────
 
-  const systemPrompt = `あなたは日本の主婦向け献立提案AIアシスタント「エプロン執事」です。
-家族の情報、冷蔵庫の在庫、季節・天気、近隣スーパーの情報を考慮して、
-バランスの良い日本の家庭料理を提案してください。
+  let systemPrompt: string;
+  let userPrompt: string;
+  let responseSchema: any;
+
+  if (resolvedMealType === "dinner" || resolvedMealType === "tomorrow_breakfast") {
+    // 夕食・翌日朝食：3案提案
+    const targetMeal = resolvedMealType === "dinner" ? "夕食" : "明日の朝食";
+
+    systemPrompt = `あなたは日本の主婦向け献立提案AIアシスタントです。
+冷蔵庫の食材を活かした${targetMeal}を3案提案してください。
 
 【重要ルール】
 1. アレルギー食材は絶対に使用しないこと
-2. ⚠️【要使用】マークの食材は必ず今日の献立に使うこと
+2. ⚠️【要使用】マークの食材は必ずいずれかの案に使うこと
 3. 冷蔵庫にある食材をできるだけ使い切ること
 4. 同じ料理を7日間繰り返さないこと
-5. 季節・天気に合った料理を提案すること
-6. 家族構成（年齢・食事量）に合った量と内容にすること
+5. 家族構成（年齢・食事量）に合った内容にすること
+6. 各案は料理名と主な使用食材のみ（レシピは不要）
 
 以下のJSON形式で返答してください：
 {
-  "breakfast": "朝食メニュー名",
-  "lunch": "昼食メニュー名",
-  "dinner": "夕食メニュー名",
-  "dinnerRecipe": "夕食の簡単なレシピ（材料と手順を3-4行で）",
-  "shoppingList": ["買い物リスト項目1（分量付き）", "買い物リスト項目2（分量付き）"],
-  "tips": "今日の献立のポイント・季節のひとこと（1-2行）",
-  "estimatedCost": 1500,
-  "usedFridgeItems": ["使用した冷蔵庫の食材1", "使用した冷蔵庫の食材2"]
+  "options": [
+    {"name": "料理名1", "mainIngredients": ["食材A", "食材B"], "usedFridgeItems": ["冷蔵庫食材"]},
+    {"name": "料理名2", "mainIngredients": ["食材C", "食材D"], "usedFridgeItems": ["冷蔵庫食材"]},
+    {"name": "料理名3", "mainIngredients": ["食材E", "食材F"], "usedFridgeItems": ["冷蔵庫食材"]}
+  ],
+  "shoppingList": ["不足食材1（分量）", "不足食材2（分量）"]
 }`;
 
-  const userPrompt = `【日付・季節・天気】
-${planDate}（${weatherDesc}）
-${weatherGuidance}
+    userPrompt = `【日付・天気】${planDate}（${weatherDesc}）
+【家族構成】${familyDesc}
+${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyList}\n` : ""}【冷蔵庫の食材】${fridgeDesc}
+【最近の献立（重複を避けて）】${recentDesc}
 
-【家族構成】
-${familyDesc}
+冷蔵庫の食材を活かした${targetMeal}を3案提案してください。`;
 
-${allergyList ? `【⚠️ アレルギー情報（絶対使用禁止）】\n${allergyList}\n` : ""}
-【冷蔵庫の在庫】
-${fridgeDesc}
+    responseSchema = {
+      type: "json_schema",
+      json_schema: {
+        name: "dinner_options",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            options: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  mainIngredients: { type: "array", items: { type: "string" } },
+                  usedFridgeItems: { type: "array", items: { type: "string" } },
+                },
+                required: ["name", "mainIngredients", "usedFridgeItems"],
+                additionalProperties: false,
+              },
+            },
+            shoppingList: { type: "array", items: { type: "string" } },
+          },
+          required: ["options", "shoppingList"],
+          additionalProperties: false,
+        },
+      },
+    };
 
-【よく利用するスーパー】
-${storeDesc}
+  } else {
+    // 朝食・昼食：1案提案
+    const targetMeal = resolvedMealType === "breakfast" ? "朝食" : "昼食";
 
-【最近7日間の献立（重複を避けてください）】
-${recentDesc}
+    systemPrompt = `あなたは日本の主婦向け献立提案AIアシスタントです。
+冷蔵庫の食材を活かした${targetMeal}を1案提案してください。
 
-上記の情報を踏まえて、今日の献立を提案してください。
-特に⚠️【要使用】の食材は必ず今日の献立に組み込んでください。`;
+【重要ルール】
+1. アレルギー食材は絶対に使用しないこと
+2. 冷蔵庫にある食材をできるだけ使うこと
+3. 家族構成に合った内容にすること
+4. 料理名と主な使用食材のみ（レシピは不要）
 
-  let menuData: {
-    breakfast: string;
-    lunch: string;
-    dinner: string;
-    dinnerRecipe: string;
-    shoppingList: string[];
-    tips: string;
-    estimatedCost: number;
-    usedFridgeItems: string[];
-  };
+以下のJSON形式で返答してください：
+{
+  "name": "料理名",
+  "mainIngredients": ["食材A", "食材B"],
+  "usedFridgeItems": ["冷蔵庫食材"],
+  "shoppingList": ["不足食材1（分量）"]
+}`;
+
+    userPrompt = `【日付・天気】${planDate}（${weatherDesc}）
+【家族構成】${familyDesc}
+${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyList}\n` : ""}【冷蔵庫の食材】${fridgeDesc}
+
+冷蔵庫の食材を活かした${targetMeal}を1案提案してください。`;
+
+    responseSchema = {
+      type: "json_schema",
+      json_schema: {
+        name: "single_meal",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            mainIngredients: { type: "array", items: { type: "string" } },
+            usedFridgeItems: { type: "array", items: { type: "string" } },
+            shoppingList: { type: "array", items: { type: "string" } },
+          },
+          required: ["name", "mainIngredients", "usedFridgeItems", "shoppingList"],
+          additionalProperties: false,
+        },
+      },
+    };
+  }
+
+  let menuData: any;
 
   try {
     const response = await invokeLLM({
@@ -178,37 +256,7 @@ ${recentDesc}
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "menu_plan",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              breakfast: { type: "string" },
-              lunch: { type: "string" },
-              dinner: { type: "string" },
-              dinnerRecipe: { type: "string" },
-              shoppingList: { type: "array", items: { type: "string" } },
-              tips: { type: "string" },
-              estimatedCost: { type: "integer" },
-              usedFridgeItems: { type: "array", items: { type: "string" } },
-            },
-            required: [
-              "breakfast",
-              "lunch",
-              "dinner",
-              "dinnerRecipe",
-              "shoppingList",
-              "tips",
-              "estimatedCost",
-              "usedFridgeItems",
-            ],
-            additionalProperties: false,
-          },
-        },
-      },
+      response_format: responseSchema,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -218,49 +266,93 @@ ${recentDesc}
     throw new Error("献立の生成に失敗しました");
   }
 
-  // LINEメッセージテキストを構築
+  // ─── LINEメッセージテキストを構築（短く・献立に集中）────────────────────────
+
   const weatherEmoji = weather
     ? weather.weatherCode === 0 ? "☀️"
       : weather.weatherCode <= 3 ? "🌤️"
       : weather.weatherCode <= 69 ? "🌧️"
       : weather.weatherCode <= 79 ? "❄️"
       : "⛈️"
-    : "🌡️";
+    : "";
 
-  const messageText = `🍽️ ${planDate} の献立
+  let messageText: string;
 
-${weatherEmoji} 今日の天気：${weatherDesc}
+  if (resolvedMealType === "dinner" || resolvedMealType === "tomorrow_breakfast") {
+    const targetLabel = resolvedMealType === "dinner" ? "今夜の夕食" : "明日の朝食";
+    const options = menuData.options as Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
 
-🌅 朝食：${menuData.breakfast}
-☀️ 昼食：${menuData.lunch}
-🌙 夕食：${menuData.dinner}
+    // 冷蔵庫食材のまとめ（全案で使う食材）
+    const allFridgeUsed = Array.from(new Set(options.flatMap(o => o.usedFridgeItems))).filter(Boolean);
+    const fridgeNote = allFridgeUsed.length > 0
+      ? `冷蔵庫の${allFridgeUsed.join("・")}があるので…\n\n`
+      : "";
 
-📝 夕食レシピ：
-${menuData.dinnerRecipe}
+    const optionLines = options.map((o, i) => {
+      const num = ["1️⃣", "2️⃣", "3️⃣"][i] ?? `${i + 1}.`;
+      return `${num} ${o.name}`;
+    }).join("\n");
 
-💡 ${menuData.tips}
+    messageText = `🍽️ ${targetLabel}、こんなのはどうですか？${weatherEmoji ? ` ${weatherEmoji}` : ""}
 
-🛒 買い物リスト：
-${menuData.shoppingList.map((item) => `・${item}`).join("\n")}
+${fridgeNote}${optionLines}
 
-${menuData.usedFridgeItems.length > 0 ? `🧊 冷蔵庫から使用：${menuData.usedFridgeItems.join("、")}\n\n` : ""}💰 目安費用：約${menuData.estimatedCost.toLocaleString()}円`;
+レシピは「1のレシピ教えて」と送ってください🍳
+買い物リストはダッシュボードで確認できます`;
 
-  // DBに保存
+  } else {
+    const targetLabel = resolvedMealType === "breakfast" ? "今日の朝食" : "今日の昼食";
+    const fridgeNote = menuData.usedFridgeItems?.length > 0
+      ? `冷蔵庫の${menuData.usedFridgeItems.join("・")}を使って…\n\n`
+      : "";
+
+    messageText = `🍽️ ${targetLabel}のご提案${weatherEmoji ? ` ${weatherEmoji}` : ""}
+
+${fridgeNote}✨ ${menuData.name}
+
+レシピは「レシピ教えて」と送ってください🍳
+買い物リストはダッシュボードで確認できます`;
+  }
+
+  // ─── DBに保存（menuDataに食事タイプを含める）────────────────────────────────
+
+  // ダッシュボード表示用に後方互換フィールドも含める
+  const persistData = {
+    mealType: resolvedMealType,
+    ...(resolvedMealType === "dinner" || resolvedMealType === "tomorrow_breakfast"
+      ? {
+          dinnerOptions: menuData.options,
+          // 後方互換: dashboardが参照するフィールド
+          dinner: menuData.options?.[0]?.name ?? "",
+          breakfast: "",
+          lunch: "",
+          shoppingList: menuData.shoppingList ?? [],
+        }
+      : {
+          [resolvedMealType === "breakfast" ? "breakfast" : "lunch"]: menuData.name,
+          breakfast: resolvedMealType === "breakfast" ? menuData.name : "",
+          lunch: resolvedMealType === "lunch" ? menuData.name : "",
+          dinner: "",
+          shoppingList: menuData.shoppingList ?? [],
+        }
+    ),
+  };
+
   await insertMenuPlan({
     userId,
     planDate: planDate as any,
-    menuData: JSON.stringify(menuData),
+    menuData: JSON.stringify(persistData),
     messageText,
     isDelivered: false,
   });
 
-  // 保存した献立を取得してIDを返す
   const saved = await getMenuPlanByDate(userId, planDate);
 
-  // 買い物リストは自動追加しない（ダッシュボードでユーザーが選択して追加する）
-  // shoppingList は menuData に含まれているので、フロントエンドで参照可能
-
-  return { message: messageText, menuPlanId: saved?.id, shoppingList: menuData.shoppingList };
+  return {
+    message: messageText,
+    menuPlanId: saved?.id,
+    shoppingList: menuData.shoppingList ?? [],
+  };
 }
 
 // ─── tRPC router ──────────────────────────────────────────────────────────────
@@ -328,13 +420,11 @@ export const menuRouter = router({
       const today =
         input.date ?? new Date().toISOString().split("T")[0];
 
-      // 献立を生成または取得
       const { message, menuPlanId } = await generateMenuPlan(
         ctx.user.id,
         today
       );
 
-      // LINE ユーザー情報を取得
       const lineUser = await getLineUserByUserId(ctx.user.id);
       if (!lineUser) {
         throw new TRPCError({
@@ -343,12 +433,10 @@ export const menuRouter = router({
         });
       }
 
-      // LINE に送信
       await sendLineMessage(lineUser.lineUserId, [
         { type: "text", text: message },
       ]);
 
-      // 配信ログを記録
       await insertDeliveryLog({
         userId: ctx.user.id,
         lineUserId: lineUser.lineUserId,
@@ -357,7 +445,6 @@ export const menuRouter = router({
         deliveredAt: new Date(),
       });
 
-      // 配信済みフラグを更新
       if (menuPlanId) {
         await markMenuPlanDelivered(menuPlanId);
       }

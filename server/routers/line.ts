@@ -17,7 +17,7 @@ import {
 } from "../db";
 import { lineUsers, fridgeItems as fridgeItemsTable, shoppingListItems } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
-import { generateMenuPlan } from "./menu";
+import { generateMenuPlan, getMealTypeByHour } from "./menu";
 import { publicProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { getWeatherInfo, formatWeatherForPrompt } from "../weather";
@@ -734,14 +734,13 @@ export async function handleLineWebhookEvent(event: any) {
 
       try {
         const today = new Date().toISOString().split("T")[0];
-        const result = await generateMenuPlan(userId, today);
+        // 現在時刻から食事タイプを判定してgenerateMenuPlanに渡す
+        const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
+        const currentHourJST = nowJST.getUTCHours();
+        const mealType = getMealTypeByHour(currentHourJST);
+        const result = await generateMenuPlan(userId, today, mealType);
 
-        // 献立メッセージに買い物リスト確認案内を追加
-        const shoppingGuide = result.shoppingList && result.shoppingList.length > 0
-          ? `\n\n🛒 買い物リスト候補（${result.shoppingList.length}品）をダッシュボードにアップしました！\n必要なものにチェックして追加してね！\nhttps://www.kondatebiyori.com/dashboard`
-          : '';
-
-        await replyLineMessage(replyToken, [{ type: "text", text: result.message + shoppingGuide }]);
+        await replyLineMessage(replyToken, [{ type: "text", text: result.message }]);
 
         await insertDeliveryLog({
           userId,

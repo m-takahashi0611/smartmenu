@@ -79,9 +79,11 @@ export default function Dashboard() {
   });
 
   const menuData = todayMenu?.menuData as {
+    mealType?: string;
     breakfast?: string;
     lunch?: string;
     dinner?: string;
+    dinnerOptions?: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
     dinnerRecipe?: string;
     tips?: string;
     estimatedCost?: number;
@@ -177,18 +179,37 @@ export default function Dashboard() {
                   <div className="text-center py-8 text-muted-foreground">読み込み中...</div>
                 ) : todayMenu && menuData ? (
                   <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { label: "🌅 朝食", value: menuData.breakfast },
-                        { label: "☀️ 昼食", value: menuData.lunch },
-                        { label: "🌙 夕食", value: menuData.dinner },
-                      ].map((meal) => (
-                        <div key={meal.label} className="bg-muted/50 rounded-lg p-3 text-center">
-                          <p className="text-xs text-muted-foreground mb-1">{meal.label}</p>
-                          <p className="text-sm font-medium">{meal.value ?? "未定"}</p>
-                        </div>
-                      ))}
-                    </div>
+                    {/* 夕食3案表示（新形式） */}
+                    {menuData.dinnerOptions && menuData.dinnerOptions.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground font-medium">🌙 今夜の夕食候補</p>
+                        {menuData.dinnerOptions.map((opt, i) => (
+                          <div key={i} className="bg-muted/50 rounded-lg p-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-base">{["1️⃣","2️⃣","3️⃣"][i]}</span>
+                              <span className="text-sm font-medium">{opt.name}</span>
+                            </div>
+                            {opt.usedFridgeItems.length > 0 && (
+                              <p className="text-xs text-muted-foreground mt-1 ml-7">冷蔵庫：{opt.usedFridgeItems.join("・")}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      /* 旧形式・朝食/昼食の単品表示 */
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { label: "🌅 朝食", value: menuData.breakfast },
+                          { label: "☀️ 昼食", value: menuData.lunch },
+                          { label: "🌙 夕食", value: menuData.dinner },
+                        ].filter(m => m.value).map((meal) => (
+                          <div key={meal.label} className="bg-muted/50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-muted-foreground mb-1">{meal.label}</p>
+                            <p className="text-sm font-medium">{meal.value ?? "未定"}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {menuData.dinnerRecipe && (
                       <div className="bg-primary/5 rounded-lg p-3">
                         <p className="text-xs font-semibold text-primary mb-1">📝 夕食レシピ</p>
@@ -206,6 +227,9 @@ export default function Dashboard() {
                         <Badge variant="secondary">💰 目安費用：約{menuData.estimatedCost.toLocaleString()}円</Badge>
                         {todayMenu.isDelivered && <Badge variant="outline" className="text-green-600 border-green-200">✓ LINE配信済み</Badge>}
                       </div>
+                    )}
+                    {!menuData.estimatedCost && todayMenu.isDelivered && (
+                      <Badge variant="outline" className="text-green-600 border-green-200">✓ LINE配信済み</Badge>
                     )}
                     {/* 買い物リスト候補（既存献立から表示） */}
                     {!showShoppingSelector && menuData.shoppingList && menuData.shoppingList.length > 0 && shoppingList && shoppingList.length === 0 && (
