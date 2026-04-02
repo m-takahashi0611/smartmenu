@@ -412,3 +412,50 @@ export async function getLineUserPendingAction(lineUserId: string): Promise<any 
     .limit(1);
   return rows[0]?.pendingAction ?? null;
 }
+
+// ─── 買い物リスト → 冷蔵庫移行 ───────────────────────────────────────────────
+/**
+ * 買い物リストのアイテムを冷蔵庫に移行して、リストから削除する
+ */
+export async function moveShoppingItemToFridge(id: number, userId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db
+    .select()
+    .from(shoppingListItems)
+    .where(and(eq(shoppingListItems.id, id), eq(shoppingListItems.userId, userId)))
+    .limit(1);
+  const item = rows[0];
+  if (!item) return false;
+  await db.insert(fridgeItems).values({
+    userId,
+    name: item.name,
+    quantity: item.quantity ?? "1個",
+    category: "other",
+  });
+  await db.delete(shoppingListItems).where(and(eq(shoppingListItems.id, id), eq(shoppingListItems.userId, userId)));
+  return true;
+}
+
+/**
+ * チェック済みの買い物リストアイテムを全て冷蔵庫に移行して削除する
+ */
+export async function moveCheckedShoppingItemsToFridge(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const items = await db
+    .select()
+    .from(shoppingListItems)
+    .where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.isChecked, true)));
+  if (items.length === 0) return 0;
+  await db.insert(fridgeItems).values(
+    items.map((item) => ({
+      userId,
+      name: item.name,
+      quantity: item.quantity ?? "1個",
+      category: "other" as const,
+    }))
+  );
+  await db.delete(shoppingListItems).where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.isChecked, true)));
+  return items.length;
+}

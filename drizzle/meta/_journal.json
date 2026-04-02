@@ -50,6 +50,13 @@
       "when": 1775104218624,
       "tag": "0006_stiff_eddie_brock",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1775124711598,
+      "tag": "0007_same_black_bolt",
+      "breakpoints": true
     }
   ]
 }

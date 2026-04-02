@@ -1,0 +1,1 @@
+ALTER TABLE `line_users` MODIFY COLUMN `userId` int;

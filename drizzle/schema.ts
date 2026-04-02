@@ -36,7 +36,7 @@ export type InsertUser = typeof users.$inferInsert;
  */
 export const lineUsers = mysqlTable("line_users", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+  userId: int("userId"), // NULL = LIFFログイン未完了（LINEフォローのみ）
   lineUserId: varchar("lineUserId", { length: 64 }).notNull().unique(),
   displayName: text("displayName"),
   pictureUrl: text("pictureUrl"),

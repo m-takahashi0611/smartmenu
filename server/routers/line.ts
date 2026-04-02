@@ -14,6 +14,7 @@ import {
   updateLineUserLocation,
   setLineUserPendingAction,
   getLineUserPendingAction,
+  moveCheckedShoppingItemsToFridge,
 } from "../db";
 import { lineUsers, fridgeItems as fridgeItemsTable, shoppingListItems } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
@@ -21,6 +22,7 @@ import { generateMenuPlan, getMealTypeByHour } from "./menu";
 import { publicProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { getWeatherInfo, formatWeatherForPrompt } from "../weather";
+import { transcribeAudio } from "../_core/voiceTranscription";
 
 // ─── LINE API helper ──────────────────────────────────────────────────────────
 
@@ -139,6 +141,99 @@ export function verifyLineSignature(body: string, signature: string): boolean {
     .update(body)
     .digest("base64");
   return hash === signature;
+}
+
+// ─── LINEコンテンツダウンロード（音声・画像） ─────────────────────────────────────────────────────
+
+async function downloadLineContent(messageId: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: "api-data.line.me",
+        path: `/v2/bot/message/${messageId}/content`,
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => {
+          if (res.statusCode && res.statusCode >= 400) {
+            reject(new Error(`LINE content download failed: ${res.statusCode}`));
+          } else {
+            resolve(Buffer.concat(chunks));
+          }
+        });
+      }
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+// ─── レシート画像解析（LLM Vision） ─────────────────────────────────────────────────────
+
+async function analyzeReceiptImage(
+  imageUrl: string,
+  userId: number | null
+): Promise<{ success: boolean; items: Array<{ name: string; quantity?: string }> }> {
+  try {
+    const response = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `あなたはレシート画像解析のエキスパートです。画像から購入した食料品・食材を抽出してJSON形式で返してください。
+形式: { "items": [ { "name": "食材名", "quantity": "数量" }, ... ] }
+注意事項:
+- 食料品・食材のみ抽出（洗剤剤、トイレットペーパーなどは除外）
+- 数量は「1個」「300g」「1本」など単位付きで
+- 商品名が不明な場合は除外
+- レシートでない画像の場合は { "items": [] } を返す`,
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "このレシートから購入した食料品・食材を抽出してください" },
+            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+          ],
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "receipt_items",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              items: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    quantity: { type: "string" },
+                  },
+                  required: ["name", "quantity"],
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ["items"],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+    const content = response.choices[0]?.message?.content;
+    const parsed = typeof content === "string" ? JSON.parse(content) : content;
+    return { success: true, items: parsed?.items ?? [] };
+  } catch (err) {
+    console.error("[LINE] Receipt analysis failed:", err);
+    return { success: false, items: [] };
+  }
 }
 
 // ─── 地名から緯度経度を取得（Open-Meteo Geocoding API） ──────────────────────
@@ -467,6 +562,36 @@ ${dinnerResult.message}`;
     return true;
   }
 
+  // ─── 音声復唱確認待ちの場合 ─────────────────────────────────────────────────────
+  if (pending?.type === 'voice_confirm') {
+    const { transcribedText } = pending as { transcribedText: string };
+    const trimmed = text.trim();
+
+    // 「いいえ」「キャンセル」→キャンセル
+    if (/^(いいえ|no|キャンセル|やめる|やめて|cancel)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。もう一度音声を送ってください。' }]);
+      return true;
+    }
+
+    // 「はい」→認識されたテキストをそのまま処理に回す
+    if (/^(はい|yes|ok|おねがい|そうして|大丈夫|だいじょうぶ|大丈夫です|その通り|それでおねがい)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      // 認識テキストを通常のテキスト処理に渡す
+      return handleFridgeRegistration(transcribedText, userId, lineUserId, replyToken);
+    }
+
+    // その他の入力→再度確認
+    await replyLineMessage(replyToken, [{
+      type: 'text',
+      text: `「${transcribedText}」
+
+この内容でよろしいですか？
+「はい」または「いいえ」で教えてください。`,
+    }]);
+    return true;
+  }
+
   if (pending?.type === 'fridge_add_qty') {
     const { itemName, existingId, existingQty } = pending;
 
@@ -778,7 +903,18 @@ export async function handleLineWebhookEvent(event: any) {
     if (db) {
       const existing = await getLineUserByLineId(lineUserId);
       if (!existing) {
-        console.log(`[LINE] New follower: ${lineUserId}`);
+        console.log(`[LINE] New follower: ${lineUserId} - inserting into line_users with userId=null`);
+        try {
+          await db.insert(lineUsers).values({
+            userId: null as unknown as number, // LIFFログイン前は null
+            lineUserId,
+            displayName: profile?.displayName ?? "ユーザー",
+            pictureUrl: profile?.pictureUrl ?? null,
+            isActive: true,
+          });
+        } catch (insertErr) {
+          console.error('[LINE] Failed to insert new follower:', insertErr);
+        }
       } else {
         await db
           .update(lineUsers)
@@ -832,7 +968,95 @@ export async function handleLineWebhookEvent(event: any) {
       return;
     }
 
-    // ─── テキストメッセージの処理 ─────────────────────────────────────────────
+    // ─── 音声メッセージの処理 ─────────────────────────────────────────────────────
+    if (event.message?.type === "audio") {
+      const messageId = event.message.id;
+      console.log(`[LINE] Audio message received: ${messageId}`);
+      try {
+        // LINEの音声コンテンツをダウンロードしてS3にアップロード
+        const audioBuffer = await downloadLineContent(messageId);
+        const { storagePut } = await import("../storage");
+        const fileKey = `line-audio/${lineUserId}-${messageId}.m4a`;
+        const { url: audioUrl } = await storagePut(fileKey, audioBuffer, "audio/mp4");
+        // Whisper APIで文字起こし
+        const transcription = await transcribeAudio({ audioUrl, language: "ja", prompt: "食材や料理、買い物に関する音声を文字起こししてください" });
+        if ("error" in transcription) {
+          console.error("[LINE] Transcription failed:", transcription.error);
+          await replyLineMessage(replyToken, [{ type: "text", text: "音声の認識に失敗しました。もう一度お試しください。" }]);
+          return;
+        }
+        const transcribedText = transcription.text.trim();
+        console.log(`[LINE] Transcribed: "${transcribedText}"`);
+        // 復唱して確認を求める
+        await setLineUserPendingAction(lineUserId, {
+          type: "voice_confirm",
+          transcribedText,
+        });
+        await replyLineMessage(replyToken, [{
+          type: "text",
+          text: `🎤 言葉を認識しました！
+
+「${transcribedText}」
+
+この内容でよろしいですか？
+「はい」と送ると処理します。
+「いいえ」と送るとキャンセルします。`,
+        }]);
+      } catch (err) {
+        console.error("[LINE] Audio processing failed:", err);
+        await replyLineMessage(replyToken, [{ type: "text", text: "音声の処理中にエラーが発生しました。もう一度お試しください。" }]);
+      }
+      return;
+    }
+
+    // ─── 画像メッセージの処理（レシート解析） ───────────────────────────────────────
+    if (event.message?.type === "image") {
+      const messageId = event.message.id;
+      console.log(`[LINE] Image message received: ${messageId}`);
+      try {
+        // LINEの画像コンテンツをダウンロードしてS3にアップロード
+        const imageBuffer = await downloadLineContent(messageId);
+        const { storagePut } = await import("../storage");
+        const fileKey = `line-images/${lineUserId}-${messageId}.jpg`;
+        const { url: imageUrl } = await storagePut(fileKey, imageBuffer, "image/jpeg");
+        // LLMでレシート解析
+        await replyLineMessage(replyToken, [{ type: "text", text: "🧳 レシートを解析中です……" }]);
+        const analysisResult = await analyzeReceiptImage(imageUrl, userId);
+        if (!analysisResult.success || analysisResult.items.length === 0) {
+          await sendLineMessage(lineUserId, [{ type: "text", text: "レシートから商品を読み取れませんでした。レシートを正面から撑して撑して再度お試しください。" }]);
+          return;
+        }
+        // 冷蔵庫に登録
+        if (userId) {
+          const db = await getDb();
+          if (db) {
+            await db.insert(fridgeItemsTable).values(
+              analysisResult.items.map((item: any) => ({
+                userId,
+                name: item.name,
+                quantity: item.quantity ?? "1個",
+                category: "other" as const,
+              }))
+            );
+          }
+        }
+        const itemList = analysisResult.items.map((item: any) => `・${item.name}${item.quantity ? "（" + item.quantity + "）" : ""}`).join("\n");
+        await sendLineMessage(lineUserId, [{
+          type: "text",
+          text: `✅ レシートから${analysisResult.items.length}品を冷蔵庫に登録しました！
+
+${itemList}
+
+献立を提案しましょうか？「献立」と送ってください`,
+        }]);
+      } catch (err) {
+        console.error("[LINE] Image processing failed:", err);
+        await sendLineMessage(lineUserId, [{ type: "text", text: "画像の処理中にエラーが発生しました。もう一度お試しください。" }]);
+      }
+      return;
+    }
+
+    // ─── テキストメッセージの処理 ─────────────────────────────────────────────────────
     if (event.message?.type !== "text") return;
 
     // 全角スペース・不可視文字・制御文字を除去して正規化
@@ -850,7 +1074,7 @@ export async function handleLineWebhookEvent(event: any) {
     // ただし pendingAction 中・位置情報・特定コマンドは除く
     if (userId) {
       const familyProfile = await getFamilyProfile(userId);
-      const familyMembers = await getFamilyMembers(userId);
+      const familyMembers = familyProfile ? await getFamilyMembers(familyProfile.id) : [];
       const hasFamilySetup = familyProfile && familyMembers.length > 0;
       // createdAt と updatedAt がほぼ同じ（5分以内）なら初回メッセージとみなす
       const isFirstMessage = lineUser && (lineUser.updatedAt.getTime() - lineUser.createdAt.getTime()) < 5 * 60 * 1000;

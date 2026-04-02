@@ -5,6 +5,8 @@ import {
   getShoppingList,
   insertShoppingListItems,
   toggleShoppingItem,
+  moveShoppingItemToFridge,
+  moveCheckedShoppingItemsToFridge,
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 
@@ -63,5 +65,20 @@ export const shoppingRouter = router({
     .mutation(async ({ ctx }) => {
       const count = await deleteCheckedShoppingItems(ctx.user.id);
       return { success: true, deletedCount: count };
+    }),
+
+  // アイテムを冷蔵庫に移行して削除
+  moveToFridge: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const moved = await moveShoppingItemToFridge(input.id, ctx.user.id);
+      return { success: moved };
+    }),
+
+  // チェック済みアイテムを全て冷蔵庫に移行して削除
+  moveCheckedToFridge: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const count = await moveCheckedShoppingItemsToFridge(ctx.user.id);
+      return { success: true, movedCount: count };
     }),
 });

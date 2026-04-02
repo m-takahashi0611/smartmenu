@@ -29,6 +29,7 @@ export default function Dashboard() {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showShoppingSelector, setShowShoppingSelector] = useState(false);
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ id: number; name: string } | null>(null);
+  const [moveToFridgeConfirm, setMoveToFridgeConfirm] = useState<{ id: number; name: string } | null>(null);
 
   const { data: todayMenu, isLoading: menuLoading } = trpc.menu.getByDate.useQuery({ date: today });
   const { data: shoppingList, isLoading: shoppingLoading } = trpc.shopping.list.useQuery({ date: today });
@@ -79,6 +80,25 @@ export default function Dashboard() {
       toast.success(`購入済み ${data.deletedCount} 件を削除しました`);
     },
     onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
+  });
+
+  const moveCheckedToFridge = trpc.shopping.moveCheckedToFridge.useMutation({
+    onSuccess: (data) => {
+      utils.shopping.list.invalidate({ date: today });
+      utils.fridge.list.invalidate();
+      toast.success(`購入済み ${data.movedCount} 件を冷蔵庫に移行しました！`);
+    },
+    onError: (err) => toast.error("移行に失敗しました", { description: err.message }),
+  });
+
+  const moveToFridge = trpc.shopping.moveToFridge.useMutation({
+    onSuccess: () => {
+      utils.shopping.list.invalidate({ date: today });
+      utils.fridge.list.invalidate();
+      toast.success(`冷蔵庫に移行しました！`);
+      setMoveToFridgeConfirm(null);
+    },
+    onError: (err) => toast.error("移行に失敗しました", { description: err.message }),
   });
 
   const toggleItem = trpc.shopping.toggle.useMutation({
@@ -282,15 +302,26 @@ export default function Dashboard() {
               <h2 className="font-semibold">🛒 今日の買い物リスト</h2>
               <div className="flex items-center gap-2">
                 {shoppingList && shoppingList.filter(i => i.isChecked).length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteChecked.mutate()}
-                    disabled={deleteChecked.isPending}
-                    className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2"
-                  >
-                    {deleteChecked.isPending ? "削除中..." : "購入済みを削除"}
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => moveCheckedToFridge.mutate()}
+                      disabled={moveCheckedToFridge.isPending}
+                      className="text-xs text-primary hover:text-primary hover:bg-primary/10 h-7 px-2"
+                    >
+                      {moveCheckedToFridge.isPending ? "移行中..." : "🧄 冷蔵庫へ"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteChecked.mutate()}
+                      disabled={deleteChecked.isPending}
+                      className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2"
+                    >
+                      {deleteChecked.isPending ? "削除中..." : "削除"}
+                    </Button>
+                  </div>
                 )}
                 <Link href="/shopping">
                   <Button variant="ghost" size="sm" className="text-xs">すべて見る →</Button>
@@ -533,6 +564,27 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* 買い物リスト→冷蔵庫移行確認ダイアログ */}
+      <AlertDialog open={!!moveToFridgeConfirm} onOpenChange={(open) => !open && setMoveToFridgeConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>冷蔵庫に移行しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              「{moveToFridgeConfirm?.name}」を冷蔵庫に移行して買い物リストから削除します。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setMoveToFridgeConfirm(null)}>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => moveToFridgeConfirm && moveToFridge.mutate({ id: moveToFridgeConfirm.id })}
+            >
+              冷蔵庫へ移行
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* 冷蔵庫削除確認ダイアログ */}
       <AlertDialog open={!!deleteConfirmItem} onOpenChange={(open) => !open && setDeleteConfirmItem(null)}>

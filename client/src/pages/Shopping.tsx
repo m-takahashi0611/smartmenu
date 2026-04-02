@@ -3,12 +3,23 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 export default function Shopping() {
   const [newItem, setNewItem] = useState("");
   const today = new Date().toISOString().split("T")[0];
+  const [moveToFridgeConfirm, setMoveToFridgeConfirm] = useState<{ id: number; name: string } | null>(null);
 
   const { data: items, isLoading } = trpc.shopping.list.useQuery({ date: today });
   const utils = trpc.useUtils();
@@ -47,6 +58,25 @@ export default function Shopping() {
       toast.success(`購入済み ${data.deletedCount} 件を削除しました`);
     },
     onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
+  });
+
+  const moveCheckedToFridge = trpc.shopping.moveCheckedToFridge.useMutation({
+    onSuccess: (data) => {
+      utils.shopping.list.invalidate({ date: today });
+      utils.fridge.list.invalidate();
+      toast.success(`購入済み ${data.movedCount} 件を冷蔵庫に移行しました！`);
+    },
+    onError: (err) => toast.error("移行に失敗しました", { description: err.message }),
+  });
+
+  const moveToFridge = trpc.shopping.moveToFridge.useMutation({
+    onSuccess: () => {
+      utils.shopping.list.invalidate({ date: today });
+      utils.fridge.list.invalidate();
+      toast.success("冷蔵庫に移行しました！");
+      setMoveToFridgeConfirm(null);
+    },
+    onError: (err) => toast.error("移行に失敗しました", { description: err.message }),
   });
 
   const checkedCount = items?.filter((i) => i.isChecked).length ?? 0;
@@ -146,15 +176,26 @@ export default function Shopping() {
                     <div className="border-t border-border my-2" />
                     <div className="flex items-center justify-between px-2 mb-1">
                       <p className="text-xs text-muted-foreground">購入済み</p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteChecked.mutate()}
-                        disabled={deleteChecked.isPending}
-                        className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 h-6 px-2"
-                      >
-                        {deleteChecked.isPending ? "削除中..." : "一覧を削除"}
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => moveCheckedToFridge.mutate()}
+                          disabled={moveCheckedToFridge.isPending}
+                          className="text-xs text-primary hover:text-primary hover:bg-primary/10 h-6 px-2"
+                        >
+                          {moveCheckedToFridge.isPending ? "移行中..." : "🧄 冷蔵庫へ"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteChecked.mutate()}
+                          disabled={deleteChecked.isPending}
+                          className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 h-6 px-2"
+                        >
+                          {deleteChecked.isPending ? "削除中..." : "削除"}
+                        </Button>
+                      </div>
                     </div>
                     {items.filter((i) => i.isChecked).map((item) => (
                       <div
@@ -166,6 +207,18 @@ export default function Shopping() {
                           <span className="text-primary-foreground text-xs">✓</span>
                         </div>
                         <span className="flex-1 text-sm line-through text-muted-foreground">{item.name}</span>
+                        {/* 個別に冷蔵庫へ移行ボタン */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMoveToFridgeConfirm({ id: item.id, name: item.name });
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-primary hover:text-primary hover:bg-primary/10 h-6 px-2 text-xs"
+                        >
+                          冷蔵庫へ
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -186,6 +239,27 @@ export default function Shopping() {
           </Card>
         )}
       </main>
+
+      {/* 冷蔵庫移行確認ダイアログ */}
+      <AlertDialog open={!!moveToFridgeConfirm} onOpenChange={(open) => !open && setMoveToFridgeConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>冷蔵庫に移行しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              「{moveToFridgeConfirm?.name}」を冷蔵庫に移行して買い物リストから削除します。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setMoveToFridgeConfirm(null)}>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => moveToFridgeConfirm && moveToFridge.mutate({ id: moveToFridgeConfirm.id })}
+            >
+              冷蔵庫へ移行
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
