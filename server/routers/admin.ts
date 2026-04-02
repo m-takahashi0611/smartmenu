@@ -1,8 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAllActiveLineUsers, getAllUsers, getDeliveryLogs, getDb } from "../db";
-import { lineConversationHistory, fridgeItems, shoppingListItems, menuPlans } from "../../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { lineConversationHistory, fridgeItems, shoppingListItems, menuPlans, lineUsers } from "../../drizzle/schema";
+import { eq, desc } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { broadcastMenus } from "../batch/deliverMenus";
 
@@ -15,6 +15,35 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 });
 
 export const adminRouter = router({
+  // ユーザーのLINE会話履歴を取得
+  getUserConversationHistory: adminProcedure
+    .input(z.object({ lineUserId: z.string(), limit: z.number().min(1).max(500).default(200) }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      const history = await db
+        .select()
+        .from(lineConversationHistory)
+        .where(eq(lineConversationHistory.lineUserId, input.lineUserId))
+        .orderBy(desc(lineConversationHistory.createdAt))
+        .limit(input.limit);
+      return history.reverse(); // 古い順に並べ直す
+    }),
+
+  // LINEユーザー情報を取得（lineUserId → displayName等）
+  getLineUserInfo: adminProcedure
+    .input(z.object({ lineUserId: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      const result = await db
+        .select()
+        .from(lineUsers)
+        .where(eq(lineUsers.lineUserId, input.lineUserId))
+        .limit(1);
+      return result[0] ?? null;
+    }),
+
   // ユーザー一覧
   listUsers: adminProcedure.query(async () => {
     return getAllUsers();

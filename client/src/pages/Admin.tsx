@@ -5,13 +5,106 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { Loader2, LogOut } from "lucide-react";
+import { Loader2, LogOut, MessageSquare, X } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+// ─── トーク履歴モーダル ────────────────────────────────────────────────────────
+function ConversationModal({
+  lineUserId,
+  displayName,
+  onClose,
+}: {
+  lineUserId: string;
+  displayName: string;
+  onClose: () => void;
+}) {
+  const { data: history, isLoading } = trpc.admin.getUserConversationHistory.useQuery(
+    { lineUserId, limit: 200 },
+    { enabled: true }
+  );
+
+  const formatTime = (dateVal: any) => {
+    if (!dateVal) return "";
+    return new Date(dateVal).toLocaleString("ja-JP", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-background rounded-xl shadow-2xl w-full max-w-2xl flex flex-col" style={{ maxHeight: "85vh" }}>
+        {/* ヘッダー */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            <div>
+              <p className="font-bold text-sm">{displayName} のトーク履歴</p>
+              <p className="text-xs text-muted-foreground">{lineUserId.slice(0, 12)}...</p>
+            </div>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* メッセージ一覧 */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : !history || history.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">トーク履歴がありません</p>
+            </div>
+          ) : (
+            history.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                    msg.role === "user"
+                      ? "bg-primary text-primary-foreground rounded-br-sm"
+                      : "bg-muted text-foreground rounded-bl-sm"
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                  <p
+                    className={`text-[10px] mt-1 ${
+                      msg.role === "user" ? "text-primary-foreground/60 text-right" : "text-muted-foreground"
+                    }`}
+                  >
+                    {formatTime(msg.createdAt)}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* フッター */}
+        <div className="px-5 py-3 border-t border-border flex-shrink-0 flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {history ? `${history.length}件のメッセージ` : ""}
+          </p>
+          <Button variant="outline" size="sm" onClick={onClose}>閉じる</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── メインコンポーネント ─────────────────────────────────────────────────────
 export default function Admin() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
@@ -22,14 +115,20 @@ export default function Admin() {
       setLocation("/");
     },
     onError: () => {
-      // エラーでも強制的にトップへ
       setLocation("/");
     },
   });
+
   const [activeTab, setActiveTab] = useState<"users" | "logs" | "broadcast" | "richmenu" | "cleanup">("users");
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  // トーク履歴モーダル用 state
+  const [conversationModal, setConversationModal] = useState<{
+    lineUserId: string;
+    displayName: string;
+  } | null>(null);
 
   const { data: passwordStatus } = trpc.adminAuth.checkPasswordSet.useQuery(undefined, {
     enabled: user?.role === "admin",
@@ -122,8 +221,22 @@ export default function Admin() {
     return new Date(dateVal).toLocaleString("ja-JP");
   };
 
+  // lineUsersからlineUserIdでdisplayNameを取得するヘルパー
+  const getLineUserForUser = (userId: number) => {
+    return lineUsers?.find((lu) => lu.userId === userId);
+  };
+
   return (
     <div className="min-h-screen bg-background">
+      {/* トーク履歴モーダル */}
+      {conversationModal && (
+        <ConversationModal
+          lineUserId={conversationModal.lineUserId}
+          displayName={conversationModal.displayName}
+          onClose={() => setConversationModal(null)}
+        />
+      )}
+
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -279,20 +392,127 @@ export default function Admin() {
                         <TableHead>メール</TableHead>
                         <TableHead>ロール</TableHead>
                         <TableHead>最終ログイン</TableHead>
+                        <TableHead>トーク履歴</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {users?.map((u) => (
-                        <TableRow key={u.id}>
-                          <TableCell className="font-medium">{u.name ?? "-"}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{u.email ?? "-"}</TableCell>
-                          <TableCell>
-                            <Badge variant={u.role === "admin" ? "default" : "secondary"} className="text-xs">
-                              {u.role}
-                            </Badge>
+                      {users?.map((u) => {
+                        const lineUser = getLineUserForUser(u.id);
+                        return (
+                          <TableRow key={u.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {lineUser?.pictureUrl && (
+                                  <img
+                                    src={lineUser.pictureUrl}
+                                    alt=""
+                                    className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+                                  />
+                                )}
+                                <div>
+                                  <p>{u.name ?? "-"}</p>
+                                  {lineUser?.displayName && lineUser.displayName !== u.name && (
+                                    <p className="text-xs text-muted-foreground">LINE: {lineUser.displayName}</p>
+                                  )}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{u.email ?? "-"}</TableCell>
+                            <TableCell>
+                              <Badge variant={u.role === "admin" ? "default" : "secondary"} className="text-xs">
+                                {u.role}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {formatDate(u.lastSignedIn)}
+                            </TableCell>
+                            <TableCell>
+                              {lineUser ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs gap-1"
+                                  onClick={() =>
+                                    setConversationModal({
+                                      lineUserId: lineUser.lineUserId,
+                                      displayName: lineUser.displayName ?? u.name ?? "ユーザー",
+                                    })
+                                  }
+                                >
+                                  <MessageSquare className="h-3 w-3" />
+                                  履歴を見る
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">LINE未連携</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* LINEユーザー一覧（LINE連携済みのみ） */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">LINEアクティブユーザー一覧</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!lineUsers || lineUsers.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">LINEアクティブユーザーがいません</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>LINE名</TableHead>
+                        <TableHead>LINE User ID</TableHead>
+                        <TableHead>配信時間</TableHead>
+                        <TableHead>地域</TableHead>
+                        <TableHead>トーク履歴</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lineUsers.map((lu) => (
+                        <TableRow key={lu.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {lu.pictureUrl && (
+                                <img
+                                  src={lu.pictureUrl}
+                                  alt=""
+                                  className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+                                />
+                              )}
+                              <span>{lu.displayName ?? "-"}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground font-mono">
+                            {lu.lineUserId.slice(0, 16)}...
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {formatDate(u.lastSignedIn)}
+                            {String(lu.deliveryHour).padStart(2, "0")}:{String(lu.deliveryMinute).padStart(2, "0")}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {lu.region ?? "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs gap-1"
+                              onClick={() =>
+                                setConversationModal({
+                                  lineUserId: lu.lineUserId,
+                                  displayName: lu.displayName ?? "ユーザー",
+                                })
+                              }
+                            >
+                              <MessageSquare className="h-3 w-3" />
+                              履歴を見る
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -319,29 +539,37 @@ export default function Admin() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>配信日時</TableHead>
-                      <TableHead>LINE ID</TableHead>
+                      <TableHead>日時</TableHead>
+                      <TableHead>LINE User ID</TableHead>
                       <TableHead>ステータス</TableHead>
-                      <TableHead>エラー</TableHead>
+                      <TableHead>メッセージ</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {logs.map((log) => (
                       <TableRow key={log.id}>
-                        <TableCell className="text-sm">{formatDate(log.deliveredAt)}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground font-mono">
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {formatDate(log.deliveredAt)}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground font-mono">
                           {log.lineUserId ? `${log.lineUserId.slice(0, 8)}...` : "-"}
                         </TableCell>
                         <TableCell>
                           <Badge
-                            variant={log.status === "success" ? "default" : "destructive"}
+                            variant={
+                              log.status === "success"
+                                ? "default"
+                                : log.status === "failed"
+                                ? "destructive"
+                                : "secondary"
+                            }
                             className="text-xs"
                           >
                             {log.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {log.errorMessage ?? "-"}
+                        <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
+                          {log.errorMessage ?? log.message ?? "-"}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -354,71 +582,61 @@ export default function Admin() {
 
         {/* リッチメニュー管理 */}
         {activeTab === "richmenu" && (
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">📱 LINEリッチメニュー管理</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-6">
-                  <img
-                    src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/rich_menu_dashboard_2500x1686_42be9ca0.jpg"
-                    alt="リッチメニュープレビュー"
-                    className="w-full max-w-md rounded-lg border border-border mb-4"
-                  />
-                  <p className="text-sm text-muted-foreground mb-4">
-                    上記の画像をLINEリッチメニューとして設定します。4つのボタン（今日の献立・冷蔵庫管理・家族設定・買い物リスト）が含まれています。
-                  </p>
-                  <Button
-                    onClick={() => createRichMenu.mutate({})}
-                    disabled={createRichMenu.isPending}
-                    className="bg-primary text-primary-foreground"
-                  >
-                    {createRichMenu.isPending ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />作成中...</>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">📱 リッチメニュー管理</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {richMenuLoading ? (
+                <p className="text-muted-foreground text-sm">読み込み中...</p>
+              ) : (
+                <>
+                  <div className="bg-muted/50 rounded-lg p-4">
+                    <p className="text-sm font-medium mb-1">現在のリッチメニュー</p>
+                    {richMenuData?.defaultId ? (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">デフォルトID: {richMenuData.defaultId}</p>
+                        <p className="text-xs text-muted-foreground">✅ デフォルト設定済み</p>
+                      </div>
                     ) : (
-                      "リッチメニューを作成・設定する"
+                      <p className="text-sm text-muted-foreground">リッチメニューが設定されていません</p>
                     )}
-                  </Button>
-                </div>
-
-                {richMenuLoading ? (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>読み込み中...</span>
                   </div>
-                ) : richMenuData?.menus && richMenuData.menus.length > 0 ? (
-                  <div>
-                    <p className="text-sm font-medium mb-3">登録済みリッチメニュー</p>
-                    <div className="space-y-2">
-                      {richMenuData.menus.map((menu: any) => (
-                        <div key={menu.richMenuId} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                          <div>
-                            <p className="text-sm font-medium">{menu.name}</p>
-                            <p className="text-xs text-muted-foreground">ID: {menu.richMenuId}</p>
-                            {richMenuData.defaultId === menu.richMenuId && (
-                              <Badge className="text-xs mt-1 bg-green-100 text-green-700">デフォルト設定中</Badge>
-                            )}
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => deleteRichMenu.mutate({ richMenuId: menu.richMenuId })}
-                            disabled={deleteRichMenu.isPending}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            削除
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        if (confirm("リッチメニューを新規作成・設定しますか？\n既存のリッチメニューは削除されます。")) {
+                          createRichMenu.mutate({});
+                        }
+                      }}
+                      disabled={createRichMenu.isPending}
+                      className="bg-primary text-primary-foreground"
+                    >
+                      {createRichMenu.isPending ? (
+                        <><Loader2 className="h-4 w-4 animate-spin mr-2" />作成中...</>
+                      ) : (
+                        "リッチメニューを作成・設定"
+                      )}
+                    </Button>
+                    {richMenuData?.defaultId && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          if (confirm("リッチメニューを削除しますか？")) {
+                            deleteRichMenu.mutate({ richMenuId: richMenuData.defaultId! });
+                          }
+                        }}
+                        disabled={deleteRichMenu.isPending}
+                        className="text-destructive hover:text-destructive border-destructive/30"
+                      >
+                        {deleteRichMenu.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "削除"}
+                      </Button>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">リッチメニューはまだ設定されていません</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* 一括配信 */}
@@ -450,6 +668,7 @@ export default function Admin() {
             </CardContent>
           </Card>
         )}
+
         {/* データクリア */}
         {activeTab === "cleanup" && (
           <div className="space-y-4">
@@ -462,7 +681,6 @@ export default function Admin() {
                   <p className="text-sm font-medium text-destructive mb-1">⚠️ 注意</p>
                   <p className="text-sm text-muted-foreground">削除したデータは復元できません。本番環境での操作は慎重に行ってください。</p>
                 </div>
-
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-4 border border-border rounded-lg">
                     <div>
@@ -483,7 +701,6 @@ export default function Admin() {
                       {clearConversationHistory.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "削除"}
                     </Button>
                   </div>
-
                   <div className="flex items-center justify-between p-4 border border-border rounded-lg">
                     <div>
                       <p className="font-medium text-sm">❄️ 冷蔵庫データのクリア</p>
@@ -503,7 +720,6 @@ export default function Admin() {
                       {clearFridgeItems.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "削除"}
                     </Button>
                   </div>
-
                   <div className="flex items-center justify-between p-4 border border-destructive/30 rounded-lg bg-destructive/5">
                     <div>
                       <p className="font-medium text-sm text-destructive">🔥 全テストデータを一括クリア</p>
