@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   deleteShoppingItem,
+  deleteCheckedShoppingItems,
   getShoppingList,
   insertShoppingListItems,
   toggleShoppingItem,
@@ -55,5 +56,12 @@ export const shoppingRouter = router({
     .mutation(async ({ ctx, input }) => {
       await deleteShoppingItem(input.id, ctx.user.id);
       return { success: true };
+    }),
+
+  // 購入済みアイテムを一括削除
+  deleteChecked: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const count = await deleteCheckedShoppingItems(ctx.user.id);
+      return { success: true, deletedCount: count };
     }),
 });

@@ -321,6 +321,13 @@ export async function deleteShoppingItem(id: number, userId: number) {
   await db.delete(shoppingListItems).where(and(eq(shoppingListItems.id, id), eq(shoppingListItems.userId, userId)));
 }
 
+export async function deleteCheckedShoppingItems(userId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.delete(shoppingListItems).where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.isChecked, true)));
+  return (result[0] as any)?.affectedRows ?? 0;
+}
+
 // ─── Delivery Logs ────────────────────────────────────────────────────────────
 
 export async function insertDeliveryLog(data: InsertDeliveryLog) {

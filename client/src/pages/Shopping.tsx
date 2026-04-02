@@ -41,6 +41,14 @@ export default function Shopping() {
     onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
   });
 
+  const deleteChecked = trpc.shopping.deleteChecked.useMutation({
+    onSuccess: (data) => {
+      utils.shopping.list.invalidate({ date: today });
+      toast.success(`購入済み ${data.deletedCount} 件を削除しました`);
+    },
+    onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
+  });
+
   const checkedCount = items?.filter((i) => i.isChecked).length ?? 0;
   const totalCount = items?.length ?? 0;
 
@@ -136,7 +144,18 @@ export default function Shopping() {
                 {items.filter((i) => i.isChecked).length > 0 && (
                   <>
                     <div className="border-t border-border my-2" />
-                    <p className="text-xs text-muted-foreground px-2 mb-1">購入済み</p>
+                    <div className="flex items-center justify-between px-2 mb-1">
+                      <p className="text-xs text-muted-foreground">購入済み</p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteChecked.mutate()}
+                        disabled={deleteChecked.isPending}
+                        className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 h-6 px-2"
+                      >
+                        {deleteChecked.isPending ? "削除中..." : "一覧を削除"}
+                      </Button>
+                    </div>
                     {items.filter((i) => i.isChecked).map((item) => (
                       <div
                         key={item.id}
