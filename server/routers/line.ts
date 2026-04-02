@@ -535,8 +535,33 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // 数量として解釈できない入力 → 再度聞く
-    await replyLineMessage(replyToken, [{ type: 'text', text: `何個追加しますか？数字で教えてください。\n例：「3個」「5」\n\nキャンセルする場合は「キャンセル」と送ってください。` }]);
+    // 曖昧な数量表現（「半分くらい」「少し」「適量」「残り少」など）をそのまま保存
+    const vagueQuantityPatterns = [
+      /^(半分|上半分|下半分|半分くらい|半分ほど|半分以上|半分以下)$/,
+      /^(少し|少々|少しだけ|少しだけある|少し残ってる|少しある|少しのこる)$/,
+      /^(適量|適当|適当量|少量|少量だけ|少量ある)$/,
+      /^(残り少|残りわずか|残り少し|残りくらい|もう少し|あと少し)$/,
+      /^(たくさん|いっぱい|まあまあある|そこそこある|まあまあ|そこそこ)$/,
+      /^(新品|ひとつある|まだある|あります|あるよ)$/,
+    ];
+    const trimmedText = text.trim();
+    const isVagueQty = vagueQuantityPatterns.some(p => p.test(trimmedText));
+    if (isVagueQty) {
+      const db = await getDb();
+      if (db && existingId) {
+        await db.update(fridgeItemsTable)
+          .set({ quantity: trimmedText, updatedAt: new Date() })
+          .where(eq(fridgeItemsTable.id, existingId));
+      } else if (db) {
+        await db.insert(fridgeItemsTable).values({ userId, name: itemName, quantity: trimmedText, category: 'other' });
+      }
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `✅ ${itemName}（${trimmedText}）を登録しました！` }]);
+      return true;
+    }
+
+    // 数量として解釈できない入力 → 再度聴く
+    await replyLineMessage(replyToken, [{ type: 'text', text: `数量を教えてください。\n例：「3個」「300g」「半分くらい」「少し」\n\nキャンセルする場合は「キャンセル」と送ってください。` }]);
     return true;
   }
 
