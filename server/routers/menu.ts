@@ -23,13 +23,19 @@ import { getWeatherInfo, formatWeatherForPrompt } from "../weather";
 export async function generateMenuPlan(
   userId: number,
   planDate: string
-): Promise<{ message: string; menuPlanId?: number }> {
+): Promise<{ message: string; menuPlanId?: number; shoppingList?: string[] }> {
   // 既存の献立があればそれを返す
   const existing = await getMenuPlanByDate(userId, planDate);
   if (existing) {
+    const existingData = (() => {
+      try {
+        return typeof existing.menuData === 'string' ? JSON.parse(existing.menuData) : existing.menuData;
+      } catch { return null; }
+    })();
     return {
       message: existing.messageText ?? "本日の献立は既に生成されています。",
       menuPlanId: existing.id,
+      shoppingList: existingData?.shoppingList ?? [],
     };
   }
 
@@ -251,20 +257,10 @@ ${menuData.usedFridgeItems.length > 0 ? `🧊 冷蔵庫から使用：${menuData
   // 保存した献立を取得してIDを返す
   const saved = await getMenuPlanByDate(userId, planDate);
 
-  // 買い物リストも保存
-  if (menuData.shoppingList.length > 0 && saved) {
-    await insertShoppingListItems(
-      menuData.shoppingList.map((item) => ({
-        userId,
-        menuPlanId: saved.id,
-        listDate: planDate as any,
-        name: item,
-        isChecked: false,
-      }))
-    );
-  }
+  // 買い物リストは自動追加しない（ダッシュボードでユーザーが選択して追加する）
+  // shoppingList は menuData に含まれているので、フロントエンドで参照可能
 
-  return { message: messageText, menuPlanId: saved?.id };
+  return { message: messageText, menuPlanId: saved?.id, shoppingList: menuData.shoppingList };
 }
 
 // ─── tRPC router ──────────────────────────────────────────────────────────────

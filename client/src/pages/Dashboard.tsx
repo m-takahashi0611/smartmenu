@@ -11,21 +11,57 @@ export default function Dashboard() {
   const { user } = useAuth();
   const today = new Date().toISOString().split("T")[0];
 
+  // 献立生成後の買い物リスト候補（選択制）
+  const [shoppingCandidates, setShoppingCandidates] = useState<string[]>([]);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [showShoppingSelector, setShowShoppingSelector] = useState(false);
+
   const { data: todayMenu, isLoading: menuLoading } = trpc.menu.getByDate.useQuery({ date: today });
   const { data: shoppingList, isLoading: shoppingLoading } = trpc.shopping.list.useQuery({ date: today });
   const { data: fridgeItems } = trpc.fridge.list.useQuery();
   const { data: familyData } = trpc.family.getProfile.useQuery();
 
+  const utils = trpc.useUtils();
+
   const generateMenu = trpc.menu.getOrGenerate.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       utils.menu.getByDate.invalidate({ date: today });
-      utils.shopping.list.invalidate({ date: today });
-      toast.success("献立を生成しました！", { description: "今日の献立が準備できました。" });
+      // 買い物リスト候補をセット（自動追加はしない）
+      if (data.shoppingList && data.shoppingList.length > 0) {
+        setShoppingCandidates(data.shoppingList);
+        setSelectedItems(new Set(data.shoppingList)); // デフォルト全選択
+        setShowShoppingSelector(true);
+      }
+      toast.success("献立を生成しました！", {
+        description: "下の買い物リストから必要なものを選んで追加してください。",
+      });
     },
     onError: (err) => {
       toast.error("エラー", { description: err.message });
     },
   });
+
+  const addShoppingItem = trpc.shopping.add.useMutation();
+
+  const handleAddSelectedToShoppingList = async () => {
+    const itemsToAdd = Array.from(selectedItems);
+    if (itemsToAdd.length === 0) {
+      toast.info("追加する項目が選択されていません");
+      return;
+    }
+    try {
+      for (const item of itemsToAdd) {
+        await addShoppingItem.mutateAsync({ name: item, date: today });
+      }
+      await utils.shopping.list.invalidate({ date: today });
+      setShowShoppingSelector(false);
+      setShoppingCandidates([]);
+      setSelectedItems(new Set());
+      toast.success(`${itemsToAdd.length}品を買い物リストに追加しました！`);
+    } catch {
+      toast.error("追加に失敗しました");
+    }
+  };
 
   const sendToLine = trpc.menu.sendToLine.useMutation({
     onSuccess: () => {
@@ -42,8 +78,6 @@ export default function Dashboard() {
     },
   });
 
-  const utils = trpc.useUtils();
-
   const menuData = todayMenu?.menuData as {
     breakfast?: string;
     lunch?: string;
@@ -51,11 +85,21 @@ export default function Dashboard() {
     dinnerRecipe?: string;
     tips?: string;
     estimatedCost?: number;
+    shoppingList?: string[];
   } | null;
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
     return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  };
+
+  const toggleCandidate = (item: string) => {
+    setSelectedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(item)) next.delete(item);
+      else next.add(item);
+      return next;
+    });
   };
 
   return (
@@ -114,14 +158,16 @@ export default function Dashboard() {
                       </Button>
                     )}
                     {todayMenu && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => sendToLine.mutate({ date: today })}
-                        disabled={sendToLine.isPending}
-                      >
-                        {sendToLine.isPending ? "送信中..." : "📱 LINEに送信"}
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => sendToLine.mutate({ date: today })}
+                          disabled={sendToLine.isPending}
+                        >
+                          {sendToLine.isPending ? "送信中..." : "📱 LINEに送信"}
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -161,6 +207,25 @@ export default function Dashboard() {
                         {todayMenu.isDelivered && <Badge variant="outline" className="text-green-600 border-green-200">✓ LINE配信済み</Badge>}
                       </div>
                     )}
+                    {/* 買い物リスト候補（既存献立から表示） */}
+                    {!showShoppingSelector && menuData.shoppingList && menuData.shoppingList.length > 0 && shoppingList && shoppingList.length === 0 && (
+                      <div className="border border-dashed border-primary/40 rounded-lg p-3 bg-primary/5">
+                        <p className="text-xs font-semibold text-primary mb-2">🛒 買い物リスト候補</p>
+                        <p className="text-xs text-muted-foreground mb-2">必要なものを選んで買い物リストに追加できます</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs"
+                          onClick={() => {
+                            setShoppingCandidates(menuData.shoppingList!);
+                            setSelectedItems(new Set(menuData.shoppingList!));
+                            setShowShoppingSelector(true);
+                          }}
+                        >
+                          🛒 買い物リストを選択して追加
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-12">
@@ -177,6 +242,76 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
+
+            {/* 買い物リスト選択UI（献立生成直後に表示） */}
+            {showShoppingSelector && shoppingCandidates.length > 0 && (
+              <Card className="border-primary/40 bg-primary/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg text-primary">🛒 買い物リストに追加する</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    必要なものにチェックを入れて「追加する」を押してください
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 mb-4">
+                    <div className="flex gap-2 mb-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                        onClick={() => setSelectedItems(new Set(shoppingCandidates))}
+                      >
+                        全て選択
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                        onClick={() => setSelectedItems(new Set())}
+                      >
+                        全て解除
+                      </Button>
+                    </div>
+                    {shoppingCandidates.map((item) => (
+                      <div
+                        key={item}
+                        className="flex items-center gap-3 cursor-pointer py-1"
+                        onClick={() => toggleCandidate(item)}
+                      >
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${selectedItems.has(item) ? "bg-primary border-primary" : "border-border bg-background"}`}>
+                          {selectedItems.has(item) && <span className="text-primary-foreground text-xs">✓</span>}
+                        </div>
+                        <span className={`text-sm ${!selectedItems.has(item) ? "text-muted-foreground line-through" : ""}`}>
+                          {item}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleAddSelectedToShoppingList}
+                      disabled={addShoppingItem.isPending || selectedItems.size === 0}
+                      className="bg-primary text-primary-foreground"
+                      size="sm"
+                    >
+                      {addShoppingItem.isPending ? "追加中..." : `✓ ${selectedItems.size}品を買い物リストに追加`}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground"
+                      onClick={() => {
+                        setShowShoppingSelector(false);
+                        setShoppingCandidates([]);
+                        setSelectedItems(new Set());
+                      }}
+                    >
+                      スキップ
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* 買い物リスト */}
             <Card>
@@ -212,7 +347,9 @@ export default function Dashboard() {
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">買い物リストはありません</p>
+                  <p className="text-sm text-muted-foreground">
+                    {todayMenu ? "献立の買い物リスト候補から必要なものを選んで追加してください" : "献立を生成すると買い物リストが作成できます"}
+                  </p>
                 )}
               </CardContent>
             </Card>

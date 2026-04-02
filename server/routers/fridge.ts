@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { addFridgeItem, deleteFridgeItem, getFridgeItems } from "../db";
+import { addFridgeItem, deleteFridgeItem, getFridgeItems, getDb } from "../db";
+import { fridgeItems } from "../../drizzle/schema";
+import { eq, and } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 
 const categoryEnum = z.enum([
@@ -37,6 +39,30 @@ export const fridgeRouter = router({
         expiryDate: input.expiryDate ? (input.expiryDate as any) : null,
         category: input.category ?? "other",
       });
+      return { success: true };
+    }),
+
+  // 食材更新（数量・名前）
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        name: z.string().min(1).max(100).optional(),
+        quantity: z.string().max(50).nullable().optional(),
+        category: categoryEnum.optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const updateData: Record<string, any> = { updatedAt: new Date() };
+      if (input.name !== undefined) updateData.name = input.name;
+      if (input.quantity !== undefined) updateData.quantity = input.quantity;
+      if (input.category !== undefined) updateData.category = input.category;
+      await db
+        .update(fridgeItems)
+        .set(updateData)
+        .where(and(eq(fridgeItems.id, input.id), eq(fridgeItems.userId, ctx.user.id)));
       return { success: true };
     }),
 

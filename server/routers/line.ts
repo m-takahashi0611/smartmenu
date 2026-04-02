@@ -216,7 +216,7 @@ async function generateContextualReply(
       .orderBy(shoppingListItems.createdAt);
     const pendingItems = shoppingItems.filter((s) => !s.isChecked);
     if (pendingItems.length === 0) {
-      return '買い物リストは空です。\n\nダッシュボードから献立を生成すると自動で買い物リストが作成されます！\nhttps://www.kondatebiyori.com';
+      return '買い物リストは空です。\n\n献立を生成すると買い物リスト候補がダッシュボードに表示されます。\n必要なものだけ選んで追加できます！\nhttps://www.kondatebiyori.com/dashboard';
     } else {
       const itemList = pendingItems.map((s) => `・${s.name}${s.quantity ? ' ' + s.quantity : ''}`).join('\n');
       return `🛒 買い物リスト（${pendingItems.length}件）：\n${itemList}\n\n買い物が完了したらダッシュボードからチェックできます！`;
@@ -446,6 +446,43 @@ async function handleFridgeRegistration(
     return true;
   }
 
+  // ─── Step 1.5: 数量訂正パターン（「〇〇を〇個に変更」「〇〇〇個に訂正」など）─────────
+  const correctPatterns: Array<{ regex: RegExp; nameGroup: number; qtyGroup: number }> = [
+    { regex: /^(.+?)を(\d+)個?に(変更|訂正|修正|直して|して)/, nameGroup: 1, qtyGroup: 2 },
+    { regex: /^(.+?)(\d+)個?に(変更|訂正|修正|直して|して)/, nameGroup: 1, qtyGroup: 2 },
+    { regex: /^(.+?)は(\d+)個?だった/, nameGroup: 1, qtyGroup: 2 },
+    { regex: /^(.+?)は(\d+)個?です/, nameGroup: 1, qtyGroup: 2 },
+    { regex: /^(.+?)は(\d+)個?ある/, nameGroup: 1, qtyGroup: 2 },
+    { regex: /^(.+?)は(\d+)個?しかない/, nameGroup: 1, qtyGroup: 2 },
+    { regex: /^(.+?)(\d+)個?に変えて/, nameGroup: 1, qtyGroup: 2 },
+    { regex: /^(.+?)(\d+)個?だよ/, nameGroup: 1, qtyGroup: 2 },
+    { regex: /^(.+?)が(\d+)個?ある/, nameGroup: 1, qtyGroup: 2 },
+  ];
+  for (const { regex, nameGroup, qtyGroup } of correctPatterns) {
+    const match = text.match(regex);
+    if (match) {
+      const itemName = match[nameGroup].trim();
+      const newQty = parseInt(match[qtyGroup]);
+      if (!itemName || isNaN(newQty)) continue;
+      const db = await getDb();
+      if (!db) return false;
+      // 既存の食材を名前で検索（部分一致）
+      const allItems = await db.select().from(fridgeItemsTable).where(eq(fridgeItemsTable.userId, userId));
+      const existing = allItems.find(r => r.name.includes(itemName) || itemName.includes(r.name));
+      if (existing) {
+        await db.update(fridgeItemsTable)
+          .set({ quantity: String(newQty) + '個', updatedAt: new Date() })
+          .where(eq(fridgeItemsTable.id, existing.id));
+        await replyLineMessage(replyToken, [{ type: 'text', text: `✅ ${existing.name}の数量を${newQty}個に更新しました！` }]);
+      } else {
+        // 見つからない場合は新規追加
+        await db.insert(fridgeItemsTable).values({ userId, name: itemName, quantity: String(newQty) + '個', category: 'other' });
+        await replyLineMessage(replyToken, [{ type: 'text', text: `✅ ${itemName}を${newQty}個として冷蔵庫に登録しました！` }]);
+      }
+      return true;
+    }
+  }
+
   // ─── Step 2: 「〇〇追加して」「〇〇を追加」などの自然な表現を検出 ─────────────
   // 「冷蔵庫の中身を教えて」「買い物リストを教えて」は除外
   const skipPatterns = [
@@ -649,7 +686,12 @@ export async function handleLineWebhookEvent(event: any) {
         const today = new Date().toISOString().split("T")[0];
         const result = await generateMenuPlan(userId, today);
 
-        await replyLineMessage(replyToken, [{ type: "text", text: result.message }]);
+        // 献立メッセージに買い物リスト確認案内を追加
+        const shoppingGuide = result.shoppingList && result.shoppingList.length > 0
+          ? `\n\n🛒 買い物リスト候補（${result.shoppingList.length}品）をダッシュボードにアップしました！\n必要なものにチェックして追加してね！\nhttps://www.kondatebiyori.com/dashboard`
+          : '';
+
+        await replyLineMessage(replyToken, [{ type: "text", text: result.message + shoppingGuide }]);
 
         await insertDeliveryLog({
           userId,
@@ -735,7 +777,7 @@ https://www.kondatebiyori.com`,
       if (pendingItems.length === 0) {
         await replyLineMessage(replyToken, [{
           type: "text",
-          text: "買い物リストは空です。\n\nダッシュボードから献立を生成すると自動で買い物リストが作成されます！\nhttps://www.kondatebiyori.com",
+          text: "買い物リストは空です。\n\n献立を生成すると買い物リスト候補がダッシュボードに表示されます。\n必要なものだけ選んで追加できます！\nhttps://www.kondatebiyori.com/dashboard",
         }]);
       } else {
         const itemList = pendingItems.map((s) => `・${s.name}${s.quantity ? " " + s.quantity : ""}`).join("\n");
@@ -817,7 +859,7 @@ https://www.kondatebiyori.com`,
       if (pendingItems.length === 0) {
         await replyLineMessage(replyToken, [{
           type: "text",
-          text: "買い物リストは空です。\n\nダッシュボードから献立を生成すると自動で買い物リストが作成されます！\nhttps://www.kondatebiyori.com",
+          text: "買い物リストは空です。\n\n献立を生成すると買い物リスト候補がダッシュボードに表示されます。\n必要なものだけ選んで追加できます！\nhttps://www.kondatebiyori.com/dashboard",
         }]);
       } else {
         const itemList = pendingItems.map((s) => `・${s.name}${s.quantity ? " " + s.quantity : ""}`).join("\n");
