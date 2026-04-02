@@ -16,7 +16,7 @@ import {
   getLineUserPendingAction,
 } from "../db";
 import { lineUsers, fridgeItems as fridgeItemsTable, shoppingListItems } from "../../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { generateMenuPlan, getMealTypeByHour } from "./menu";
 import { publicProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
@@ -928,7 +928,34 @@ https://www.kondatebiyori.com`,
       return;
     }
 
-    // ─── リッチメニュー「買い物リスト」ボタンからのトーク返信 ──────────────────────────
+    // ─── 買い物完了（購入済み）キーワード：買い物リストを全チェック完了にする ──────────────────────
+    const isShoppingDone = /買い物リスト購入済み|買い物完了|買い物した|買い物おわった|買い物終わった|買い物終了|購入完了|全部買った|買い物全部完了/.test(text);
+    if (isShoppingDone) {
+      if (!userId) {
+        await replyLineMessage(replyToken, [{ type: "text", text: `${displayName}さん、まずはダッシュボードからログインしてください
+https://www.kondatebiyori.com` }]);
+        return;
+      }
+      const db = await getDb();
+      if (!db) {
+        await replyLineMessage(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
+        return;
+      }
+      // 未チェックの買い物リストを全て完了に更新
+      const result = await db
+        .update(shoppingListItems)
+        .set({ isChecked: true, updatedAt: new Date() })
+        .where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.isChecked, false)));
+      const updatedCount = result[0]?.affectedRows ?? 0;
+      if (updatedCount === 0) {
+        await replyLineMessage(replyToken, [{ type: "text", text: "買い物リストはすでに空です！\n\n次回の献立は「献立」と送ってください😊" }]);
+      } else {
+        await replyLineMessage(replyToken, [{ type: "text", text: `✅ 買い物お疲れさまでした！\n${updatedCount}件のアイテムを購入済みにしました👍\n\n冷蔵庫の中身も更新しましたか？\n「冷蔵庫に追加」と送ると登録できます🥬` }]);
+      }
+      return;
+    }
+
+    // ─── リッチメニュー「買い物リスト」ボタンからのトーク返信 ──────────────────────
     if (normalizedText === "買い物リストを教えて" || text.includes("買い物リストを教えて")) {
       if (!userId) {
         await replyLineMessage(replyToken, [{
