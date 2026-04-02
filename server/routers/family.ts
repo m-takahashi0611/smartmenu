@@ -29,6 +29,8 @@ export const familyRouter = router({
       z.object({
         familyName: z.string().max(100).optional(),
         notes: z.string().optional(),
+        shoppingFrequency: z.number().int().min(1).max(7).optional(), // 週の買い物回数
+        cookingFrequency: z.number().int().min(0).max(21).optional(), // 週の自炊回数
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -36,6 +38,8 @@ export const familyRouter = router({
         userId: ctx.user.id,
         familyName: input.familyName ?? null,
         notes: input.notes ?? null,
+        shoppingFrequency: input.shoppingFrequency ?? 2,
+        cookingFrequency: input.cookingFrequency ?? 5,
       });
       return { success: true };
     }),

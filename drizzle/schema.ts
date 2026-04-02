@@ -65,6 +65,8 @@ export const familyProfiles = mysqlTable("family_profiles", {
   userId: int("userId").notNull().unique(),
   familyName: varchar("familyName", { length: 100 }),
   notes: text("notes"), // 備考・特記事項
+  shoppingFrequency: int("shoppingFrequency").default(2), // 週の買い物回数（回/週）
+  cookingFrequency: int("cookingFrequency").default(5), // 週の自炊回数（回/週）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

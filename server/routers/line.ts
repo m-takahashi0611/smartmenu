@@ -389,10 +389,84 @@ async function handleFridgeRegistration(
   userId: number,
   lineUserId: string,
   replyToken: string
-): Promise<boolean> {
-
-  // ─── Step 1: pendingActionがある場合（数量入力待ち）─────────────────────────
+): Promise<boolean> {  // ─── Step 1: pendingActionがある場合（数量入力待ち・献立タイプ選択待ち）──────────────────────────────
   const pending = await getLineUserPendingAction(lineUserId);
+
+  // 献立タイプ選択待ちの場合
+  if (pending?.type === 'menu_type_selection') {
+    const { choices } = pending as { choices: Record<string, string>; askedAt: number };
+    const trimmed = text.trim();
+    const selectedType = choices[trimmed];
+
+    if (!selectedType) {
+      // 不明な入力→再度聴く
+      await replyLineMessage(replyToken, [
+        { type: 'text', text: '番号か「夕飯」「朝食」などで教えてください😊\n\nキャンセルする場合は「キャンセル」と送ってください' }
+      ]);
+      return true;
+    }
+
+    if (trimmed === 'キャンセル' || trimmed === 'cancel' || trimmed === 'やめる') {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。またいつでも「献立」と送ってください！' }]);
+      return true;
+    }
+
+    await setLineUserPendingAction(lineUserId, null);
+
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      if (selectedType === 'dinner_and_tomorrow_breakfast') {
+        // 今夜の夕飯＋明日の朝食を順に生成
+        const dinnerResult = await generateMenuPlan(userId, today, 'dinner');
+        const breakfastResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast');
+        const combinedMessage = `${dinnerResult.message}
+
+―――――――――――――――
+
+${breakfastResult.message}`;
+        await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }]);
+      } else if (selectedType === 'tomorrow_dinner') {
+        // 明日の朝食＋昼食＋夕食を順に生成
+        const bfResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast');
+        const lunchResult = await generateMenuPlan(userId, tomorrow, 'lunch');
+        const dinnerResult = await generateMenuPlan(userId, tomorrow, 'dinner');
+        const combinedMessage = `🌟 明日の献立をまとめて提案します！
+
+${bfResult.message}
+
+―――――――――――――――
+
+${lunchResult.message}
+
+―――――――――――――――
+
+${dinnerResult.message}`;
+        await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }]);
+      } else {
+        // 単一食事タイプ
+        const mealType = selectedType as import('./menu').MealType;
+        const targetDate = (selectedType === 'tomorrow_breakfast') ? tomorrow : today;
+        const result = await generateMenuPlan(userId, targetDate, mealType);
+        await replyLineMessage(replyToken, [{ type: 'text', text: result.message }]);
+
+        await insertDeliveryLog({
+          userId,
+          lineUserId,
+          menuPlanId: result.menuPlanId ?? null,
+          status: 'success',
+          deliveredAt: new Date(),
+        });
+      }
+    } catch (err) {
+      console.error('[LINE] Menu generation failed:', err);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '申し訳ありません。献立の生成に失敗しました。しばらくしてからもう一度お試しください。' }]);
+    }
+    return true;
+  }
+
   if (pending?.type === 'fridge_add_qty') {
     const { itemName, existingId, existingQty } = pending;
 
@@ -721,7 +795,7 @@ export async function handleLineWebhookEvent(event: any) {
     console.log(`[LINE] Normalized text: "${text}" (len=${text.length})`);
 
     // ─── キーワードマッチング（優先） ───────────────────────────────────────
-    if (text === "献立" || text === "今日の献立" || text === "献立を教えて") {
+    if (text === "献立" || text === "今日の献立" || text === "献立を教えて" || text === "献立提案") {
       if (!userId) {
         await replyLineMessage(replyToken, [
           {
@@ -732,32 +806,64 @@ export async function handleLineWebhookEvent(event: any) {
         return;
       }
 
-      try {
-        const today = new Date().toISOString().split("T")[0];
-        // 現在時刻から食事タイプを判定してgenerateMenuPlanに渡す
-        const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
-        const currentHourJST = nowJST.getUTCHours();
-        const mealType = getMealTypeByHour(currentHourJST);
-        const result = await generateMenuPlan(userId, today, mealType);
+      // ─── 時間帯に応じた確認質問を返す ────────────────────────────────────────
+      const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const currentHourJST = nowJST.getUTCHours();
 
-        await replyLineMessage(replyToken, [{ type: "text", text: result.message }]);
+      let questionText: string;
+      let pendingChoices: Record<string, string>;
 
-        await insertDeliveryLog({
-          userId,
-          lineUserId,
-          menuPlanId: result.menuPlanId ?? null,
-          status: "success",
-          deliveredAt: new Date(),
-        });
-      } catch (err) {
-        console.error("[LINE] Menu generation failed:", err);
-        await replyLineMessage(replyToken, [
-          {
-            type: "text",
-            text: "申し訳ありません。献立の生成に失敗しました。しばらくしてからもう一度お試しください。",
-          },
-        ]);
+      if (currentHourJST >= 5 && currentHourJST < 15) {
+        // 朝〜昼：朝食/昼食の提案か夕飯か
+        questionText = `どの献立を考えましょうか？\n\n1️⃣ 今日の朝食・昼食\n2️⃣ 今夜の夕飯\n\n番号か「朝食」「夕飯」などで教えてください😊`;
+        pendingChoices = {
+          "1": "breakfast",
+          "朝食": "breakfast",
+          "昼食": "lunch",
+          "ランチ": "lunch",
+          "2": "dinner",
+          "夕飯": "dinner",
+          "夕食": "dinner",
+          "晩ごはん": "dinner",
+          "ディナー": "dinner",
+        };
+      } else if (currentHourJST >= 15 && currentHourJST < 22) {
+        // 夕方〜夜：今晩か明日分まとめてか
+        questionText = `今夜の献立ですか？それとも明日分まで考えますか？\n\n1️⃣ 今夜の夕飯だけ\n2️⃣ 今夜＋明日の朝食まで\n\n番号で教えてください😊`;
+        pendingChoices = {
+          "1": "dinner",
+          "今夜": "dinner",
+          "今日": "dinner",
+          "夕飯": "dinner",
+          "夕食": "dinner",
+          "2": "dinner_and_tomorrow_breakfast",
+          "明日も": "dinner_and_tomorrow_breakfast",
+          "まとめて": "dinner_and_tomorrow_breakfast",
+          "両方": "dinner_and_tomorrow_breakfast",
+        };
+      } else {
+        // 夜（22時〜）：明日の朝食か夕飯まで考えるか
+        questionText = `明日の献立を考えましょうか？\n\n1️⃣ 明日の朝食\n2️⃣ 明日の夕飯まで（朝・昼・夕）\n\n番号で教えてください😊`;
+        pendingChoices = {
+          "1": "tomorrow_breakfast",
+          "朝食": "tomorrow_breakfast",
+          "朝": "tomorrow_breakfast",
+          "2": "tomorrow_dinner",
+          "夕飯": "tomorrow_dinner",
+          "夕食": "tomorrow_dinner",
+          "全部": "tomorrow_dinner",
+          "まとめて": "tomorrow_dinner",
+        };
       }
+
+      // pendingActionに選択待ち状態をセット
+      await setLineUserPendingAction(lineUserId, {
+        type: 'menu_type_selection',
+        choices: pendingChoices,
+        askedAt: Date.now(),
+      });
+
+      await replyLineMessage(replyToken, [{ type: "text", text: questionText }]);
       return;
     }
 

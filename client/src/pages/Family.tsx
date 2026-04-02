@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,8 +44,31 @@ export default function Family() {
   const [preferences, setPreferences] = useState("");
   const [portionSize, setPortionSize] = useState<PortionSize>("normal");
 
+  // プロフィール設定用state
+  const [shoppingFrequency, setShoppingFrequency] = useState<number>(2);
+  const [cookingFrequency, setCookingFrequency] = useState<number>(5);
+  const [profileSaved, setProfileSaved] = useState(false);
+
   const { data: familyData, isLoading } = trpc.family.getProfile.useQuery();
   const utils = trpc.useUtils();
+
+  // プロフィールデータが取得できたらstateを初期化
+  useEffect(() => {
+    if (familyData?.profile) {
+      setShoppingFrequency(familyData.profile.shoppingFrequency ?? 2);
+      setCookingFrequency(familyData.profile.cookingFrequency ?? 5);
+    }
+  }, [familyData?.profile?.id]);
+
+  const upsertProfile = trpc.family.upsertProfile.useMutation({
+    onSuccess: () => {
+      utils.family.getProfile.invalidate();
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 3000);
+      toast.success("プロフィールを保存しました");
+    },
+    onError: (err) => toast.error("保存に失敗しました", { description: err.message }),
+  });
 
   const addMember = trpc.family.addMember.useMutation({
     onSuccess: () => {
@@ -178,7 +201,60 @@ export default function Family() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-6">
+      <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        {/* 買い物・自炊プロフィール設定カード */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">🛒 買い物・自炊プロフィール</CardTitle>
+            <p className="text-xs text-muted-foreground">AIがまとめ買いの提案などに活用します</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm">🛒 週の買い物回数</Label>
+                <Select value={String(shoppingFrequency)} onValueChange={(v) => setShoppingFrequency(Number(v))}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1,2,3,4,5,6,7].map(n => (
+                      <SelectItem key={n} value={String(n)}>{n}回/週</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm">🍳 週の自炊回数</Label>
+                <Select value={String(cookingFrequency)} onValueChange={(v) => setCookingFrequency(Number(v))}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[0,1,2,3,4,5,6,7,10,14,21].map(n => (
+                      <SelectItem key={n} value={String(n)}>{n}回/週</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              className="bg-primary text-primary-foreground"
+              disabled={upsertProfile.isPending}
+              onClick={() => {
+                upsertProfile.mutate({
+                  familyName: familyData?.profile?.familyName ?? undefined,
+                  notes: familyData?.profile?.notes ?? undefined,
+                  shoppingFrequency,
+                  cookingFrequency,
+                });
+              }}
+            >
+              {upsertProfile.isPending ? "保存中..." : profileSaved ? "✓ 保存済み" : "保存する"}
+            </Button>
+          </CardContent>
+        </Card>
+
         {isLoading ? (
           <div className="text-center py-12 text-muted-foreground">読み込み中...</div>
         ) : !familyData || familyData.members.length === 0 ? (

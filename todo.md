@@ -134,3 +134,29 @@
 - [ ] 本番サーバーのLINE Webhookで冷蔵庫・買い物リストが正しく表示されない根本原因を特定・修正
 - [ ] テストデータクリア（fridge_items, shopping_list_items, menu_plans, line_conversation_historyを全削除）
 - [ ] 重複ユーザーID問題の解決（userId=1とuserId=570001が同一人物）
+
+## 会話ベース時間帯対応・プロフィール拡張（2026-04-02）
+
+- [x] line.ts: 「献立」キーワード時に時間帯に応じた確認質問を返す会話フローを実装（完了）
+  - 朝〜昼（5〜15時）：「朝食/昼食の提案？それとも今夜の夕飯？」と聞く
+  - 夕方以降（15〜22時）：「今晩の献立？それとも明日分まとめて？」と聞く
+  - 夜（22時〜）：「明日の朝食？それとも明日の夕飯まで考える？」と聞く
+  - 回答に応じて適切なmealTypeでgenerateMenuPlanを呼ぶ
+- [ ] line.ts: pendingActionに「menu_type_selection」タイプを追加して選択待ち状態を管理
+- [ ] drizzle/schema.ts: family_profilesテーブルにshoppingFrequency・cookingFrequencyカラムを追加
+- [ ] DBマイグレーション実行
+- [ ] server/db.ts: updateFamilyProfileにshoppingFrequency・cookingFrequencyを含める
+- [ ] server/routers/family.ts: updateProfileにshoppingFrequency・cookingFrequencyを追加
+- [ ] client/src/pages/Family.tsx: 「週の買い物回数」「週の自炊回数」セレクトを追加
+- [ ] menu.ts: generateMenuPlanのプロンプトにshoppingFrequency・cookingFrequencyを活用
+
+## 会話ベース時間帯対応・プロフィール拡張（2026-04-02）
+
+- [x] line.ts: 「献立」キーワード時に時間帯に応じた確認質問を返す会話フローを実装（完了）
+- [ ] line.ts: pendingActionに「menu_type_selection」タイプを追加して選択待ち状態を管理
+- [ ] drizzle/schema.ts: family_profilesテーブルにshoppingFrequency・cookingFrequencyカラムを追加
+- [ ] DBマイグレーション実行（pnpm drizzle-kit generate → webdev_execute_sql）
+- [ ] server/db.ts: updateFamilyProfileにshoppingFrequency・cookingFrequencyを含める
+- [ ] server/routers/family.ts: updateProfileにshoppingFrequency・cookingFrequencyを追加
+- [ ] client/src/pages/Family.tsx: 「週の買い物回数」「週の自炊回数」セレクトを追加
+- [ ] menu.ts: generateMenuPlanのプロンプトにshoppingFrequency・cookingFrequencyを活用

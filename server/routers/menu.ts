@@ -105,6 +105,11 @@ export async function generateMenuPlan(
   const weather = await getWeatherInfo(35.68, 139.69, planDate);
   const weatherDesc = formatWeatherForPrompt(weather);
 
+  // 買い物・自炊プロフィール
+  const shoppingFreq = familyProfile?.shoppingFrequency ?? 2;
+  const cookingFreq = familyProfile?.cookingFrequency ?? 5;
+  const shoppingProfileDesc = `週${shoppingFreq}回買い物、週${cookingFreq}回自炊`;
+
   // 家族構成の説明
   const familyDesc =
     familyMemberList.length > 0
@@ -167,6 +172,7 @@ export async function generateMenuPlan(
 
     userPrompt = `【日付・天気】${planDate}（${weatherDesc}）
 【家族構成】${familyDesc}
+【買い物・自炊プロフィール】${shoppingProfileDesc}
 ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyList}\n` : ""}【冷蔵庫の食材】${fridgeDesc}
 【最近の献立（重複を避けて）】${recentDesc}
 
@@ -224,6 +230,7 @@ ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyLis
 
     userPrompt = `【日付・天気】${planDate}（${weatherDesc}）
 【家族構成】${familyDesc}
+【買い物・自炊プロフィール】${shoppingProfileDesc}
 ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyList}\n` : ""}【冷蔵庫の食材】${fridgeDesc}
 
 冷蔵庫の食材を活かした${targetMeal}を1案提案してください。`;

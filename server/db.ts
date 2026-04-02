@@ -181,7 +181,13 @@ export async function upsertFamilyProfile(data: InsertFamilyProfile) {
   const db = await getDb();
   if (!db) return;
   await db.insert(familyProfiles).values(data).onDuplicateKeyUpdate({
-    set: { familyName: data.familyName, notes: data.notes, updatedAt: new Date() },
+    set: {
+      familyName: data.familyName,
+      notes: data.notes,
+      shoppingFrequency: data.shoppingFrequency,
+      cookingFrequency: data.cookingFrequency,
+      updatedAt: new Date(),
+    },
   });
 }
 
