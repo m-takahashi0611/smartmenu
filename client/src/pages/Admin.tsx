@@ -26,7 +26,7 @@ export default function Admin() {
       setLocation("/");
     },
   });
-  const [activeTab, setActiveTab] = useState<"users" | "logs" | "broadcast" | "richmenu">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "logs" | "broadcast" | "richmenu" | "cleanup">("users");
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -83,6 +83,21 @@ export default function Admin() {
       });
     },
     onError: (err) => toast.error("配信に失敗しました", { description: err.message }),
+  });
+
+  const clearConversationHistory = trpc.admin.clearConversationHistory.useMutation({
+    onSuccess: (result) => toast.success(result.message),
+    onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
+  });
+
+  const clearFridgeItems = trpc.admin.clearFridgeItems.useMutation({
+    onSuccess: (result) => toast.success(result.message),
+    onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
+  });
+
+  const clearAllTestData = trpc.admin.clearAllTestData.useMutation({
+    onSuccess: (result) => toast.success(result.message),
+    onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
   });
 
   if (user?.role !== "admin") {
@@ -207,6 +222,7 @@ export default function Admin() {
             { id: "logs", label: "📊 配信ログ" },
             { id: "broadcast", label: "📣 一括配信" },
             { id: "richmenu", label: "📱 リッチメニュー" },
+            { id: "cleanup", label: "🗑️ データクリア" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -433,6 +449,83 @@ export default function Admin() {
               </Button>
             </CardContent>
           </Card>
+        )}
+        {/* データクリア */}
+        {activeTab === "cleanup" && (
+          <div className="space-y-4">
+            <Card className="border-destructive/30">
+              <CardHeader>
+                <CardTitle className="text-base text-destructive">🗑️ テストデータクリア</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4">
+                  <p className="text-sm font-medium text-destructive mb-1">⚠️ 注意</p>
+                  <p className="text-sm text-muted-foreground">削除したデータは復元できません。本番環境での操作は慎重に行ってください。</p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm">💬 会話履歴のクリア</p>
+                      <p className="text-xs text-muted-foreground">全ユーザーのLINE会話履歴を削除します（AIが古いデータを参照しなくなります）</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm("全ユーザーの会話履歴を削除しますか？")) {
+                          clearConversationHistory.mutate({});
+                        }
+                      }}
+                      disabled={clearConversationHistory.isPending}
+                      className="text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
+                    >
+                      {clearConversationHistory.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "削除"}
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm">❄️ 冷蔵庫データのクリア</p>
+                      <p className="text-xs text-muted-foreground">全ユーザーの冷蔵庫登録データを削除します</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm("全ユーザーの冷蔵庫データを削除しますか？")) {
+                          clearFridgeItems.mutate({});
+                        }
+                      }}
+                      disabled={clearFridgeItems.isPending}
+                      className="text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
+                    >
+                      {clearFridgeItems.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "削除"}
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                    <div>
+                      <p className="font-medium text-sm text-destructive">🔥 全テストデータを一括クリア</p>
+                      <p className="text-xs text-muted-foreground">会話履歴・冷蔵庫・買い物リスト・献立をすべて削除します</p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm("全テストデータ（会話履歴・冷蔵庫・買い物リスト・献立）を削除しますか？\nこの操作は元に戻せません。")) {
+                          clearAllTestData.mutate();
+                        }
+                      }}
+                      disabled={clearAllTestData.isPending}
+                    >
+                      {clearAllTestData.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "全データ削除"}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </main>
     </div>
