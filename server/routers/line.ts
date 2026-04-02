@@ -584,10 +584,15 @@ export async function handleLineWebhookEvent(event: any) {
     // ─── テキストメッセージの処理 ─────────────────────────────────────────────
     if (event.message?.type !== "text") return;
 
-    // 全角スペース・不可視文字を除去して正規化
+    // 全角スペース・不可視文字・制御文字を除去して正規化
     const rawText: string = event.message.text;
-    const text: string = rawText.replace(/[\u3000\u00a0\ufeff]/g, ' ').trim();
-    console.log(`[LINE] RAW text bytes: ${Buffer.from(rawText).toString('hex').slice(0, 60)}`);
+    // NFC正規化 → 全角スペース/NBSP/BOM/制御文字を除去 → trim
+    const text: string = rawText
+      .normalize('NFC')
+      .replace(/[\u0000-\u001F\u007F\u3000\u00a0\ufeff\u200b-\u200f\u2028\u2029]/g, '')
+      .trim();
+    console.log(`[LINE] RAW hex: ${Buffer.from(rawText).toString('hex').slice(0, 80)}`);
+    console.log(`[LINE] Normalized text: "${text}" (len=${text.length})`);
 
     // ─── キーワードマッチング（優先） ───────────────────────────────────────
     if (text === "献立" || text === "今日の献立" || text === "献立を教えて") {

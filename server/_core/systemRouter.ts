@@ -2,7 +2,15 @@ import { z } from "zod";
 import { notifyOwner } from "./notification";
 import { adminProcedure, publicProcedure, router } from "./trpc";
 
+// ビルドバージョン（デプロイ確認用）
+const BUILD_VERSION = "v20260402-fridge-fix";
+
 export const systemRouter = router({
+  version: publicProcedure.query(() => ({
+    version: BUILD_VERSION,
+    timestamp: new Date().toISOString(),
+  })),
+
   health: publicProcedure
     .input(
       z.object({

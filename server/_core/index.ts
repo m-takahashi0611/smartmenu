@@ -31,6 +31,11 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
+  // デバッグ用バージョン確認エンドポイント
+  app.get("/api/debug/version", (req, res) => {
+    res.json({ version: "4caac01f", timestamp: new Date().toISOString(), fix: "express.json-after-webhook" });
+  });
+
   // ❗重要: LINE Webhookは express.json() より先に登録することで raw body を保持し、署名検証を正確に行う
   app.post("/api/line/webhook", express.raw({ type: "application/json" }), async (req, res) => {
     try {
