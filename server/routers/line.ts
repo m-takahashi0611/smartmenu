@@ -1008,19 +1008,80 @@ https://www.kondatebiyori.com`,
     ];
     const shoppingAddMatch = shoppingAddPatterns.reduce<RegExpMatchArray | null>((acc, p) => acc ?? text.match(p), null);
     if (shoppingAddMatch && userId) {
-      const rawText = (shoppingAddMatch[1] || '').replace(/[をを]?[追加入れ登録して]+$/, '').trim()
-        || text.replace(/買い物リストに[をを]?[追加入れ登録して]*/, '').trim();
-      const rawItems = rawText.split(/[、,，・\s　とやおよび及び]+/).map((s: string) => s.trim()).filter((s: string) => s.length > 0 && s.length <= 30);
+      // AIで食材リストを分割・解析（「ナス3本牛乳バター」のような連続入力に対応）
+      const rawInput = text;
+      let parsedItems: Array<{ name: string; quantity: string | null }> = [];
+      try {
+        const aiResponse = await invokeLLM({
+          messages: [
+            {
+              role: 'system',
+              content: `あなたは買い物リストの食材解析AIです。
+ユーザーの入力から食材名と数量を抽出してJSON配列で返してください。
+
+# ルール
+- 食材ごとに分割する（スペース・句読点・「と」「や」などで区切られていなくても分割する）
+- 数量がある場合は quantity に入れる（例: "3本", "2個", "1パック"）
+- 数量がない場合は quantity を null にする
+- 食材名は簡潔に（「新鮮な」などの形容詞は除く）
+
+# 出力形式（JSON配列のみ）
+[{"name": "ナス", "quantity": "3本"}, {"name": "牛乳", "quantity": null}, {"name": "バター", "quantity": null}]`,
+            },
+            { role: 'user', content: rawInput },
+          ],
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'shopping_items',
+              strict: true,
+              schema: {
+                type: 'object',
+                properties: {
+                  items: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        name: { type: 'string' },
+                        quantity: { type: ['string', 'null'] },
+                      },
+                      required: ['name', 'quantity'],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ['items'],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        const rawContent = aiResponse.choices?.[0]?.message?.content;
+        const content = typeof rawContent === 'string' ? rawContent : null;
+        if (content) {
+          const parsed = JSON.parse(content);
+          parsedItems = (parsed.items || []).filter((i: { name: string; quantity: string | null }) => i.name && i.name.length > 0 && i.name.length <= 30);
+        }
+      } catch {
+        // AIが失敗した場合は正規表現フォールバック
+        const rawText = (shoppingAddMatch[1] || '').replace(/[をを]?[追加入れ登録して]+$/, '').trim()
+          || text.replace(/買い物リストに[をを]?[追加入れ登録して]*/, '').trim();
+        const rawItems = rawText.split(/[、,，・\s\u3000とやおよび及び]+/).map((s: string) => s.trim()).filter((s: string) => s.length > 0 && s.length <= 30);
+        parsedItems = rawItems.map((raw: string) => {
+          const qtyMatch = raw.match(/^(.+?)([0-9０-９]+[個本枚袋箱パック缶切れ匹尾頭羽束房玉串缶瓶]?)$/);
+          return { name: qtyMatch ? qtyMatch[1].trim() : raw, quantity: qtyMatch?.[2]?.trim() || null };
+        });
+      }
+
       const db = await getDb();
-      if (!db || rawItems.length === 0) {
+      if (!db || parsedItems.length === 0) {
         await replyLineMessage(replyToken, [{ type: 'text', text: '買い物リストに追加する商品が分かりませんでした。例：「玉ねぎを買い物リストに追加して」' }]);
         return;
       }
       const addedItems: string[] = [];
-      for (const raw of rawItems) {
-        const qtyMatch = raw.match(/^(.+?)([0-9０-９]+[個本枚袋箱パック缶切れ匹尾頭羽束房玉串缶瓶]?)$/);
-        const name = qtyMatch ? qtyMatch[1].trim() : raw;
-        const quantity = qtyMatch && qtyMatch[2] ? qtyMatch[2].trim() : null;
+      for (const item of parsedItems) {
+        const { name, quantity } = item;
         if (!name) continue;
         const existing = await db.select().from(shoppingListItems)
           .where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.name, name), eq(shoppingListItems.isChecked, false)))
