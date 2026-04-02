@@ -73,4 +73,38 @@ export const fridgeRouter = router({
       await deleteFridgeItem(input.id, ctx.user.id);
       return { success: true };
     }),
+
+  // 数量増減（＋1または−1、数量が0になったら削除）
+  adjustQuantity: protectedProcedure
+    .input(z.object({ id: z.number(), delta: z.number().int() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const [item] = await db
+        .select()
+        .from(fridgeItems)
+        .where(and(eq(fridgeItems.id, input.id), eq(fridgeItems.userId, ctx.user.id)))
+        .limit(1);
+      if (!item) throw new Error("Item not found");
+
+      // 数量文字列から数値を抽出（例: "3個" → 3、"2本" → 2、null → 1）
+      const qtyStr = item.quantity ?? "1";
+      const numMatch = qtyStr.match(/([0-9０-９9]+)/);
+      const currentNum = numMatch ? parseInt(numMatch[1].replace(/[０-９9]/g, (c) => String(c.charCodeAt(0) - 0xff10))) : 1;
+      const unitMatch = qtyStr.match(/([^0-9０-９9]+)$/);
+      const unit = unitMatch ? unitMatch[1] : "個";
+
+      const newNum = currentNum + input.delta;
+      if (newNum <= 0) {
+        // 0以下になったら削除
+        await deleteFridgeItem(input.id, ctx.user.id);
+        return { success: true, deleted: true, newQuantity: null };
+      }
+      const newQuantity = String(newNum) + unit;
+      await db
+        .update(fridgeItems)
+        .set({ quantity: newQuantity, updatedAt: new Date() })
+        .where(and(eq(fridgeItems.id, input.id), eq(fridgeItems.userId, ctx.user.id)));
+      return { success: true, deleted: false, newQuantity };
+    }),
 });

@@ -78,6 +78,11 @@ export default function Dashboard() {
     onSuccess: () => utils.fridge.list.invalidate(),
   });
 
+  const adjustFridgeQty = trpc.fridge.adjustQuantity.useMutation({
+    onSuccess: () => utils.fridge.list.invalidate(),
+    onError: (err) => toast.error("更新に失敗しました", { description: err.message }),
+  });
+
   const menuData = todayMenu?.menuData as {
     mealType?: string;
     breakfast?: string;
@@ -194,14 +199,26 @@ export default function Dashboard() {
                           {new Date(item.expiryDate) < new Date() ? "⚠️ 期限切れ" : `〜${new Date(item.expiryDate).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}`}
                         </span>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs text-muted-foreground h-7 px-2"
-                        onClick={() => deleteFridgeItem.mutate({ id: item.id })}
-                      >
-                        削除
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-base font-bold"
+                          onClick={() => adjustFridgeQty.mutate({ id: item.id, delta: -1 })}
+                          disabled={adjustFridgeQty.isPending}
+                        >
+                          −
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-base font-bold"
+                          onClick={() => adjustFridgeQty.mutate({ id: item.id, delta: 1 })}
+                          disabled={adjustFridgeQty.isPending}
+                        >
+                          +
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}

@@ -199,3 +199,10 @@
 
 - [ ] ShoppingList.tsx: 「購入済みを削除」ボタンを追加（購入済みアイテムが1件以上ある場合に表示）
 - [ ] server/routers/shopping.ts または family.ts: deleteCheckedItems ミューテーションを追加
+
+## 冷蔵庫増減ボタン・買い物リスト登録バグ修正（2026-04-02）
+
+- [ ] line.ts: 「買い物リストに登録して」が冷蔵庫に追加されてしまうバグを修正（冷蔵庫登録パターンの正規表現を厳密化）
+- [ ] DB/API: fridge.updateQuantity ミューテーション追加（quantity文字列を増減）
+- [ ] Dashboard.tsx: 冷蔵庫タブの削除ボタンを＋／－増減ボタンに変更
+- [ ] Fridge.tsx: 冷蔵庫ページの削除ボタンを＋／－増減ボタンに変更

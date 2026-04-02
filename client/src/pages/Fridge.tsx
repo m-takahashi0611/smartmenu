@@ -54,6 +54,14 @@ export default function Fridge() {
     onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
   });
 
+  const adjustQty = trpc.fridge.adjustQuantity.useMutation({
+    onSuccess: (data) => {
+      utils.fridge.list.invalidate();
+      if (data.deleted) toast.success("食材を削除しました");
+    },
+    onError: (err) => toast.error("更新に失敗しました", { description: err.message }),
+  });
+
   const handleAdd = () => {
     if (!name.trim()) return;
     addItem.mutate({
@@ -212,14 +220,26 @@ export default function Fridge() {
                             </div>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteItem.mutate({ id: item.id })}
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10 text-xs"
-                        >
-                          削除
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-base font-bold"
+                            onClick={() => adjustQty.mutate({ id: item.id, delta: -1 })}
+                            disabled={adjustQty.isPending}
+                          >
+                            −
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-base font-bold"
+                            onClick={() => adjustQty.mutate({ id: item.id, delta: 1 })}
+                            disabled={adjustQty.isPending}
+                          >
+                            +
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
