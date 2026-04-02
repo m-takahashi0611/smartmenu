@@ -47,6 +47,8 @@ export const lineUsers = mysqlTable("line_users", {
   latitude: double("latitude"),
   longitude: double("longitude"),
   region: varchar("region", { length: 100 }), // 地域名（例: 東京都渋谷区）
+  // 会話状態管理（多ターン会話フロー用）
+  pendingAction: json("pendingAction"), // { type: 'fridge_add_qty', itemName: '玉ねぎ', existingQty: 3 } など
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

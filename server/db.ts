@@ -370,3 +370,25 @@ export async function updateLineUserLocation(
     .set({ latitude, longitude, region, updatedAt: new Date() })
     .where(eq(lineUsers.lineUserId, lineUserId));
 }
+
+// ─── 会話状態管理（pendingAction） ───────────────────────────────────────────
+
+export async function setLineUserPendingAction(lineUserId: string, action: object | null) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(lineUsers)
+    .set({ pendingAction: action, updatedAt: new Date() })
+    .where(eq(lineUsers.lineUserId, lineUserId));
+}
+
+export async function getLineUserPendingAction(lineUserId: string): Promise<any | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({ pendingAction: lineUsers.pendingAction })
+    .from(lineUsers)
+    .where(eq(lineUsers.lineUserId, lineUserId))
+    .limit(1);
+  return rows[0]?.pendingAction ?? null;
+}
