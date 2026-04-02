@@ -1,4 +1,3 @@
-import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -31,16 +30,15 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  // OAuth callback under /api/oauth/callback
-  registerOAuthRoutes(app);
-  // LINE Webhook
+
+  // ❗重要: LINE Webhookは express.json() より先に登録することで raw body を保持し、署名検証を正確に行う
   app.post("/api/line/webhook", express.raw({ type: "application/json" }), async (req, res) => {
     try {
-      const rawBody = req.body.toString();
+      // express.raw() により req.body は Buffer になる
+      const rawBody = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : JSON.stringify(req.body);
       const signature = req.headers["x-line-signature"] as string;
+
+      console.log(`[LINE] Webhook received, rawBody length: ${rawBody.length}, sig: ${signature?.slice(0, 20)}`);
 
       if (!verifyLineSignature(rawBody, signature)) {
         console.warn("[LINE] Invalid signature");
@@ -50,6 +48,8 @@ async function startServer() {
 
       const body = JSON.parse(rawBody);
       const events = body.events ?? [];
+
+      console.log(`[LINE] Processing ${events.length} events`);
 
       // 非同期で処理（LINEは素早くレスポンスを返す必要がある）
       Promise.all(events.map((event: any) => handleLineWebhookEvent(event))).catch(
@@ -62,6 +62,13 @@ async function startServer() {
       res.status(500).json({ error: "Internal server error" });
     }
   });
+
+  // Configure body parser with larger size limit for file uploads (after LINE webhook)
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // OAuth callback under /api/oauth/callback
+  registerOAuthRoutes(app);
 
   // tRPC API
   app.use(
