@@ -507,8 +507,15 @@ async function handleFridgeRegistration(
     const match = text.match(regex);
     if (match) {
       const itemsText = match[itemGroup];
-      // カンマや読点で分割して複数食材に対応
-      const items = itemsText.split(/[、,，・]/).map((s) => s.trim()).filter((s) => s.length > 0 && s.length <= 20);
+      // カンマ・読点・スペース・「と」「や」「及び」で分割して複数食材に対応
+      const rawItems = itemsText.split(/[、,，・\s　とやおよび及び]+/).map((s) => s.trim()).filter((s) => s.length > 0 && s.length <= 20);
+      // 数量表現（「2個」「3本」など）を含む場合は食材名と数量を分離
+      const items = rawItems.flatMap((s) => {
+        // 「玉ねぎ2個」「にんじん1本」のような形式を分離
+        const qtyMatch = s.match(/^(.+?)([0-9０-９一二三四五六七八九十百]+[個本枚袋箱パック缶本切れ匹尾頭羽束房玉串缶瓶])$/);
+        if (qtyMatch) return [qtyMatch[1].trim()];
+        return [s];
+      }).filter((s) => s.length > 0 && s.length <= 20);
 
       const db = await getDb();
       if (!db || items.length === 0) return false;
@@ -523,8 +530,40 @@ async function handleFridgeRegistration(
         return true;
       }
 
-      // 1品の場合は既存在庫を確認して数量を聞く
-      const itemName = items[0];
+      // 1品だが食材名が長い場合（10文字以上）はAIで複数食材に分割を試みる
+      let finalItems = items;
+      if (items.length === 1 && items[0].length >= 6) {
+        try {
+          const splitResp = await invokeLLM({
+            messages: [
+              { role: 'system', content: '食材名のリストを抽出するアシスタントです。入力テキストから食材名のみをJSON配列で返してください。例: ["豚肉","玉ねぎ","にんじん"]' },
+              { role: 'user', content: `次のテキストから食材名を個別に抽出してください: "${items[0]}"` },
+            ],
+            response_format: { type: 'json_object' },
+          });
+          const content = splitResp.choices[0]?.message?.content;
+          const contentStr = typeof content === 'string' ? content : JSON.stringify(content ?? {});
+          const parsed = JSON.parse(contentStr);
+          const extracted: string[] = Array.isArray(parsed) ? parsed : (parsed.items ?? parsed.foods ?? parsed.ingredients ?? []);
+          if (extracted.length > 1) {
+            finalItems = extracted.map((s: string) => String(s).trim()).filter((s: string) => s.length > 0 && s.length <= 20);
+          }
+        } catch (_) {
+          // AI分割失敗時はそのまま
+        }
+      }
+
+      // 複数食材に分割できた場合はまとめて登録
+      if (finalItems.length > 1) {
+        for (const item of finalItems) {
+          await db.insert(fridgeItemsTable).values({ userId, name: item, quantity: null, category: 'other' });
+        }
+        const itemList = finalItems.join('、');
+        await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！\n\n献立を提案しましょうか？「献立」と送ってください` }]);
+        return true;
+      }
+
+      const itemName = finalItems[0] ?? items[0];
       const existing = await db.select().from(fridgeItemsTable)
         .where(eq(fridgeItemsTable.userId, userId))
         .then(rows => rows.find(r => r.name === itemName));
