@@ -847,6 +847,78 @@ ${dinnerResult.message}`;
     return true;
   }
 
+  // ─── 食材名のみ音声入力後の3択選択待ち ─────────────────────────────────────────────────────
+  if (pending?.type === 'voice_ingredient_action') {
+    const { ingredients } = pending as { ingredients: string[]; transcribedText: string };
+    const trimmed = text.trim();
+
+    // キャンセル
+    if (/^(キャンセル|やめる|やめて|cancel|いいえ)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。' }]);
+      return true;
+    }
+
+    // 1 → 冷蔵庫に追加
+    if (/^[1１]$/.test(trimmed) || /冷蔵庫/.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      const db = await getDb();
+      if (!db) return false;
+      for (const name of ingredients) {
+        const existing = await db.select().from(fridgeItemsTable)
+          .where(eq(fridgeItemsTable.userId, userId)).then(rows => findMatchingFridgeItem(rows, name));
+        if (!existing) {
+          await db.insert(fridgeItemsTable).values({ userId, name, quantity: null, category: 'other' });
+        }
+      }
+      const itemList = ingredients.join('、');
+      await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！\n\n献立を提案しましょうか？「献立」と送ってください` }]);
+      return true;
+    }
+
+    // 2 → 買い物リストに追加
+    if (/^[2２]$/.test(trimmed) || /買い物/.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      const db = await getDb();
+      if (!db) return false;
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const addedItems: string[] = [];
+      for (const name of ingredients) {
+        const existing = await db.select().from(shoppingListItems)
+          .where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.name, name), eq(shoppingListItems.isChecked, false)))
+          .limit(1);
+        if (existing.length === 0) {
+          await db.insert(shoppingListItems).values({ userId, name, quantity: null, isChecked: false, listDate: today });
+        }
+        addedItems.push(name);
+      }
+      const itemList = addedItems.map(i => `・${i}`).join('\n');
+      await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 買い物リストに追加しました！\n${itemList}\n\nダッシュボードで確認・チェックできます🛒` }]);
+      return true;
+    }
+
+    // 3 → 献立を提案
+    if (/^[3３]$/.test(trimmed) || /献立/.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      // 疑似イベントで献立処理に再投入
+      await handleLineWebhookEvent({
+        type: 'message',
+        source: { userId: lineUserId },
+        replyToken,
+        message: { type: 'text', text: '献立' },
+      });
+      return true;
+    }
+
+    // それ以外 → 再度選択を促す
+    const ingredientDisplay = ingredients.join('、');
+    await replyLineMessage(replyToken, [{
+      type: 'text',
+      text: `「${ingredientDisplay}」をどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n番号で教えてください😊`,
+    }]);
+    return true;
+  }
+
   if (pending?.type === 'fridge_add_qty') {
     const { itemName, existingId, existingQty } = pending;
 
@@ -1287,21 +1359,83 @@ export async function handleLineWebhookEvent(event: any) {
         }
         const transcribedText = transcription.text.trim();
         console.log(`[LINE] Transcribed: "${transcribedText}"`);
-        // 復唱して確認を求める
-        await setLineUserPendingAction(lineUserId, {
-          type: "voice_confirm",
-          transcribedText,
-        });
-        await replyLineMessage(replyToken, [{
-          type: "text",
-          text: `🎤 言葉を認識しました！
 
-「${transcribedText}」
+        // 食材名のみかどうかをLLMで判定
+        let isIngredientsOnly = false;
+        let ingredientList: string[] = [];
+        try {
+          const intentResp = await invokeLLM({
+            messages: [
+              {
+                role: 'system',
+                content: `ユーザーの発言が「食材名だけ」かどうかを判定してください。
+「食材名だけ」とは：具体的な作業指示（追加して、削除して、献立考えてなど）がなく、食材名や商品名だけが并んでいる状態。
+例：「大根、牛乳、塩」→食材名のみ（true）
+例：「大根を冷蔵庫に追加して」→作業指示あり（false）
+例：「献立考えて」→作業指示あり（false）`,
+              },
+              { role: 'user', content: transcribedText },
+            ],
+            response_format: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'intent_check',
+                strict: true,
+                schema: {
+                  type: 'object',
+                  properties: {
+                    isIngredientsOnly: { type: 'boolean' },
+                    ingredients: { type: 'array', items: { type: 'string' } },
+                  },
+                  required: ['isIngredientsOnly', 'ingredients'],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+          const intentContent = intentResp.choices[0]?.message?.content;
+          const intentParsed = typeof intentContent === 'string' ? JSON.parse(intentContent) : intentContent;
+          isIngredientsOnly = intentParsed?.isIngredientsOnly === true;
+          ingredientList = intentParsed?.ingredients ?? [];
+        } catch {
+          // 判定失敗時は通常の復唱確認にフォールスルー
+        }
+
+        if (isIngredientsOnly && ingredientList.length > 0) {
+          // 食材名のみ→復唱＋3择提示
+          const ingredientDisplay = ingredientList.join('、');
+          await setLineUserPendingAction(lineUserId, {
+            type: 'voice_ingredient_action',
+            transcribedText,
+            ingredients: ingredientList,
+          });
+          await replyLineMessage(replyToken, [{
+            type: 'text',
+            text: `🎤 「${ingredientDisplay}」ですね！
+
+これをどうしますか？
+
+1️⃣ 冷蔵庫に追加
+2️⃣ 買い物リストに追加
+3️⃣ この食材で献立を提案
+
+番号で教えてください😊`,
+          }]);
+        } else {
+          // 作業指示あり→復唱して確認
+          await setLineUserPendingAction(lineUserId, {
+            type: "voice_confirm",
+            transcribedText,
+          });
+          await replyLineMessage(replyToken, [{
+            type: "text",
+            text: `🎤 「${transcribedText}」
 
 この内容でよろしいですか？
-「はい」と送ると処理します。
-「いいえ」と送るとキャンセルします。`,
-        }]);
+「はい」→ そのまま処理します
+「いいえ」→ キャンセルします`,
+          }]);
+        }
       } catch (err) {
         console.error("[LINE] Audio processing failed:", err);
         await replyLineMessage(replyToken, [{ type: "text", text: "音声の処理中にエラーが発生しました。もう一度お試しください。" }]);
