@@ -314,8 +314,13 @@ export default function Home() {
             <h3 className="text-xl font-bold text-foreground text-center mb-6">📖 詳しい使い方ガイド</h3>
             <div className="space-y-4">
               <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_01_hello_f8239cb9.png"
-                alt="はじめ方ガイド"
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_8d311aef.png"
+                alt="はじめましょう！"
+                className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
+              />
+              <img
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_B_steps_3f90fe8b.png"
+                alt="まず3ステップで始めましょう！"
                 className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
               />
               <img
