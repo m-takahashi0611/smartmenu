@@ -169,8 +169,8 @@ export default function Home() {
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">🍽️</span>
-            <span className="text-xl font-bold text-primary">献立日和～coto coto～</span>
+            <span className="text-xl">🍽️</span>
+            <span className="text-base font-bold text-primary whitespace-nowrap">献立日和〜coto coto〜</span>
           </div>
           <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">機能</a>
@@ -181,9 +181,7 @@ export default function Home() {
             {isLiff ? (
               <LineLoginButton size="sm" />
             ) : user ? (
-              <Link href="/dashboard">
-                <Button size="sm" className="bg-primary text-primary-foreground">ダッシュボードへ →</Button>
-              </Link>
+              <span className="text-xs text-muted-foreground">✅ ログイン済み</span>
             ) : (
               <a href={getLoginUrl()}>
                 <Button size="sm" className="bg-primary text-primary-foreground">ログイン</Button>
