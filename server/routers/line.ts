@@ -775,9 +775,6 @@ async function handleFridgeRegistration(
 
     await setLineUserPendingAction(lineUserId, null);
 
-    // 即時返信（replyTokenで「生成中」を先送り）
-    await replyLineMessage(replyToken, [{ type: 'text', text: '献立を生成中です…少々お待ちください🍳' }]);
-
     try {
       const today = new Date().toISOString().split('T')[0];
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -791,7 +788,7 @@ async function handleFridgeRegistration(
 ―――――――――――――――――
 
 ${breakfastResult.message}`;
-        await sendLineMessage(lineUserId, [{ type: 'text', text: combinedMessage }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }]);
       } else if (selectedType === 'tomorrow_dinner') {
         // 明日の朝食＋昼食＋夕食を順に生成
         const bfResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast');
@@ -808,13 +805,13 @@ ${lunchResult.message}
 ―――――――――――――――――
 
 ${dinnerResult.message}`;
-        await sendLineMessage(lineUserId, [{ type: 'text', text: combinedMessage }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }]);
       } else {
         // 単一食事タイプ
         const mealType = selectedType as import('./menu').MealType;
         const targetDate = (selectedType === 'tomorrow_breakfast') ? tomorrow : today;
         const result = await generateMenuPlan(userId, targetDate, mealType);
-        await sendLineMessage(lineUserId, [{ type: 'text', text: result.message }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: result.message }]);
 
         // 夕食・翔日朝食の場合は3案提示するのでmenu_option_selectionをセット
         if (mealType === 'dinner' || mealType === 'tomorrow_breakfast') {
@@ -847,7 +844,7 @@ ${dinnerResult.message}`;
       }
     } catch (err) {
       console.error('[LINE] Menu generation failed:', err);
-      await sendLineMessage(lineUserId, [{ type: 'text', text: '申し訳ありません。献立の生成に失敗しました。しばらくしてからもう一度お試しください。' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '申し訳ありません。献立の生成に失敗しました。しばらくしてからもう一度お試しください。' }]);
     }
     return true;
   }
@@ -1176,13 +1173,12 @@ ${dinnerResult.message}`;
       return true;
     }
     try {
-      await replyLineMessage(replyToken, [{ type: 'text', text: `\ud83c\udf7d\ufe0f \u300c${moodTheme}\u300d\u306e\u30c6\u30fc\u30de\u3067\u732e\u7acb\u3092\u63d0\u6848\u4e2d\u2026` }]);
       const today = new Date().toISOString().split('T')[0];
       const result = await generateMenuPlan(userId, today, 'dinner');
-      await sendLineMessage(lineUserId, [{ type: 'text', text: result.message }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: result.message }]);
     } catch (err) {
       console.error('[LINE] mood_theme menu generation failed:', err);
-      await sendLineMessage(lineUserId, [{ type: 'text', text: '\u732e\u7acb\u306e\u751f\u6210\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002\u3057\u3070\u3089\u304f\u3057\u3066\u304b\u3089\u518d\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '献立の生成に失敗しました。しばらくしてから再度お試しください。' }]);
     }
     return true;
   }
@@ -1464,8 +1460,6 @@ ${dinnerResult.message}`;
       // 1品だが食材名が長い場合（10文字以上）はAIで複数食材に分割を試みる
       let finalItems = items;
       if (items.length === 1 && items[0].length >= 6) {
-        // AI分割前に即時返信
-        await replyLineMessage(replyToken, [{ type: 'text', text: '冷蔵庫に登録中です…少々お待ちください❄️' }]);
         try {
           const splitResp = await invokeLLM({
             messages: [
@@ -1492,8 +1486,7 @@ ${dinnerResult.message}`;
           await db.insert(fridgeItemsTable).values({ userId, name: item, quantity: null, category: 'other' });
         }
         const itemList = finalItems.join('、');
-        // AI分割前に即時返信済みの場合は結果をsendLineMessageで送信
-        await sendLineMessage(lineUserId, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！
+        await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！
 
 献立を提案しましょうか？「献立」と送ってください` }]);
         return true;
@@ -1646,11 +1639,17 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
       }
     }
 
-    // replyTokenで挨拶テキストのみ送信（3ステップは画像で伝えるため不要）
+        // replyTokenで挨拶テキストのみ送信（3ステップは画像で伝えるため不要）
     await replyLineMessage(replyToken, [
       {
         type: "text",
-        text: `🍽️ こんにちは、${profile?.displayName ?? "ゲスト"}さん！\n献立日和～coto coto～へようこそ！\n\n毎日の献立をAIがご提案します。\n「今日何作ろう…」のお悩みから解放されましょう♪`,
+        text: `🍽️ こんにちは、${profile?.displayName ?? "ゲスト"}さん！
+献立日和～coto coto～へようこそ！
+
+毎日の献立をAIがご提案します。
+「今日何作ろう…」のお悩みから解放されましょう♪
+
+⚠️ AIの応答には5～15秒ほどかかる場合があります。返信が来るまで少々お待ちください🙏`,
       },
     ]);
 
