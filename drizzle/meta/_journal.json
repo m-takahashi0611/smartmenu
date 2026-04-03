@@ -57,6 +57,13 @@
       "when": 1775124711598,
       "tag": "0007_same_black_bolt",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1775184898214,
+      "tag": "0008_elite_risque",
+      "breakpoints": true
     }
   ]
 }

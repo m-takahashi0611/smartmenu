@@ -217,3 +217,20 @@ export const lineConversationHistory = mysqlTable("line_conversation_history", {
 
 export type LineConversationHistory = typeof lineConversationHistory.$inferSelect;
 export type InsertLineConversationHistory = typeof lineConversationHistory.$inferInsert;
+
+/**
+ * 商品名正規化キャッシュテーブル
+ * レシートの正式商品名→一般的な食材名へのマッピングをキャッシュ
+ * 例: 「北海道根釧牛乳」→「牛乳」、「コカ・コーラ70」→「コーラ」
+ */
+export const productNameCache = mysqlTable("product_name_cache", {
+  id: int("id").autoincrement().primaryKey(),
+  originalName: varchar("originalName", { length: 255 }).notNull().unique(), // レシートの正式商品名
+  normalizedName: varchar("normalizedName", { length: 100 }).notNull(),       // 正規化後の一般食材名
+  category: varchar("category", { length: 50 }),                              // カテゴリ（乳製品・飲料・肉類など）
+  resolvedBy: mysqlEnum("resolvedBy", ["rule", "llm"]).default("llm").notNull(), // 判定方法
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ProductNameCache = typeof productNameCache.$inferSelect;
+export type InsertProductNameCache = typeof productNameCache.$inferInsert;

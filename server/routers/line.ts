@@ -16,6 +16,9 @@ import {
   getLineUserPendingAction,
   moveCheckedShoppingItemsToFridge,
   getMenuPlanByDate,
+  deleteFridgeItem,
+  getProductNameCache,
+  upsertProductNameCache,
 } from "../db";
 import { lineUsers, fridgeItems as fridgeItemsTable, shoppingListItems } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
@@ -462,6 +465,121 @@ ${isTodayCold ? "【今日は寒い】体を温める料理を優先して提案
 }
 
 // ─── LINE上での冷蔵庫食材登録処理（会話フロー対応版） ─────────────────────────
+
+// 商品名正規化ルール（語尾・キーワードベース）
+const PRODUCT_NORMALIZE_RULES: Array<{ pattern: RegExp; normalized: string; category: string }> = [
+  // 乳製品
+  { pattern: /牛乳|ミルク/, normalized: '牛乳', category: '乳製品' },
+  { pattern: /ヨーグルト/, normalized: 'ヨーグルト', category: '乳製品' },
+  { pattern: /チーズ/, normalized: 'チーズ', category: '乳製品' },
+  { pattern: /バター/, normalized: 'バター', category: '乳製品' },
+  { pattern: /生クリーム/, normalized: '生クリーム', category: '乳製品' },
+  // 肉類
+  { pattern: /豚バラ|豚ロース|豚肉|ポーク/, normalized: '豚肉', category: '肉類' },
+  { pattern: /鶏肉|チキン/, normalized: '鶏肉', category: '肉類' },
+  { pattern: /牛肉|ビーフ/, normalized: '牛肉', category: '肉類' },
+  { pattern: /ミンチ肉/, normalized: 'ミンチ肉', category: '肉類' },
+  // 魚介類
+  { pattern: /サーモン|鲑/, normalized: '鲑', category: '魚介類' },
+  { pattern: /マグロ|鯪/, normalized: '鯪', category: '魚介類' },
+  // 飲料
+  { pattern: /コーラ|コカ・コーラ/, normalized: 'コーラ', category: '飲料' },
+  { pattern: /オレンジジュース/, normalized: 'オレンジジュース', category: '飲料' },
+  { pattern: /リンゴジュース/, normalized: 'リンゴジュース', category: '飲料' },
+  { pattern: /コーヒー/, normalized: 'コーヒー', category: '飲料' },
+  { pattern: /緑茶|緑茶ティー/, normalized: '緑茶', category: '飲料' },
+  { pattern: /ムギメギ/, normalized: 'ムギメギ', category: '飲料' },
+  // 主食
+  { pattern: /米$|お米|白米/, normalized: '米', category: '主食' },
+  { pattern: /パン$|食パン/, normalized: '食パン', category: '主食' },
+  { pattern: /麺$|ラーメン|スパゲッティ|パスタ/, normalized: '麺類', category: '主食' },
+  // 野菜
+  { pattern: /キャベツ/, normalized: 'キャベツ', category: '野菜' },
+  { pattern: /にんじん|ニンジン/, normalized: 'にんじん', category: '野菜' },
+  { pattern: /じゃがいも|ジャガイモ|ジャガイモ/, normalized: 'じゃがいも', category: '野菜' },
+  { pattern: /玉ねぎ|タマネギ/, normalized: '玉ねぎ', category: '野菜' },
+  { pattern: /トマト/, normalized: 'トマト', category: '野菜' },
+  { pattern: /ピーマン/, normalized: 'ピーマン', category: '野菜' },
+  { pattern: /ブロッコリー/, normalized: 'ブロッコリー', category: '野菜' },
+  { pattern: /ホウレン草/, normalized: 'ホウレン草', category: '野菜' },
+  { pattern: /なす/, normalized: 'なす', category: '野菜' },
+  { pattern: /きゅうり|キュウリ/, normalized: 'きゅうり', category: '野菜' },
+  { pattern: /ゴーヤ/, normalized: 'ゴーヤ', category: '野菜' },
+  // 卵子
+  { pattern: /卵子|たまご/, normalized: '卵子', category: 'その他' },
+  // 冷凍食品
+  { pattern: /アイス|モナ王/, normalized: 'アイス', category: '冷凍食品' },
+  // 加工食品
+  { pattern: /ウィンナー|ソーセージ/, normalized: 'ウィンナー', category: '加工食品' },
+  { pattern: /ハム/, normalized: 'ハム', category: '加工食品' },
+  { pattern: /ベーコン/, normalized: 'ベーコン', category: '加工食品' },
+];
+
+// 商品名を正規化する（キャッシュ→ルールベース→LLMの順で判定）
+async function resolveProductName(originalName: string): Promise<string> {
+  // 1. キャッシュ検索
+  const cached = await getProductNameCache(originalName).catch(() => null);
+  if (cached) return cached.normalizedName;
+
+  // 2. ルールベース判定
+  for (const rule of PRODUCT_NORMALIZE_RULES) {
+    if (rule.pattern.test(originalName)) {
+      await upsertProductNameCache({
+        originalName,
+        normalizedName: rule.normalized,
+        category: rule.category,
+        resolvedBy: 'rule',
+      }).catch(() => {});
+      return rule.normalized;
+    }
+  }
+
+  // 3. LLMフォールバック（ルールで判定できなかった場合）
+  try {
+    const response = await invokeLLM({
+      messages: [
+        { role: 'system', content: '商品名を一般的な食材名に変換してください。答えは食材名のみを返してください。例:「北海道根釧牛乳」→「牛乳」、「コカ・コーラア70」→「コーラ」、「香薄あらびきポーク」→「ウィンナー」' },
+        { role: 'user', content: originalName },
+      ],
+    });
+    const normalized = (response.choices[0]?.message?.content as string ?? originalName).trim();
+    await upsertProductNameCache({
+      originalName,
+      normalizedName: normalized,
+      category: null,
+      resolvedBy: 'llm',
+    }).catch(() => {});
+    return normalized;
+  } catch {
+    return originalName; // 失敗時は元の名前を使用
+  }
+}
+
+// ひらがな/カタカナを正規化して食材名の表記ゆれを吸収するヘルパー
+function normalizeIngredientName(name: string): string {
+  return name
+    .normalize('NFKC')
+    .replace(/[\u30A1-\u30F6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60))
+    .toLowerCase()
+    .trim();
+}
+
+// 冷蔵庫の既存食材と表記ゆれを考慮して部分一致検索
+function findMatchingFridgeItem(
+  items: Array<{ id: number; name: string; quantity: string | null }>,
+  targetName: string
+): { id: number; name: string; quantity: string | null } | undefined {
+  const normalizedTarget = normalizeIngredientName(targetName);
+  // 1. 完全一致（正規化後）
+  let found = items.find(i => normalizeIngredientName(i.name) === normalizedTarget);
+  if (found) return found;
+  // 2. 部分一致：既存名が入力名を含む、または入力名が既存名を含む
+  found = items.find(i => {
+    const norm = normalizeIngredientName(i.name);
+    return norm.includes(normalizedTarget) || normalizedTarget.includes(norm);
+  });
+  return found;
+}
 
 // 数量を表す文字列から数値を抽出するヘルパー
 function parseQuantityNumber(text: string): number | null {
@@ -1012,6 +1130,50 @@ ${dinnerResult.message}`;
     }
   }
 
+  // ─── Step 4: 「〇〇を削除して」「〇〇消して」などの削除パターン ──────────────────
+  const deletePatterns: Array<{ regex: RegExp; itemGroup: number }> = [
+    { regex: /(.+?)を?(削除して|消して|取り除いて|なくして|除いて|捨てて|使い切った|使った|なくなった|切れた|なくなりました|使い切りました)/, itemGroup: 1 },
+    { regex: /(.+?)が?(なくなった|切れた|なくなりました|なくなっちゃった)/, itemGroup: 1 },
+  ];
+
+  for (const { regex, itemGroup } of deletePatterns) {
+    const match = text.match(regex);
+    if (match) {
+      const itemsText = match[itemGroup];
+      // カンマ・読点・「と」「や」で分割して複数食材に対応
+      const rawItems = itemsText.split(/[、,，・\s\u3000とやおよび及び]+/).map((s) => s.trim()).filter((s) => s.length > 0 && s.length <= 20);
+      const db = await getDb();
+      if (!db || rawItems.length === 0) return false;
+
+      const allItems = await getFridgeItems(userId);
+      const deleted: string[] = [];
+      const notFound: string[] = [];
+
+      for (const rawItem of rawItems) {
+        // 表記ゆれ対応：ひらがな/カタカナ正規化 + 部分一致で検索
+        const matched = findMatchingFridgeItem(allItems, rawItem);
+        if (matched) {
+          await deleteFridgeItem(matched.id, userId);
+          deleted.push(matched.name);
+        } else {
+          notFound.push(rawItem);
+        }
+      }
+
+      let replyText = '';
+      if (deleted.length > 0) {
+        replyText += `✅ 冷蔵庫から「${deleted.join('」「')}」を削除しました！`;
+      }
+      if (notFound.length > 0) {
+        replyText += `\n\n⚠️ 「${notFound.join('」「')}」は冷蔵庫に見つかりませんでした。`;
+      }
+      if (replyText) {
+        await replyLineMessage(replyToken, [{ type: 'text', text: replyText.trim() }]);
+        return true;
+      }
+    }
+  }
+
   return false;
 }
 
@@ -1152,18 +1314,44 @@ export async function handleLineWebhookEvent(event: any) {
           await sendLineMessage(lineUserId, [{ type: "text", text: "レシートから商品を読み取れませんでした。レシートを正面から撑して撑して再度お試しください。" }]);
           return;
         }
-        // 冷蔵庫に登録
+        // 冷蔵庫に登録（商品名正規化キャッシュを使って表記ゆれを統合）
         if (userId) {
           const db = await getDb();
           if (db) {
-            await db.insert(fridgeItemsTable).values(
-              analysisResult.items.map((item: any) => ({
-                userId,
-                name: item.name,
-                quantity: item.quantity ?? "1個",
-                category: "other" as const,
-              }))
+            // 各商品を正規化してから登録
+            const normalizedItems = await Promise.all(
+              analysisResult.items.map(async (item: any) => {
+                const normalizedName = await resolveProductName(item.name);
+                return {
+                  userId,
+                  name: normalizedName,
+                  quantity: item.quantity ?? "1個",
+                  category: "other" as const,
+                };
+              })
             );
+            // 既存食材と重複しないものだけ登録
+            const existingItems = await getFridgeItems(userId);
+            const toInsert = normalizedItems.filter(ni =>
+              !findMatchingFridgeItem(existingItems, ni.name)
+            );
+            if (toInsert.length > 0) {
+              await db.insert(fridgeItemsTable).values(toInsert);
+            }
+            // 重複分は数量を更新
+            for (const ni of normalizedItems) {
+              const existing = findMatchingFridgeItem(existingItems, ni.name);
+              if (existing) {
+                await db.update(fridgeItemsTable)
+                  .set({ quantity: ni.quantity, updatedAt: new Date() })
+                  .where(and(eq(fridgeItemsTable.id, existing.id), eq(fridgeItemsTable.userId, userId)));
+              }
+            }
+            // analysisResult.itemsの表示名を正規化後の名前に更新
+            analysisResult.items = normalizedItems.map((ni, i) => ({
+              name: ni.name,
+              quantity: ni.quantity,
+            }));
           }
         }
         const itemList = analysisResult.items.map((item: any) => `・${item.name}${item.quantity ? "（" + item.quantity + "）" : ""}`).join("\n");

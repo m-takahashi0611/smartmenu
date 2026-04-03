@@ -261,5 +261,11 @@
 - [ ] 復唱確認後の「はい」で献立選択を確定、「レシピ」で詳細レシピ生成
 
 ## 管理機能改善
-- [ ] 全LINEメッセージ（献立・冷蔵庫・買い物リスト含む）をトーク履歴に保存
-- [ ] handleFridgeRegistration内の全処理ルートでaddConversationMessage呼び出しを追加
+- [x] 全LINEメッセージ（献立・冷蔵庫・買い物リスト含む）をトーク履歴に保存
+- [x] handleFridgeRegistration内の全処理ルートでaddConversationMessage呼び出しを追加
+
+## 今夜実装済み（2026-04-03）
+- [x] 音声削除確認（はい）後にAI雑談に流れる問題を修正（handleFridgeRegistrationにStep 4削除処理を追加）
+- [x] 冷蔵庫食材の表記ゆれ統合（normalizeIngredientName + findMatchingFridgeItem 関数追加）
+- [x] 商品名正規化キャッシュDB（product_name_cache テーブル追加・ルールベース+LLMフォールバック）
+- [x] レシート登録時に重複食材を新規登録せず数量更新に変更

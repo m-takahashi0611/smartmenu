@@ -21,6 +21,8 @@ import {
   type InsertMenuPlan,
   type InsertShoppingListItem,
   type InsertStore,
+  productNameCache,
+  type InsertProductNameCache,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -458,4 +460,21 @@ export async function moveCheckedShoppingItemsToFridge(userId: number): Promise<
   );
   await db.delete(shoppingListItems).where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.isChecked, true)));
   return items.length;
+}
+
+// ─── 商品名正規化キャッシュ ────────────────────────────────────────────────────
+
+export async function getProductNameCache(originalName: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(productNameCache).where(eq(productNameCache.originalName, originalName)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function upsertProductNameCache(data: InsertProductNameCache) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(productNameCache).values(data).onDuplicateKeyUpdate({
+    set: { normalizedName: data.normalizedName, category: data.category, resolvedBy: data.resolvedBy },
+  });
 }
