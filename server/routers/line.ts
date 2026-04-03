@@ -494,19 +494,28 @@ const PRODUCT_NORMALIZE_RULES: Array<{ pattern: RegExp; normalized: string; cate
   { pattern: /パン$|食パン/, normalized: '食パン', category: '主食' },
   { pattern: /麺$|ラーメン|スパゲッティ|パスタ/, normalized: '麺類', category: '主食' },
   // 野菜
-  { pattern: /キャベツ/, normalized: 'キャベツ', category: '野菜' },
-  { pattern: /にんじん|ニンジン/, normalized: 'にんじん', category: '野菜' },
-  { pattern: /じゃがいも|ジャガイモ|ジャガイモ/, normalized: 'じゃがいも', category: '野菜' },
-  { pattern: /玉ねぎ|タマネギ/, normalized: '玉ねぎ', category: '野菜' },
+  { pattern: /キャベツ|キャベツ|cabbage/i, normalized: 'キャベツ', category: '野菜' },
+  { pattern: /にんじん|ニンジン|人参|にんじん/, normalized: 'にんじん', category: '野菜' },
+  { pattern: /じゃがいも|ジャガイモ|馬鈴薯|じゃが芋|ジャガ芋/, normalized: 'じゃがいも', category: '野菜' },
+  { pattern: /玉ねぎ|タマネギ|玉葱|たまねぎ/, normalized: '玉ねぎ', category: '野菜' },
+  { pattern: /大根|だいこん|ダイコン/, normalized: '大根', category: '野菜' },
   { pattern: /トマト/, normalized: 'トマト', category: '野菜' },
   { pattern: /ピーマン/, normalized: 'ピーマン', category: '野菜' },
   { pattern: /ブロッコリー/, normalized: 'ブロッコリー', category: '野菜' },
-  { pattern: /ホウレン草/, normalized: 'ホウレン草', category: '野菜' },
-  { pattern: /なす/, normalized: 'なす', category: '野菜' },
-  { pattern: /きゅうり|キュウリ/, normalized: 'きゅうり', category: '野菜' },
-  { pattern: /ゴーヤ/, normalized: 'ゴーヤ', category: '野菜' },
-  // 卵子
-  { pattern: /卵子|たまご/, normalized: '卵子', category: 'その他' },
+  { pattern: /ほうれん草|ホウレン草|ほうれんそう|菠薐草/, normalized: 'ほうれん草', category: '野菜' },
+  { pattern: /なす|ナス|茄子/, normalized: 'なす', category: '野菜' },
+  { pattern: /きゅうり|キュウリ|胡瓜/, normalized: 'きゅうり', category: '野菜' },
+  { pattern: /ゴーヤ|ゴーヤー|苦瓜/, normalized: 'ゴーヤ', category: '野菜' },
+  { pattern: /長ねぎ|長ネギ|ながねぎ|ネギ|ねぎ|葱/, normalized: 'ねぎ', category: '野菜' },
+  { pattern: /もやし|モヤシ/, normalized: 'もやし', category: '野菜' },
+  { pattern: /かぼちゃ|カボチャ|南瓜/, normalized: 'かぼちゃ', category: '野菜' },
+  { pattern: /さつまいも|サツマイモ|薩摩芋/, normalized: 'さつまいも', category: '野菜' },
+  { pattern: /れんこん|レンコン|蓮根/, normalized: 'れんこん', category: '野菜' },
+  { pattern: /ごぼう|ゴボウ|牛蒡/, normalized: 'ごぼう', category: '野菜' },
+  { pattern: /しいたけ|シイタケ|椎茸/, normalized: 'しいたけ', category: '野菜' },
+  { pattern: /えのき|エノキ|榎茸/, normalized: 'えのき', category: '野菜' },
+  // 卵
+  { pattern: /卵|たまご|タマゴ|玉子/, normalized: '卵', category: 'その他' },
   // 冷凍食品
   { pattern: /アイス|モナ王/, normalized: 'アイス', category: '冷凍食品' },
   // 加工食品
@@ -1002,15 +1011,21 @@ ${dinnerResult.message}`;
       await setLineUserPendingAction(lineUserId, null);
       const db = await getDb();
       if (!db) return false;
+      const addedNames: string[] = [];
       for (const name of ingredients) {
+        // 表記ゆれ正規化（漢字/カタカナ/ひらがなを統一）
+        const normalizedName = await resolveProductName(name);
         const existing = await db.select().from(fridgeItemsTable)
-          .where(eq(fridgeItemsTable.userId, userId)).then(rows => findMatchingFridgeItem(rows, name));
+          .where(eq(fridgeItemsTable.userId, userId)).then(rows => findMatchingFridgeItem(rows, normalizedName));
         if (!existing) {
-          await db.insert(fridgeItemsTable).values({ userId, name, quantity: null, category: 'other' });
+          await db.insert(fridgeItemsTable).values({ userId, name: normalizedName, quantity: null, category: 'other' });
         }
+        addedNames.push(normalizedName);
       }
-      const itemList = ingredients.join('、');
-      await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！\n\n献立を提案しましょうか？「献立」と送ってください` }]);
+      const itemList = addedNames.join('、');
+      await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！
+
+献立を提案しましょうか？「献立」と送ってください` }]);
       return true;
     }
 
