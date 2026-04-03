@@ -719,7 +719,7 @@ async function handleIntentAction(
         source: { userId: lineUserId },
         replyToken,
         message: { type: 'text', text: '献立' },
-      });
+      }, true);
       return true;
     }
     case 'mood_theme': {
@@ -974,7 +974,7 @@ ${dinnerResult.message}`;
         source: { userId: lineUserId },
         replyToken,
         message: { type: 'text', text: transcribedText },
-      });
+      }, true);
       return true;
     }
 
@@ -1059,7 +1059,7 @@ ${dinnerResult.message}`;
         source: { userId: lineUserId },
         replyToken,
         message: { type: 'text', text: '献立' },
-      });
+      }, true);
       return true;
     }
 
@@ -1602,7 +1602,7 @@ ${dinnerResult.message}`;
 
 // ─── Webhook event handler ────────────────────────────────────────────────────
 
-export async function handleLineWebhookEvent(event: any) {
+export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
   const { type, source, replyToken } = event;
   const lineUserId: string = source?.userId;
 
@@ -1647,13 +1647,15 @@ export async function handleLineWebhookEvent(event: any) {
       },
     ]);
 
-    // replyTokenは使い切ったのでsendLineMessage（push）で画像ガイド＋設定ボタンを送信
+    // replyTokenは使い切ったのでsendLineMessage（push）で画像ガイドを送信
+    // LINE push APIは1回5件まで制限があるため2回に分けて送信
     try {
+      // 1回目: 画像4枚（はじめましょう・3ステップ・冷蔵庫・AIコマンド）
       await sendLineMessage(lineUserId, [
         {
           type: "image",
-          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_8d311aef.png",
-          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_8d311aef.png",
+          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_9d856da1.png",
+          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_9d856da1.png",
         },
         {
           type: "image",
@@ -1670,6 +1672,9 @@ export async function handleLineWebhookEvent(event: any) {
           originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_697dcbf2.png",
           previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_697dcbf2.png",
         },
+      ]);
+      // 2回目: 設定ボタン
+      await sendLineMessage(lineUserId, [
         {
           type: "template",
           altText: "設定を始めましょう！",
@@ -1859,7 +1864,10 @@ ${itemList}
 
     // ─── ユーザー発言を履歴に保存（全メッセージ对象）──────────────────────────────────────────────
     // 管理者がトーク履歴を確認できるよう、全てのテキストメッセージを履歴に保存する
-    await addConversationMessage({ lineUserId, role: 'user', content: text }).catch(() => {});
+    // 再帰呼び出し（疑似イベント）時はスキップして重複保存を防ぐ
+    if (!_skipHistory) {
+      await addConversationMessage({ lineUserId, role: 'user', content: text }).catch(() => {});
+    }
 
     // ─── 初回メッセージ時：家族未登録チェック ──────────────────────────────────────────────
     // userId がある（ログイン済み）が家族情報が未登録の場合、登録を促す
@@ -1885,9 +1893,17 @@ ${itemList}
     // ─── LLM意図判定（pendingActionなしの場合のみ）─────────────────────────────────────────────────────
     // キーワードマッチする前に、テキストをLLMで分類してパターン別アクションを実行する
     // 「other」の場合は後続のキーワードマッチングへ進む
+    // ※「献立」「冷蔵庫」等のキーワードに直接マッチする場合はLLM判定をスキップ（無限ループ防止）
     {
+      // 「献立」「冷蔵庫」等のキーワードマッチするテキストは後続のキーワードマッチングで処理するためLLM判定をスキップ
+      const isDirectKeyword =
+        /献立/.test(text) ||
+        /冷蔵庫/.test(text) ||
+        /買い物リスト/.test(text) ||
+        /今日何(作|つく)ろ/.test(text) ||
+        /ご飯(何|なに)(作|つく)/.test(text);
       const pendingNow = await getLineUserPendingAction(lineUserId);
-      if (!pendingNow) {
+      if (!pendingNow && !isDirectKeyword) {
         const intentResult = await classifyUserIntent(text);
         if (intentResult.intent !== 'other') {
           const handled = await handleIntentAction(intentResult, text, lineUserId, userId, replyToken);
