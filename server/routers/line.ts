@@ -775,20 +775,23 @@ async function handleFridgeRegistration(
 
     await setLineUserPendingAction(lineUserId, null);
 
+    // 即時返信（replyTokenで「生成中」を先送り）
+    await replyLineMessage(replyToken, [{ type: 'text', text: '献立を生成中です…少々お待ちください🍳' }]);
+
     try {
       const today = new Date().toISOString().split('T')[0];
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
       if (selectedType === 'dinner_and_tomorrow_breakfast') {
-        // 今夜の夕飯＋明日の朝食を順に生成
+        // 今夜の夕食＋明日の朝食を順に生成
         const dinnerResult = await generateMenuPlan(userId, today, 'dinner');
         const breakfastResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast');
         const combinedMessage = `${dinnerResult.message}
 
-―――――――――――――――
+―――――――――――――――――
 
 ${breakfastResult.message}`;
-        await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }]);
+        await sendLineMessage(lineUserId, [{ type: 'text', text: combinedMessage }]);
       } else if (selectedType === 'tomorrow_dinner') {
         // 明日の朝食＋昼食＋夕食を順に生成
         const bfResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast');
@@ -798,22 +801,22 @@ ${breakfastResult.message}`;
 
 ${bfResult.message}
 
-―――――――――――――――
+―――――――――――――――――
 
 ${lunchResult.message}
 
-―――――――――――――――
+―――――――――――――――――
 
 ${dinnerResult.message}`;
-        await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }]);
+        await sendLineMessage(lineUserId, [{ type: 'text', text: combinedMessage }]);
       } else {
         // 単一食事タイプ
         const mealType = selectedType as import('./menu').MealType;
         const targetDate = (selectedType === 'tomorrow_breakfast') ? tomorrow : today;
         const result = await generateMenuPlan(userId, targetDate, mealType);
-        await replyLineMessage(replyToken, [{ type: 'text', text: result.message }]);
+        await sendLineMessage(lineUserId, [{ type: 'text', text: result.message }]);
 
-        // 夕食・翌日朝食の場合は3案提示するのでmenu_option_selectionをセット
+        // 夕食・翔日朝食の場合は3案提示するのでmenu_option_selectionをセット
         if (mealType === 'dinner' || mealType === 'tomorrow_breakfast') {
           // DBからdinnerOptionsを取得してpendingActionに保存
           const savedPlan = await getMenuPlanByDate(userId, targetDate);
@@ -844,7 +847,7 @@ ${dinnerResult.message}`;
       }
     } catch (err) {
       console.error('[LINE] Menu generation failed:', err);
-      await replyLineMessage(replyToken, [{ type: 'text', text: '申し訳ありません。献立の生成に失敗しました。しばらくしてからもう一度お試しください。' }]);
+      await sendLineMessage(lineUserId, [{ type: 'text', text: '申し訳ありません。献立の生成に失敗しました。しばらくしてからもう一度お試しください。' }]);
     }
     return true;
   }
@@ -1461,6 +1464,8 @@ ${dinnerResult.message}`;
       // 1品だが食材名が長い場合（10文字以上）はAIで複数食材に分割を試みる
       let finalItems = items;
       if (items.length === 1 && items[0].length >= 6) {
+        // AI分割前に即時返信
+        await replyLineMessage(replyToken, [{ type: 'text', text: '冷蔵庫に登録中です…少々お待ちください❄️' }]);
         try {
           const splitResp = await invokeLLM({
             messages: [
@@ -1481,16 +1486,18 @@ ${dinnerResult.message}`;
         }
       }
 
-      // 複数食材に分割できた場合はまとめて登録
+       // 複数食材に分割できた場合はまとめて登録
       if (finalItems.length > 1) {
         for (const item of finalItems) {
           await db.insert(fridgeItemsTable).values({ userId, name: item, quantity: null, category: 'other' });
         }
         const itemList = finalItems.join('、');
-        await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！\n\n献立を提案しましょうか？「献立」と送ってください` }]);
+        // AI分割前に即時返信済みの場合は結果をsendLineMessageで送信
+        await sendLineMessage(lineUserId, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！
+
+献立を提案しましょうか？「献立」と送ってください` }]);
         return true;
       }
-
       const itemName = finalItems[0] ?? items[0];
       const existing = await db.select().from(fridgeItemsTable)
         .where(eq(fridgeItemsTable.userId, userId))
@@ -1914,6 +1921,13 @@ ${itemList}
 
     // ─── キーワードマッチング（優先） ─────────────────────────────────────────────────────
     if (/献立/.test(text) || /今日何(作|つく)ろ/.test(text) || /ご飯(何|なに)(作|つく)/.test(text)) {
+      // pendingActionがすでにある場合はキーワードマッチをスキップ（handleFridgeRegistrationで処理される）
+      const pendingBeforeKeyword = await getLineUserPendingAction(lineUserId);
+      if (pendingBeforeKeyword) {
+        // pendingAction処理へ委譲
+        const handled = await handleFridgeRegistration(text, userId ?? 0, lineUserId, replyToken);
+        if (handled) return;
+      }
       if (!userId) {
         await replyLineMessage(replyToken, [
           {
