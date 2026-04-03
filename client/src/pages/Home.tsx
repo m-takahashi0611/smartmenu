@@ -309,6 +309,27 @@ export default function Home() {
               </div>
             ))}
           </div>
+          {/* 使い方説明画像 */}
+          <div className="mt-12">
+            <h3 className="text-xl font-bold text-foreground text-center mb-6">📖 詳しい使い方ガイド</h3>
+            <div className="space-y-4">
+              <img
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_01_hello_f8239cb9.png"
+                alt="はじめ方ガイド"
+                className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
+              />
+              <img
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_02_fridge_0bf930c0.png"
+                alt="冷蔵庫の食材を登録する"
+                className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
+              />
+              <img
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_697dcbf2.png"
+                alt="AIに伝えるコツ"
+                className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
+              />
+            </div>
+          </div>
           {/* 使い方確認後のCTA */}
           <div className="mt-12 text-center">
             {renderCTA("lg")}
