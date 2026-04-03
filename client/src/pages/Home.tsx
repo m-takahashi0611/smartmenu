@@ -58,11 +58,11 @@ const features = [
   },
 ];
 
-const steps = [
-  { step: "01", title: "LINEで友達追加", desc: "献立日和～coto coto～の公式LINEアカウントを友達追加します" },
-  { step: "02", title: "家族情報を登録", desc: "家族の人数・年齢・アレルギーなどを設定します" },
-  { step: "03", title: "冷蔵庫を登録", desc: "今ある食材と消費期限を入力します" },
-  { step: "04", title: "毎朝LINEで受け取る", desc: "指定した時間に献立と買い物リストが届きます" },
+const stepsAll = [
+  { step: "01", title: "LINEで友達追加", desc: "献立日和～coto coto～の公式LINEアカウントを友達追加します", requiresGuest: true },
+  { step: "02", title: "家族情報を登録", desc: "家族の人数・年齢・アレルギーなどを設定します", requiresGuest: false },
+  { step: "03", title: "冷蔵庫を登録", desc: "今ある食材と消費期限を入力します", requiresGuest: false },
+  { step: "04", title: "毎朝LINEで受け取る", desc: "指定した時間に献立と買い物リストが届きます", requiresGuest: false },
 ];
 
 export default function Home() {
@@ -297,7 +297,7 @@ export default function Home() {
             <p className="text-muted-foreground text-lg">4ステップで始められます</p>
           </div>
           <div className="space-y-6">
-            {steps.map((step) => (
+            {stepsAll.filter(s => !user || !s.requiresGuest).map((step) => (
               <div key={step.step} className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm shrink-0">
                   {step.step}
