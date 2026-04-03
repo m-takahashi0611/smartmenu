@@ -598,6 +598,144 @@ function parseQuantityNumber(text: string): number | null {
   return null;
 }
 
+// ─── LLM意図判定（テキスト・音声共通）───────────────────────────────────────────────────────
+type IntentType =
+  | 'ingredients_only'    // 食材名のみ（追加/在庫確認/その他）
+  | 'used_ingredient'     // 食材を使った（削除/数量を減らす/その他）
+  | 'bought_item'         // 買い物してきた（冷蔵庫追加/買い物リストから削除/その他）
+  | 'menu_vague'          // 献立曖昧（献立を提案/キャンセル/その他）
+  | 'mood_theme'          // 気分・テーマ（今日の献立テーマに設定/キャンセル/その他）
+  | 'family_preference'   // 家族の好み（好み嫌いに登録/キャンセル/その他）
+  | 'quantity_update'     // 数量更新（数量を更新/在庫確認/その他）
+  | 'other';              // その他（通常処理へ）
+
+interface IntentResult {
+  intent: IntentType;
+  items: string[];        // 食材名・商品名リスト
+  quantity: string | null; // 数量（数量更新パターン用）
+  theme: string | null;   // テーマ（気分・テーマパターン用）
+  memberName: string | null; // 家族メンバー名（好みパターン用）
+  preference: string | null; // 好み内容（好みパターン用）
+}
+
+async function classifyUserIntent(text: string): Promise<IntentResult> {
+  try {
+    const resp = await invokeLLM({
+      messages: [
+        {
+          role: 'system',
+          content: `ユーザーの発言を以下の7パターンに分類してください。
+
+パターン定義：
+- ingredients_only: 食材名・商品名だけが並んでいる（作業指示なし）。例：「大根、牛乳、塩」「じゃがいも3つ」「牛乳ある」
+- used_ingredient: 食材を使った・食べた・消費した。例：「豚肉使った」「卵食べた」「牛乳飲んだ」
+- bought_item: 買い物してきた・買った。例：「牛乳買ってきた」「スーパーで豚肉買った」
+- menu_vague: 献立について曖昧に聞いている。例：「夕飯どうしよう」「今日何作ろう」「献立迷ってる」
+- mood_theme: 今日の気分・食べたいもの・テーマを言っている。例：「今日は和食の気分」「さっぱりしたい」「カレーが食べたい」
+- family_preference: 家族の好み嫌い・アレルギーを言っている。例：「子供が人参嫌い」「夫がピーマン食べられない」
+- quantity_update: 残量・在庫数を教えている。例：「じゃがいも残り2個」「牛乳あと半分」
+- other: 上記に当てはまらない
+
+itemsは食材名・商品名のリスト（複数可）。
+quantityは数量（「2個」「半分」など）、なければnull。
+themeは気分・テーマの内容（「和食」「さっぱり系」など）、なければnull。
+memberNameは家族メンバー名（「子供」「夫」など）、なければnull。
+preferenceは好み内容（「人参嫌い」「ピーマン食べられない」など）、なければnull。`,
+        },
+        { role: 'user', content: text },
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'intent_result',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              intent: { type: 'string', enum: ['ingredients_only','used_ingredient','bought_item','menu_vague','mood_theme','family_preference','quantity_update','other'] },
+              items: { type: 'array', items: { type: 'string' } },
+              quantity: { type: ['string', 'null'] },
+              theme: { type: ['string', 'null'] },
+              memberName: { type: ['string', 'null'] },
+              preference: { type: ['string', 'null'] },
+            },
+            required: ['intent', 'items', 'quantity', 'theme', 'memberName', 'preference'],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+    const content = resp.choices[0]?.message?.content;
+    const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+    return parsed as IntentResult;
+  } catch {
+    return { intent: 'other', items: [], quantity: null, theme: null, memberName: null, preference: null };
+  }
+}
+
+// ─── 意図判定結果に応じた3択メッセージを送信し、pendingActionをセット ──────────────────────────
+async function handleIntentAction(
+  intentResult: IntentResult,
+  text: string,
+  lineUserId: string,
+  userId: number | null,
+  replyToken: string
+): Promise<boolean> {
+  const { intent, items, quantity, theme, memberName, preference } = intentResult;
+
+  if (intent === 'other') return false; // 通常処理へ
+
+  const itemDisplay = items.join('、') || text;
+
+  switch (intent) {
+    case 'ingredients_only': {
+      await setLineUserPendingAction(lineUserId, { type: 'voice_ingredient_action', transcribedText: text, ingredients: items });
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n番号で教えてください😊` }]);
+      return true;
+    }
+    case 'used_ingredient': {
+      await setLineUserPendingAction(lineUserId, { type: 'used_ingredient_action', items, text });
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」を使ったんですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫から削除\n2️⃣ 数量を減らす\n3️⃣ そのまま（何もしない）\n\n番号で教えてください😊` }]);
+      return true;
+    }
+    case 'bought_item': {
+      await setLineUserPendingAction(lineUserId, { type: 'bought_item_action', items, text });
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」を買ってきたんですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストから削除\n3️⃣ 両方（冷蔵庫追加＋リスト削除）\n\n番号で教えてください😊` }]);
+      return true;
+    }
+    case 'menu_vague': {
+      // 献立提案フローへ直接誘導
+      await handleLineWebhookEvent({
+        type: 'message',
+        source: { userId: lineUserId },
+        replyToken,
+        message: { type: 'text', text: '献立' },
+      });
+      return true;
+    }
+    case 'mood_theme': {
+      const themeText = theme || itemDisplay;
+      await setLineUserPendingAction(lineUserId, { type: 'mood_theme_action', theme: themeText, text });
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${themeText}」の気分ですね！\n\nどうしますか？\n\n1️⃣ 今日の献立テーマに設定して提案\n2️⃣ キャンセル\n\n番号で教えてください😊` }]);
+      return true;
+    }
+    case 'family_preference': {
+      const member = memberName || '家族';
+      const pref = preference || text;
+      await setLineUserPendingAction(lineUserId, { type: 'family_preference_action', memberName: member, preference: pref, items, text });
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${member}が${pref}」ですね！\n\nどうしますか？\n\n1️⃣ 好み・嫌いとして登録\n2️⃣ キャンセル\n\n番号で教えてください😊` }]);
+      return true;
+    }
+    case 'quantity_update': {
+      const qty = quantity || '不明';
+      await setLineUserPendingAction(lineUserId, { type: 'quantity_update_action', items, quantity: qty, text });
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}が${qty}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫の数量を更新\n2️⃣ 在庫確認（現在の冷蔵庫を表示）\n3️⃣ キャンセル\n\n番号で教えてください😊` }]);
+      return true;
+    }
+  }
+  return false;
+}
+
 async function handleFridgeRegistration(
   text: string,
   userId: number,
@@ -916,6 +1054,192 @@ ${dinnerResult.message}`;
       type: 'text',
       text: `「${ingredientDisplay}」をどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n番号で教えてください😊`,
     }]);
+    return true;
+  }
+
+  // ─── 食材を使った後の3択 (削除/数量を減らす/そのまま) ─────────────────────────────────────────────────────
+  if (pending?.type === 'used_ingredient_action') {
+    const { items: usedItems } = pending as { items: string[]; text: string };
+    const trimmed = text.trim();
+    if (/^(\u30ad\u30e3\u30f3\u30bb\u30eb|\u3084\u3081\u308b|\u3084\u3081\u3066|cancel|\u3044\u3044\u3048)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }]);
+      return true;
+    }
+    if (/^[1\uff11]$/.test(trimmed) || /\u524a\u9664/.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      const db = await getDb();
+      if (!db) return false;
+      const deleted: string[] = [];
+      for (const name of usedItems) {
+        const existing = await db.select().from(fridgeItemsTable).where(eq(fridgeItemsTable.userId, userId)).then(rows => findMatchingFridgeItem(rows, name));
+        if (existing) {
+          await db.delete(fridgeItemsTable).where(eq(fridgeItemsTable.id, existing.id));
+          deleted.push(name);
+        }
+      }
+      const msg = deleted.length > 0 ? `\u2705 \u51b7\u8535\u5eab\u304b\u3089\u300c${deleted.join('\u3001')}\u300d\u3092\u524a\u9664\u3057\u307e\u3057\u305f\uff01` : '\u51b7\u8535\u5eab\u306b\u8a72\u5f53\u3059\u308b\u98df\u6750\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3067\u3057\u305f\u3002';
+      await replyLineMessage(replyToken, [{ type: 'text', text: msg }]);
+      return true;
+    }
+    if (/^[2\uff12]$/.test(trimmed) || /\u6e1b/.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      const db = await getDb();
+      if (!db) return false;
+      const updated: string[] = [];
+      for (const name of usedItems) {
+        const existing = await db.select().from(fridgeItemsTable).where(eq(fridgeItemsTable.userId, userId)).then(rows => findMatchingFridgeItem(rows, name));
+        if (existing) {
+          const currentQty = parseQuantityNumber(existing.quantity ?? '1') ?? 1;
+          const newQty = Math.max(0, currentQty - 1);
+          if (newQty <= 0) {
+            await db.delete(fridgeItemsTable).where(eq(fridgeItemsTable.id, existing.id));
+          } else {
+            await db.update(fridgeItemsTable).set({ quantity: String(newQty) + '\u500b', updatedAt: new Date() }).where(eq(fridgeItemsTable.id, existing.id));
+          }
+          updated.push(name);
+        }
+      }
+      const msg = updated.length > 0 ? `\u2705 \u300c${updated.join('\u3001')}\u300d\u306e\u6570\u91cf\u30921\u6e1b\u3089\u3057\u307e\u3057\u305f\uff01` : '\u51b7\u8535\u5eab\u306b\u8a72\u5f53\u3059\u308b\u98df\u6750\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3067\u3057\u305f\u3002';
+      await replyLineMessage(replyToken, [{ type: 'text', text: msg }]);
+      return true;
+    }
+    // 3 or \u305d\u306e\u307e\u307e
+    await setLineUserPendingAction(lineUserId, null);
+    await replyLineMessage(replyToken, [{ type: 'text', text: '\u4f55\u3082\u3057\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u307e\u305f\u3044\u3064\u3067\u3082\u8a18\u9332\u3057\u3066\u304f\u3060\u3055\u3044\uff01' }]);
+    return true;
+  }
+
+  // ─── 買い物してきた後の3択 (冷蔵庫追加/リスト削除/両方) ─────────────────────────────────────────────────────
+  if (pending?.type === 'bought_item_action') {
+    const { items: boughtItems } = pending as { items: string[]; text: string };
+    const trimmed = text.trim();
+    if (/^(\u30ad\u30e3\u30f3\u30bb\u30eb|\u3084\u3081\u308b|\u3084\u3081\u3066|cancel|\u3044\u3044\u3048)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }]);
+      return true;
+    }
+    const addToFridge = /^[1\uff11]$/.test(trimmed) || /^[3\uff13]$/.test(trimmed) || /\u51b7\u8535\u5eab/.test(trimmed) || /\u4e21\u65b9/.test(trimmed);
+    const removeFromList = /^[2\uff12]$/.test(trimmed) || /^[3\uff13]$/.test(trimmed) || /\u30ea\u30b9\u30c8/.test(trimmed) || /\u4e21\u65b9/.test(trimmed);
+    const db = await getDb();
+    if (!db) return false;
+    const msgs: string[] = [];
+    if (addToFridge) {
+      for (const name of boughtItems) {
+        const existing = await db.select().from(fridgeItemsTable).where(eq(fridgeItemsTable.userId, userId)).then(rows => findMatchingFridgeItem(rows, name));
+        if (!existing) await db.insert(fridgeItemsTable).values({ userId, name, quantity: null, category: 'other' });
+      }
+      msgs.push(`\u51b7\u8535\u5eab\u306b\u300c${boughtItems.join('\u3001')}\u300d\u3092\u8ffd\u52a0\u3057\u307e\u3057\u305f\uff01`);
+    }
+    if (removeFromList) {
+      for (const name of boughtItems) {
+        await db.delete(shoppingListItems).where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.name, name)));
+      }
+      msgs.push(`\u8cb7\u3044\u7269\u30ea\u30b9\u30c8\u304b\u3089\u300c${boughtItems.join('\u3001')}\u300d\u3092\u524a\u9664\u3057\u307e\u3057\u305f\uff01`);
+    }
+    await setLineUserPendingAction(lineUserId, null);
+    await replyLineMessage(replyToken, [{ type: 'text', text: msgs.length > 0 ? '\u2705 ' + msgs.join('\n') : '\u4f55\u3082\u3057\u307e\u305b\u3093\u3067\u3057\u305f\u3002' }]);
+    return true;
+  }
+
+  // ─── 気分・テーマ後の2択 (献立テーマに設定/キャンセル) ─────────────────────────────────────────────────────
+  if (pending?.type === 'mood_theme_action') {
+    const { theme: moodTheme } = pending as { theme: string; text: string };
+    const trimmed = text.trim();
+    if (/^(\u30ad\u30e3\u30f3\u30bb\u30eb|\u3084\u3081\u308b|\u3084\u3081\u3066|cancel|\u3044\u3044\u3048|^[2\uff12]$)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }]);
+      return true;
+    }
+    // 1 or \u8a2d\u5b9a\u3057\u3066 → \u732e\u7acb\u30c6\u30fc\u30de\u306b\u8a2d\u5b9a\u3057\u3066\u751f\u6210
+    await setLineUserPendingAction(lineUserId, null);
+    if (!userId) {
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059\u3002https://www.kondatebiyori.com' }]);
+      return true;
+    }
+    try {
+      await replyLineMessage(replyToken, [{ type: 'text', text: `\ud83c\udf7d\ufe0f \u300c${moodTheme}\u300d\u306e\u30c6\u30fc\u30de\u3067\u732e\u7acb\u3092\u63d0\u6848\u4e2d\u2026` }]);
+      const today = new Date().toISOString().split('T')[0];
+      const result = await generateMenuPlan(userId, today, 'dinner');
+      await sendLineMessage(lineUserId, [{ type: 'text', text: result.message }]);
+    } catch (err) {
+      console.error('[LINE] mood_theme menu generation failed:', err);
+      await sendLineMessage(lineUserId, [{ type: 'text', text: '\u732e\u7acb\u306e\u751f\u6210\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002\u3057\u3070\u3089\u304f\u3057\u3066\u304b\u3089\u518d\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002' }]);
+    }
+    return true;
+  }
+
+  // ─── 家族の好み登録後の2択 (登録/キャンセル) ─────────────────────────────────────────────────────
+  if (pending?.type === 'family_preference_action') {
+    const { memberName: prefMember, preference: prefContent, items: prefItems } = pending as { memberName: string; preference: string; items: string[]; text: string };
+    const trimmed = text.trim();
+    if (/^(\u30ad\u30e3\u30f3\u30bb\u30eb|\u3084\u3081\u308b|\u3084\u3081\u3066|cancel|\u3044\u3044\u3048|^[2\uff12]$)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }]);
+      return true;
+    }
+    // 1 or \u767b\u9332 → user_preferences\u306b\u4fdd\u5b58
+    await setLineUserPendingAction(lineUserId, null);
+    try {
+      const db = await getDb();
+      if (db) {
+        const { userPreferences } = await import('../../drizzle/schema');
+        for (const ingredient of (prefItems.length > 0 ? prefItems : [prefContent])) {
+          await db.insert(userPreferences).values({
+            lineUserId,
+            memberName: prefMember !== '\u5bb6\u65cf' ? prefMember : null,
+            preferenceType: 'dislike',
+            ingredient,
+            note: prefContent,
+            active: true,
+          });
+        }
+      }
+      await replyLineMessage(replyToken, [{ type: 'text', text: `\u2705 \u300c${prefMember}\u304c${prefContent}\u300d\u3092\u597d\u307f\u30fb\u5acc\u3044\u3068\u3057\u3066\u767b\u9332\u3057\u307e\u3057\u305f\uff01\n\n\u732e\u7acb\u63d0\u6848\u6642\u306b\u8003\u616e\u3057\u307e\u3059\ud83d\ude0a` }]);
+    } catch (err) {
+      console.error('[LINE] family_preference save failed:', err);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u767b\u9332\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002' }]);
+    }
+    return true;
+  }
+
+  // ─── 数量更新後の3択 (更新/在庫確認/キャンセル) ─────────────────────────────────────────────────────
+  if (pending?.type === 'quantity_update_action') {
+    const { items: qtyItems, quantity: qtyVal } = pending as { items: string[]; quantity: string; text: string };
+    const trimmed = text.trim();
+    if (/^(\u30ad\u30e3\u30f3\u30bb\u30eb|\u3084\u3081\u308b|\u3084\u3081\u3066|cancel|\u3044\u3044\u3048|^[3\uff13]$)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }]);
+      return true;
+    }
+    if (/^[2\uff12]$/.test(trimmed) || /\u5728\u5eab/.test(trimmed) || /\u78ba\u8a8d/.test(trimmed)) {
+      // \u5728\u5eab\u78ba\u8a8d → \u51b7\u8535\u5eab\u4e00\u89a7\u3092\u8fd4\u4fe1
+      await setLineUserPendingAction(lineUserId, null);
+      const items = await getFridgeItems(userId);
+      if (items.length === 0) {
+        await replyLineMessage(replyToken, [{ type: 'text', text: '\u51b7\u8535\u5eab\u306f\u7a7a\u3067\u3059\u3002\u98df\u6750\u3092\u767b\u9332\u3057\u3066\u307f\u307e\u3057\u3087\u3046\uff01' }]);
+      } else {
+        const list = items.map(i => `\u30fb${i.name}${i.quantity ? '\uff08' + i.quantity + '\uff09' : ''}`).join('\n');
+        await replyLineMessage(replyToken, [{ type: 'text', text: `\ud83d\udce6 \u73fe\u5728\u306e\u51b7\u8535\u5eab\n\n${list}` }]);
+      }
+      return true;
+    }
+    // 1 or \u66f4\u65b0 → \u6570\u91cf\u3092\u66f4\u65b0
+    await setLineUserPendingAction(lineUserId, null);
+    const db = await getDb();
+    if (!db) return false;
+    const updated: string[] = [];
+    for (const name of qtyItems) {
+      const existing = await db.select().from(fridgeItemsTable).where(eq(fridgeItemsTable.userId, userId)).then(rows => findMatchingFridgeItem(rows, name));
+      if (existing) {
+        await db.update(fridgeItemsTable).set({ quantity: qtyVal, updatedAt: new Date() }).where(eq(fridgeItemsTable.id, existing.id));
+        updated.push(name);
+      } else {
+        await db.insert(fridgeItemsTable).values({ userId, name, quantity: qtyVal, category: 'other' });
+        updated.push(name);
+      }
+    }
+    await replyLineMessage(replyToken, [{ type: 'text', text: `\u2705 \u300c${updated.join('\u3001')}\u300d\u306e\u6570\u91cf\u3092\u300c${qtyVal}\u300d\u306b\u66f4\u65b0\u3057\u307e\u3057\u305f\uff01` }]);
     return true;
   }
 
@@ -1360,69 +1684,14 @@ export async function handleLineWebhookEvent(event: any) {
         const transcribedText = transcription.text.trim();
         console.log(`[LINE] Transcribed: "${transcribedText}"`);
 
-        // 食材名のみかどうかをLLMで判定
-        let isIngredientsOnly = false;
-        let ingredientList: string[] = [];
-        try {
-          const intentResp = await invokeLLM({
-            messages: [
-              {
-                role: 'system',
-                content: `ユーザーの発言が「食材名だけ」かどうかを判定してください。
-「食材名だけ」とは：具体的な作業指示（追加して、削除して、献立考えてなど）がなく、食材名や商品名だけが并んでいる状態。
-例：「大根、牛乳、塩」→食材名のみ（true）
-例：「大根を冷蔵庫に追加して」→作業指示あり（false）
-例：「献立考えて」→作業指示あり（false）`,
-              },
-              { role: 'user', content: transcribedText },
-            ],
-            response_format: {
-              type: 'json_schema',
-              json_schema: {
-                name: 'intent_check',
-                strict: true,
-                schema: {
-                  type: 'object',
-                  properties: {
-                    isIngredientsOnly: { type: 'boolean' },
-                    ingredients: { type: 'array', items: { type: 'string' } },
-                  },
-                  required: ['isIngredientsOnly', 'ingredients'],
-                  additionalProperties: false,
-                },
-              },
-            },
-          });
-          const intentContent = intentResp.choices[0]?.message?.content;
-          const intentParsed = typeof intentContent === 'string' ? JSON.parse(intentContent) : intentContent;
-          isIngredientsOnly = intentParsed?.isIngredientsOnly === true;
-          ingredientList = intentParsed?.ingredients ?? [];
-        } catch {
-          // 判定失敗時は通常の復唱確認にフォールスルー
-        }
-
-        if (isIngredientsOnly && ingredientList.length > 0) {
-          // 食材名のみ→復唱＋3择提示
-          const ingredientDisplay = ingredientList.join('、');
-          await setLineUserPendingAction(lineUserId, {
-            type: 'voice_ingredient_action',
-            transcribedText,
-            ingredients: ingredientList,
-          });
-          await replyLineMessage(replyToken, [{
-            type: 'text',
-            text: `🎤 「${ingredientDisplay}」ですね！
-
-これをどうしますか？
-
-1️⃣ 冷蔵庫に追加
-2️⃣ 買い物リストに追加
-3️⃣ この食材で献立を提案
-
-番号で教えてください😊`,
-          }]);
+        // 共通のLLM意図判定でパターン分類して復唱＋3択提示
+        const voiceIntentResult = await classifyUserIntent(transcribedText);
+        if (voiceIntentResult.intent !== 'other') {
+          // パターン別の3択メッセージを送信（復唱プレフィックスを付ける）
+          // handleIntentActionは内部でreplyLineMessageを呼ぶので、復唱トークンを渡す
+          await handleIntentAction(voiceIntentResult, transcribedText, lineUserId, userId, replyToken);
         } else {
-          // 作業指示あり→復唱して確認
+          // 分類不能→復唱して確認（復唱後に通常処理に投入）
           await setLineUserPendingAction(lineUserId, {
             type: "voice_confirm",
             transcribedText,
@@ -1554,7 +1823,21 @@ ${itemList}
       }
     }
 
-    // ─── キーワードマッチング（優先） ───────────────────────────────────────
+    // ─── LLM意図判定（pendingActionなしの場合のみ）─────────────────────────────────────────────────────
+    // キーワードマッチする前に、テキストをLLMで分類してパターン別アクションを実行する
+    // 「other」の場合は後続のキーワードマッチングへ進む
+    {
+      const pendingNow = await getLineUserPendingAction(lineUserId);
+      if (!pendingNow) {
+        const intentResult = await classifyUserIntent(text);
+        if (intentResult.intent !== 'other') {
+          const handled = await handleIntentAction(intentResult, text, lineUserId, userId, replyToken);
+          if (handled) return;
+        }
+      }
+    }
+
+    // ─── キーワードマッチング（優先） ─────────────────────────────────────────────────────
     if (/献立/.test(text) || /今日何(作|つく)ろ/.test(text) || /ご飯(何|なに)(作|つく)/.test(text)) {
       if (!userId) {
         await replyLineMessage(replyToken, [
