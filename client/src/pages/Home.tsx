@@ -297,14 +297,14 @@ export default function Home() {
             <p className="text-muted-foreground text-lg">4ステップで始められます</p>
           </div>
           <div className="space-y-6">
-            {stepsAll.filter(s => !user || !s.requiresGuest).map((step) => (
+            {stepsAll.filter(s => !user || !s.requiresGuest).map((step, index) => (
               <div key={step.step} className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm shrink-0">
-                  {step.step}
+                <div className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg shrink-0">
+                  {String(index + 1).padStart(2, '0')}
                 </div>
                 <div className="pt-2">
-                  <h3 className="font-semibold text-foreground mb-1">{step.title}</h3>
-                  <p className="text-sm text-muted-foreground">{step.desc}</p>
+                  <h3 className="text-lg font-bold text-foreground mb-1">{step.title}</h3>
+                  <p className="text-base text-gray-600">{step.desc}</p>
                 </div>
               </div>
             ))}
@@ -314,12 +314,12 @@ export default function Home() {
             <h3 className="text-xl font-bold text-foreground text-center mb-6">📖 詳しい使い方ガイド</h3>
             <div className="space-y-4">
               <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_9d856da1.png"
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_v2-67CVHzzsUKLqKBHGHokDi9.png"
                 alt="はじめましょう！"
                 className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
               />
               <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_B_steps_3f90fe8b.png"
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_B_steps_v2-9A8LjBpnEDhAuoDHCav52d.png"
                 alt="まず3ステップで始めましょう！"
                 className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
               />
@@ -329,7 +329,7 @@ export default function Home() {
                 className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
               />
               <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_697dcbf2.png"
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_v2-LPsLQY5thk4ETUwVwztweb.png"
                 alt="AIに伝えるコツ"
                 className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
               />

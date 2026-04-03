@@ -1660,13 +1660,13 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
       await sendLineMessage(lineUserId, [
         {
           type: "image",
-          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_9d856da1.png",
-          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_9d856da1.png",
+          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_v2-67CVHzzsUKLqKBHGHokDi9.png",
+          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_v2-67CVHzzsUKLqKBHGHokDi9.png",
         },
         {
           type: "image",
-          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_B_steps_3f90fe8b.png",
-          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_B_steps_3f90fe8b.png",
+          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_B_steps_v2-9A8LjBpnEDhAuoDHCav52d.png",
+          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_B_steps_v2-9A8LjBpnEDhAuoDHCav52d.png",
         },
         {
           type: "image",
@@ -1675,8 +1675,8 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
         },
         {
           type: "image",
-          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_697dcbf2.png",
-          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_697dcbf2.png",
+          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_v2-LPsLQY5thk4ETUwVwztweb.png",
+          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_v2-LPsLQY5thk4ETUwVwztweb.png",
         },
       ]);
       // 2回目: 設定ボタン
