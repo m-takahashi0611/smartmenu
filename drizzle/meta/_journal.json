@@ -64,6 +64,13 @@
       "when": 1775184898214,
       "tag": "0008_elite_risque",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1775193960436,
+      "tag": "0009_boring_supreme_intelligence",
+      "breakpoints": true
     }
   ]
 }

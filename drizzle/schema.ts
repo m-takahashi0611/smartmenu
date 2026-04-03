@@ -234,3 +234,48 @@ export const productNameCache = mysqlTable("product_name_cache", {
 });
 export type ProductNameCache = typeof productNameCache.$inferSelect;
 export type InsertProductNameCache = typeof productNameCache.$inferInsert;
+
+/**
+ * 献立テーマ履歴テーブル
+ * ユーザーが「やり直し」→テーマ指定した際の履歴を保存
+ * 好みパターンの学習に活用
+ */
+export const menuThemes = mysqlTable("menu_themes", {
+  id: int("id").autoincrement().primaryKey(),
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull(),
+  rawInput: text("rawInput").notNull(),           // ユーザーの生入力（例：「和食でさっぱりしたい」）
+  mainDish: varchar("mainDish", { length: 50 }),  // 主食: rice/noodle/bread/other
+  noodleType: varchar("noodleType", { length: 50 }), // 麺種: ramen/udon/soba/somen/pasta/yakisoba
+  cuisine: varchar("cuisine", { length: 50 }),    // ジャンル: japanese/western/chinese/korean/ethnic
+  flavor: varchar("flavor", { length: 100 }),     // 味付け: soy/miso/salt/sauce/tomato/cream/curry/spicy/sweet/sour
+  texture: varchar("texture", { length: 50 }),    // 体感: light/hearty/warm/refreshing
+  cookingMethod: varchar("cookingMethod", { length: 50 }), // 調理法: boil/grill/fry/stir/steam/raw
+  scene: varchar("scene", { length: 50 }),        // シーン: quick/easy/meal_prep/kids/adult/party
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type MenuTheme = typeof menuThemes.$inferSelect;
+export type InsertMenuTheme = typeof menuThemes.$inferInsert;
+
+/**
+ * ユーザー好みパターンテーブル
+ * 家族の好み嫌い・アレルギー・食材制限を保存
+ * 献立生成プロンプトに反映して精度向上
+ */
+export const userPreferences = mysqlTable("user_preferences", {
+  id: int("id").autoincrement().primaryKey(),
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull(),
+  memberName: varchar("memberName", { length: 50 }),  // 対象家族メンバー名（null=全員）
+  preferenceType: mysqlEnum("preferenceType", [
+    "dislike",    // 嫌い
+    "allergy",    // アレルギー
+    "favorite",   // 好き
+    "restriction" // 制限（宗教・健康上の理由など）
+  ]).notNull(),
+  ingredient: varchar("ingredient", { length: 100 }).notNull(), // 食材名
+  note: text("note"),           // 補足（例：「最近嫌いになった」「重度のアレルギー」）
+  active: boolean("active").default(true).notNull(), // 有効フラグ（解除時はfalse）
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type UserPreference = typeof userPreferences.$inferSelect;
+export type InsertUserPreference = typeof userPreferences.$inferInsert;

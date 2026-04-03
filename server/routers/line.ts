@@ -818,20 +818,31 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // 「はい」→認識されたテキストをそのまま処理に回す
+    // 「はい」→認識されたテキストをそのまま通常のメッセージ処理に再投入
     if (/^(はい|yes|ok|おねがい|そうして|大丈夫|だいじょうぶ|大丈夫です|その通り|それでおねがい)$/i.test(trimmed)) {
       await setLineUserPendingAction(lineUserId, null);
-      // 認識テキストを通常のテキスト処理に渡す
-      return handleFridgeRegistration(transcribedText, userId, lineUserId, replyToken);
+      // transcribedText を通常テキスト処理に再投入するため、疑似イベントで再帰呼び出し
+      await handleLineWebhookEvent({
+        type: 'message',
+        source: { userId: lineUserId },
+        replyToken,
+        message: { type: 'text', text: transcribedText },
+      });
+      return true;
     }
 
-    // その他の入力→再度確認
+    // その他の入力→新しいテキストとして上書きして再確認
+    // 例：音声復唱中に「献立！」と返してきた場合、「献立！」を新しいtranscribedTextとして再確認
+    await setLineUserPendingAction(lineUserId, {
+      type: 'voice_confirm',
+      transcribedText: trimmed,
+    });
     await replyLineMessage(replyToken, [{
       type: 'text',
-      text: `「${transcribedText}」
+      text: `「${trimmed}」でよろしいでしょうか？
 
-この内容でよろしいですか？
-「はい」または「いいえ」で教えてください。`,
+「はい」→ そのまま処理します
+「いいえ」→ キャンセルします`,
     }]);
     return true;
   }
@@ -999,13 +1010,14 @@ ${dinnerResult.message}`;
 
   // 追加パターン（自然な表現を広くカバー）
   const addPatterns: Array<{ regex: RegExp; itemGroup: number }> = [
-    { regex: /冷蔵庫に(.+?)を?(追加|入れ|登録)/, itemGroup: 1 },
-    { regex: /(.+?)を冷蔵庫に(追加|入れ|登録)/, itemGroup: 1 },
+    { regex: /冷蔵庫に(.+)を(追加|入れ|登録)/, itemGroup: 1 },   // 最大マッチで全食材を取得
+    { regex: /冷蔵庫に(.+?)(追加|入れ|登録)して/, itemGroup: 1 },
+    { regex: /(.+)を冷蔵庫に(追加|入れ|登録)/, itemGroup: 1 },
     { regex: /冷蔵庫[:：](.+)/, itemGroup: 1 },
-    { regex: /^(.+?)を?追加して$/, itemGroup: 1 },
-    { regex: /^(.+?)追加して$/, itemGroup: 1 },
-    { regex: /^(.+?)を?追加$/, itemGroup: 1 },
-    { regex: /^(.+?)を?(買って|買ってきた|買った|もらった|仕入れた)$/, itemGroup: 1 },
+    { regex: /^(.+)を追加して$/, itemGroup: 1 },
+    { regex: /^(.+)追加して$/, itemGroup: 1 },
+    { regex: /^(.+)を追加$/, itemGroup: 1 },
+    { regex: /^(.+)を?(買って|買ってきた|買った|もらった|仕入れた)$/, itemGroup: 1 },
   ];
 
   for (const { regex, itemGroup } of addPatterns) {
@@ -1409,7 +1421,7 @@ ${itemList}
     }
 
     // ─── キーワードマッチング（優先） ───────────────────────────────────────
-    if (text === "献立" || text === "今日の献立" || text === "献立を教えて" || text === "献立提案") {
+    if (/献立/.test(text) || /今日何(作|つく)ろ/.test(text) || /ご飯(何|なに)(作|つく)/.test(text)) {
       if (!userId) {
         await replyLineMessage(replyToken, [
           {
