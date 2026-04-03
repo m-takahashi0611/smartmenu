@@ -294,7 +294,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-foreground mb-4">使い方</h2>
-            <p className="text-muted-foreground text-lg">4ステップで始められます</p>
+            <p className="text-muted-foreground text-lg">{user ? '3' : '4'}ステップで始められます</p>
           </div>
           <div className="space-y-6">
             {stepsAll.filter(s => !user || !s.requiresGuest).map((step, index) => (
