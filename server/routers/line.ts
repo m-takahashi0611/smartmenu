@@ -1639,12 +1639,45 @@ export async function handleLineWebhookEvent(event: any) {
       }
     }
 
+    // LINEのreplyMessageは最大5件まで送れるため、ウェルカム5メッセージを送信
+    // replyTokenは1回しか使えないので pushMessage で追加送信する
     await replyLineMessage(replyToken, [
       {
         type: "text",
-        text: `こんにちは、${profile?.displayName ?? "ゲスト"}さん！\n献立日和～coto coto～へようこそ\n\n毎日の献立をAIがご提案します！\n\nまずはダッシュボードから家族構成や冷蔵庫の食材を登録してください\n\n設定はこちらから\nhttps://www.kondatebiyori.com`,
+        text: `🍽️ こんにちは、${profile?.displayName ?? "ゲスト"}さん！\n献立日和～coto coto～へようこそ！\n\n毎日の献立をAIがご提案します。\n「今日何作ろう…」のお悩みから解放されましょう♪`,
+      },
+      {
+        type: "text",
+        text: `📖 【はじめ方 3ステップ】\n\n✅ STEP 1｜家族構成を登録\nダッシュボードから家族の人数・年齢・好みを設定してください。\n\n✅ STEP 2｜冷蔵庫の食材を登録\n「大根を冷蔵庫に追加して」のようにLINEで話しかけるか、ダッシュボードから直接登録できます。\n\n✅ STEP 3｜毎朝献立が届く\n設定完了後、毎朝AIが献立を自動提案します！\n\n👇 まずはこちらから設定を始めましょう\nhttps://www.kondatebiyori.com`,
       },
     ]);
+
+    // replyTokenは使い切ったのでsendLineMessage（push）で画像ガイドを追加送信
+    try {
+      await sendLineMessage(lineUserId, [
+        {
+          type: "image",
+          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_01_hello_f8239cb9.png",
+          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_01_hello_f8239cb9.png",
+        },
+        {
+          type: "image",
+          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_02_fridge_0bf930c0.png",
+          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_02_fridge_0bf930c0.png",
+        },
+        {
+          type: "image",
+          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_697dcbf2.png",
+          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_697dcbf2.png",
+        },
+        {
+          type: "text",
+          text: `💬 【AIへの話しかけ方のコツ】\n\n✅ 良い例\n「大根と鶏肉を冷蔵庫に追加して」\n「牛乳を買い物リストに追加して」\n「今夜の夕食を考えて」\n「昨日の夕食に大根を使ったよ」\n\n❌ 曖昧な例（AIが迷います）\n「大根」（何をしたいか不明）\n「お腹すいた」（献立提案か食材登録か不明）\n\n🐑 執事AIがいつでもサポートします！\n何でもLINEで話しかけてみてください♪`,
+        },
+      ]);
+    } catch (pushErr) {
+      console.error('[LINE] Failed to send welcome push messages:', pushErr);
+    }
   } else if (type === "unfollow") {
     const db = await getDb();
     if (db) {
