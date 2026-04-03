@@ -12,31 +12,49 @@ const features = [
     icon: "🍽️",
     title: "AI献立提案",
     description: "家族構成・冷蔵庫在庫・近隣スーパーの特売情報を組み合わせて、毎日最適な献立をAIが自動生成します。",
+    link: "/dashboard",
+    linkLabel: "献立を見る →",
+    requiresAuth: true,
   },
   {
     icon: "📱",
     title: "LINE自動配信",
     description: "毎朝指定した時間に、その日の献立をLINEで受け取れます。忙しい朝でもすぐに確認できます。",
+    link: "/dashboard",
+    linkLabel: "配信設定へ →",
+    requiresAuth: true,
   },
   {
     icon: "🛒",
     title: "買い物リスト自動生成",
     description: "献立に必要な食材を自動でリスト化。スーパーでの買い物がスムーズになります。",
+    link: "/shopping",
+    linkLabel: "買い物リストへ →",
+    requiresAuth: true,
   },
   {
     icon: "🥦",
     title: "冷蔵庫在庫管理",
     description: "冷蔵庫にある食材を登録するだけ。消費期限切れを防ぎ、食材を無駄なく使い切れます。",
+    link: "/fridge",
+    linkLabel: "冷蔵庫を管理 →",
+    requiresAuth: true,
   },
   {
     icon: "👨‍👩‍👧‍👦",
     title: "家族構成に合わせた提案",
     description: "アレルギー・好き嫌い・年齢層を考慮した献立を提案。家族全員が喜ぶメニューを。",
+    link: "/family",
+    linkLabel: "家族情報を登録 →",
+    requiresAuth: true,
   },
   {
     icon: "🏪",
     title: "マイ店舗登録",
     description: "よく利用するスーパーを登録して特売情報を入力。コストを抑えた献立提案が可能です。",
+    link: "/stores",
+    linkLabel: "店舗を登録 →",
+    requiresAuth: true,
   },
 ];
 
@@ -60,7 +78,6 @@ export default function Home() {
   useEffect(() => {
     if (isLiff && !authLoading && !user && !isLoggingIn) {
       console.log("[Home] LIFF session expired, auto-retrying LINE login...");
-      // 少し遅延させてUIが表示されてから実行
       const timer = setTimeout(() => {
         loginWithLine();
       }, 500);
@@ -68,50 +85,53 @@ export default function Home() {
     }
   }, [isLiff, authLoading, user, isLoggingIn, loginWithLine]);
 
-  // LINEログインボタン（常に押せる）
-  const LineLoginButton = ({ size = "lg" }: { size?: "sm" | "lg" }) => (
-    <button
-      type="button"
-      onTouchEnd={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!isLoggingIn) {
+  // LINEログインボタン（ログイン済みならグレーアウト・小型化）
+  const LineLoginButton = ({ size = "lg" }: { size?: "sm" | "lg" }) => {
+    const isLoggedIn = !!user;
+    return (
+      <button
+        type="button"
+        onTouchEnd={(e) => {
+          if (isLoggedIn || isLoggingIn) return;
+          e.preventDefault();
+          e.stopPropagation();
           console.log("[Home] LINE login button touchEnd");
           loginWithLine();
-        }
-      }}
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!isLoggingIn) {
+        }}
+        onClick={(e) => {
+          if (isLoggedIn || isLoggingIn) return;
+          e.preventDefault();
+          e.stopPropagation();
           console.log("[Home] LINE login button clicked");
           loginWithLine();
-        }
-      }}
-      disabled={isLoggingIn}
-      style={{
-        backgroundColor: isLoggingIn ? '#aaa' : '#06C755',
-        color: 'white',
-        fontWeight: 'bold',
-        fontSize: size === 'lg' ? '18px' : '15px',
-        padding: size === 'lg' ? '18px 32px' : '10px 20px',
-        borderRadius: '12px',
-        border: 'none',
-        cursor: isLoggingIn ? 'not-allowed' : 'pointer',
-        width: size === 'lg' ? '100%' : 'auto',
-        display: 'block',
-        WebkitTapHighlightColor: 'transparent',
-        WebkitUserSelect: 'none',
-        userSelect: 'none',
-        touchAction: 'manipulation',
-        outline: 'none',
-        WebkitAppearance: 'none',
-        minHeight: size === 'lg' ? '56px' : '44px',
-      }}
-    >
-      {isLoggingIn ? "ログイン中..." : "🟢 LINEでログイン"}
-    </button>
-  );
+        }}
+        disabled={isLoggingIn || isLoggedIn}
+        style={{
+          backgroundColor: (isLoggingIn || isLoggedIn) ? '#ccc' : '#06C755',
+          color: (isLoggingIn || isLoggedIn) ? '#888' : 'white',
+          fontWeight: 'bold',
+          // ログイン済みなら小さく
+          fontSize: isLoggedIn ? '12px' : (size === 'lg' ? '18px' : '15px'),
+          padding: isLoggedIn ? '6px 14px' : (size === 'lg' ? '18px 32px' : '10px 20px'),
+          borderRadius: '8px',
+          border: 'none',
+          cursor: (isLoggingIn || isLoggedIn) ? 'default' : 'pointer',
+          width: (size === 'lg' && !isLoggedIn) ? '100%' : 'auto',
+          display: 'block',
+          WebkitTapHighlightColor: 'transparent',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          touchAction: 'manipulation',
+          outline: 'none',
+          WebkitAppearance: 'none',
+          minHeight: isLoggedIn ? '28px' : (size === 'lg' ? '56px' : '44px'),
+          opacity: isLoggedIn ? 0.5 : 1,
+        }}
+      >
+        {isLoggedIn ? "✅ ログイン済み" : isLoggingIn ? "ログイン中..." : "🟢 LINEでログイン"}
+      </button>
+    );
+  };
 
   // CTAボタンのレンダリング
   const renderCTA = (size: "sm" | "lg" = "lg") => {
@@ -125,7 +145,7 @@ export default function Home() {
     if (user) {
       return (
         <Link href="/dashboard">
-          <Button size={size} className="bg-primary text-primary-foreground">
+          <Button size={size} className="bg-primary text-primary-foreground w-full">
             ダッシュボードへ →
           </Button>
         </Link>
@@ -136,7 +156,7 @@ export default function Home() {
     }
     return (
       <a href={getLoginUrl()}>
-        <Button size={size} className="bg-primary text-primary-foreground">
+        <Button size={size} className="bg-primary text-primary-foreground w-full">
           無料で始める →
         </Button>
       </a>
@@ -157,6 +177,7 @@ export default function Home() {
             <a href="#how-to-use" className="text-sm text-muted-foreground hover:text-foreground transition-colors">使い方</a>
           </nav>
           <div className="flex items-center gap-2">
+            {/* ヘッダーのLINEボタン：ログイン済みならグレーアウト小型 */}
             {isLiff ? (
               <LineLoginButton size="sm" />
             ) : user ? (
@@ -193,10 +214,13 @@ export default function Home() {
               </p>
               <div className="flex flex-col gap-3 pt-2">
                 {renderCTA("lg")}
-                <Button size="lg" variant="outline" className="bg-transparent">
-                  使い方を見る
-                </Button>
-                {isLiff && (
+                {/* 使い方を見る → アンカーリンクに変更 */}
+                <a href="#how-to-use">
+                  <Button size="lg" variant="outline" className="bg-transparent w-full">
+                    使い方を見る ↓
+                  </Button>
+                </a>
+                {isLiff && !user && (
                   <p className="text-sm text-muted-foreground text-center">
                     LINEアカウントでログインして、AI献立提案を始めましょう。
                   </p>
@@ -241,11 +265,25 @@ export default function Home() {
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((feature) => (
-              <Card key={feature.title} className="border-border/50 hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
+              <Card key={feature.title} className="border-border/50 hover:shadow-md transition-shadow flex flex-col">
+                <CardContent className="p-6 flex flex-col flex-1">
                   <div className="text-3xl mb-3">{feature.icon}</div>
                   <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed flex-1">{feature.description}</p>
+                  {/* 各機能へのショートカットボタン */}
+                  <div className="mt-4 pt-3 border-t border-border/30">
+                    {user ? (
+                      <Link href={feature.link}>
+                        <Button size="sm" variant="outline" className="text-primary border-primary/30 hover:bg-primary/5 w-full">
+                          {feature.linkLabel}
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Button size="sm" variant="outline" className="text-muted-foreground w-full" disabled>
+                        ログイン後に利用できます
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -272,6 +310,10 @@ export default function Home() {
                 </div>
               </div>
             ))}
+          </div>
+          {/* 使い方確認後のCTA */}
+          <div className="mt-12 text-center">
+            {renderCTA("lg")}
           </div>
         </div>
       </section>

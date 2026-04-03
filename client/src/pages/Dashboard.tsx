@@ -178,6 +178,9 @@ export default function Dashboard() {
             <Link href="/history">
               <Button variant="ghost" size="sm" className="text-xs px-2">📋 履歴</Button>
             </Link>
+            <a href="/#how-to-use">
+              <Button variant="ghost" size="sm" className="text-xs px-2">❓ 使い方</Button>
+            </a>
           </div>
         </div>
       </header>
@@ -554,6 +557,31 @@ export default function Dashboard() {
                     <Button size="sm" variant="outline" className="text-xs ml-2" onClick={() => setActiveTab("fridge")}>登録</Button>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* 機能設定ショートカット */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">⚙️ 機能設定</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-2 gap-2">
+                  <Link href="/family">
+                    <Button variant="outline" size="sm" className="w-full text-xs">👨‍👩‍👧 家族構成</Button>
+                  </Link>
+                  <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setActiveTab("fridge")}>🥦 冷蔵庫管理</Button>
+                  <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setActiveTab("shopping")}>🛒 買い物リスト</Button>
+                  <Link href="/history">
+                    <Button variant="outline" size="sm" className="w-full text-xs">📋 献立履歴</Button>
+                  </Link>
+                </div>
+                <div className="mt-2 pt-2 border-t border-border/30">
+                  <p className="text-xs text-muted-foreground mb-2">📡 LINE自動配信</p>
+                  <Link href="/family">
+                    <Button variant="outline" size="sm" className="w-full text-xs text-primary border-primary/30">配信時間・プラン設定を変更 →</Button>
+                  </Link>
+                </div>
               </CardContent>
             </Card>
 
