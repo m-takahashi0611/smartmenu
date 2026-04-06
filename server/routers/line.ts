@@ -1895,8 +1895,8 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
         },
         {
           type: "image",
-          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_v2-LPsLQY5thk4ETUwVwztweb.png",
-          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_v2-LPsLQY5thk4ETUwVwztweb.png",
+          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_v3_4a4e56c1.png",
+          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_v3_4a4e56c1.png",
         },
       ]);
       // 2回目: 設定ボタン
