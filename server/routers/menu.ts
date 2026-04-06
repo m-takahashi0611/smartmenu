@@ -355,6 +355,42 @@ ${fridgeNote}✨ ${menuData.name}
 
   const saved = await getMenuPlanByDate(userId, planDate);
 
+  // ─── 買い物リストをshoppingListItemsテーブルに自動保存 ────────────────────────
+  // 献立生成時に不足食材（shoppingList）をDBに保存し、「買い物リストを教えて」で正しく返答できるようにする
+  const shoppingListRaw: string[] = menuData.shoppingList ?? [];
+  if (shoppingListRaw.length > 0) {
+    try {
+      const { getDb } = await import("../db");
+      const { shoppingListItems: shoppingTable } = await import("../../drizzle/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        // 既存の未チェックアイテムを取得して重複を避ける
+        const existing = await db.select().from(shoppingTable)
+          .where(and(eq(shoppingTable.userId, userId), eq(shoppingTable.isChecked, false)));
+        const existingNames = new Set(existing.map(r => r.name));
+        const newItems = shoppingListRaw
+          .map(item => item.replace(/\s*\(.*?\)\s*/g, '').trim()) // 「牛乳（200ml）」→「牛乳」
+          .filter(name => name && !existingNames.has(name))
+          .map(name => ({
+            userId,
+            menuPlanId: saved?.id ?? undefined,
+            name,
+            quantity: null,
+            isChecked: false as const,
+            listDate: today as any,
+          }));
+        if (newItems.length > 0) {
+          await db.insert(shoppingTable).values(newItems);
+        }
+      }
+    } catch (err) {
+      console.error('[menu] Failed to save shopping list to DB:', err);
+    }
+  }
+
   return {
     message: messageText,
     menuPlanId: saved?.id,

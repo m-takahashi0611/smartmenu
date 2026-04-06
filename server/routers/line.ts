@@ -822,6 +822,84 @@ async function handleFridgeRegistration(
 ): Promise<boolean> {  // ─── Step 1: pendingActionがある場合（数量入力待ち・献立タイプ選択待ち）──────────────────────────────
   const pending = await getLineUserPendingAction(lineUserId);
 
+  // ─── 買い物ヒアリング待ちの場合 ──────────────────────────────────────────────────
+  if (pending?.type === 'shopping_hearing') {
+    const { hourJST } = pending as { hourJST: number; askedAt: number };
+    const trimmed = text.trim();
+
+    // キャンセル判定
+    if (/^(キャンセル|cancel|やめる|やめて)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。またいつでも「献立」と送ってください！' }]);
+      return true;
+    }
+
+    // 買い物あり（1）または買い物なし（2）の判定
+    const willShop = /^[1１]$/.test(trimmed) || /はい|行く|あり/.test(trimmed);
+    const willNotShop = /^[2２]$/.test(trimmed) || /いいえ|行かない|ない/.test(trimmed);
+
+    if (!willShop && !willNotShop) {
+      await replyLineMessage(replyToken, [{ type: 'text', text: `1または2の番号で教えてください😊\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります` }]);
+      return true;
+    }
+
+    // 買い物予定を記録して献立タイプ選択へ進む
+    let questionText: string;
+    let pendingChoices: Record<string, string>;
+
+    if (hourJST >= 15 && hourJST < 22) {
+      // 夕方〜夜：今晩か明日分まとめてか
+      questionText = `${willShop ? '明日の買い物を考慮した献立を提案します！' : '今ある食材で作れる献立を提案します！'}
+
+今夜の献立ですか？それとも明日分まで考えますか？
+
+1️⃣ 今夜の夕飯だけ
+2️⃣ 今夜＋明日の朝食まで
+
+番号で教えてください😊`;
+      pendingChoices = {
+        '1': 'dinner',
+        '今夜': 'dinner',
+        '今日': 'dinner',
+        '夕飯': 'dinner',
+        '夕食': 'dinner',
+        '2': 'dinner_and_tomorrow_breakfast',
+        '明日も': 'dinner_and_tomorrow_breakfast',
+        'まとめて': 'dinner_and_tomorrow_breakfast',
+        '両方': 'dinner_and_tomorrow_breakfast',
+      };
+    } else {
+      // 深夜（22時以降）：明日の朝食か夕飯までまとめてか
+      questionText = `${willShop ? '明日の買い物を考慮した献立を提案します！' : '今ある食材で作れる献立を提案します！'}
+
+明日の献立を考えましょうか？
+
+1️⃣ 明日の朝食
+2️⃣ 明日の夕飯まで（朝・昼・夕）
+
+番号で教えてください😊`;
+      pendingChoices = {
+        '1': 'tomorrow_breakfast',
+        '朝食': 'tomorrow_breakfast',
+        '朝': 'tomorrow_breakfast',
+        '2': 'tomorrow_dinner',
+        '夕飯': 'tomorrow_dinner',
+        '夕食': 'tomorrow_dinner',
+        '全部': 'tomorrow_dinner',
+        'まとめて': 'tomorrow_dinner',
+      };
+    }
+
+    await setLineUserPendingAction(lineUserId, {
+      type: 'menu_type_selection',
+      choices: pendingChoices,
+      willShop,
+      askedAt: Date.now(),
+    });
+    await replyLineMessage(replyToken, [{ type: 'text', text: questionText }]);
+    return true;
+  }
+
   // 献立タイプ選択待ちの場合
   if (pending?.type === 'menu_type_selection') {
     const { choices } = pending as { choices: Record<string, string>; askedAt: number };
@@ -2025,6 +2103,25 @@ ${itemList}
       // ─── 時間帯に応じた確認質問を返す ────────────────────────────────────────
       const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const currentHourJST = nowJST.getUTCHours();
+
+      // ─── 夕方〜深夜（15時以降）は買い物ヒアリングを挿入 ──────────────────────
+      if (currentHourJST >= 15 || currentHourJST < 5) {
+        await setLineUserPendingAction(lineUserId, {
+          type: 'shopping_hearing',
+          hourJST: currentHourJST,
+          askedAt: Date.now(),
+        });
+        const hearingText = `献立を考える前に少し聞かせてください😊
+
+明日、買い物に行く予定はありますか？
+
+1️⃣ はい、行く予定です
+2️⃣ いいえ、今ある食材で作ります
+
+番号で教えてください`;
+        await replyLineMessage(replyToken, [{ type: 'text', text: hearingText }]);
+        return;
+      }
 
       let questionText: string;
       let pendingChoices: Record<string, string>;
