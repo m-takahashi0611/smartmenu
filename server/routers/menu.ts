@@ -43,7 +43,8 @@ export function getMealLabel(mealType: MealType): string {
 export async function generateMenuPlan(
   userId: number,
   planDate: string,
-  mealType?: MealType
+  mealType?: MealType,
+  willShop?: boolean
 ): Promise<{ message: string; menuPlanId?: number; shoppingList?: string[] }> {
 
   // 時間帯を決定（引数がなければ現在時刻から判定）
@@ -109,6 +110,12 @@ export async function generateMenuPlan(
   const shoppingFreq = familyProfile?.shoppingFrequency ?? 2;
   const cookingFreq = familyProfile?.cookingFrequency ?? 5;
   const shoppingProfileDesc = `週${shoppingFreq}回買い物、週${cookingFreq}回自炊`;
+  // 買い物予定の説明（ユーザーがヒアリングで回答した場合に反映）
+  const shoppingAvailabilityDesc = willShop === true
+    ? '今日（または明日）買い物に行く予定あり→不足食材を買い足せる前提で提案可能'
+    : willShop === false
+    ? '買い物に行かない→必ず冷蔵庫の在庫食材のみで作れる献立を提案すること'
+    : null;
 
   // 家族構成の説明
   const familyDesc =
@@ -173,6 +180,7 @@ export async function generateMenuPlan(
     userPrompt = `【日付・天気】${planDate}（${weatherDesc}）
 【家族構成】${familyDesc}
 【買い物・自炊プロフィール】${shoppingProfileDesc}
+${shoppingAvailabilityDesc ? `【買い物予定】${shoppingAvailabilityDesc}\n` : ""}
 ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyList}\n` : ""}【冷蔵庫の食材】${fridgeDesc}
 【最近の献立（重複を避けて）】${recentDesc}
 
@@ -231,6 +239,7 @@ ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyLis
     userPrompt = `【日付・天気】${planDate}（${weatherDesc}）
 【家族構成】${familyDesc}
 【買い物・自炊プロフィール】${shoppingProfileDesc}
+${shoppingAvailabilityDesc ? `【買い物予定】${shoppingAvailabilityDesc}\n` : ""}
 ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyList}\n` : ""}【冷蔵庫の食材】${fridgeDesc}
 
 冷蔵庫の食材を活かした${targetMeal}を1案提案してください。`;

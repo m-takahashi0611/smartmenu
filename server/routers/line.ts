@@ -846,10 +846,33 @@ async function handleFridgeRegistration(
     // 買い物予定を記録して献立タイプ選択へ進む
     let questionText: string;
     let pendingChoices: Record<string, string>;
+    const shopNote = willShop ? '買い物を考慮した献立を提案します！' : '今ある食材で作れる献立を提案します！';
 
-    if (hourJST >= 15 && hourJST < 22) {
+    if (hourJST >= 5 && hourJST < 15) {
+      // 朝〜昼：朝食/昼食か夕飯か
+      questionText = `${shopNote}
+
+どの献立を考えましょうか？
+
+1️⃣ 今日の朝食・昼食
+2️⃣ 今夜の夕飯
+
+番号か「朝食」「夕飯」などで教えてください😊`;
+      pendingChoices = {
+        '1': 'breakfast',
+        '朝食': 'breakfast',
+        '朝': 'breakfast',
+        '昼食': 'lunch',
+        'ランチ': 'lunch',
+        '2': 'dinner',
+        '夕飯': 'dinner',
+        '夕食': 'dinner',
+        '今夜': 'dinner',
+        '晩ごはん': 'dinner',
+      };
+    } else if (hourJST >= 15 && hourJST < 22) {
       // 夕方〜夜：今晩か明日分まとめてか
-      questionText = `${willShop ? '明日の買い物を考慮した献立を提案します！' : '今ある食材で作れる献立を提案します！'}
+      questionText = `${shopNote}
 
 今夜の献立ですか？それとも明日分まで考えますか？
 
@@ -870,7 +893,7 @@ async function handleFridgeRegistration(
       };
     } else {
       // 深夜（22時以降）：明日の朝食か夕飯までまとめてか
-      questionText = `${willShop ? '明日の買い物を考慮した献立を提案します！' : '今ある食材で作れる献立を提案します！'}
+      questionText = `${shopNote}
 
 明日の献立を考えましょうか？
 
@@ -902,7 +925,7 @@ async function handleFridgeRegistration(
 
   // 献立タイプ選択待ちの場合
   if (pending?.type === 'menu_type_selection') {
-    const { choices } = pending as { choices: Record<string, string>; askedAt: number };
+    const { choices, willShop: pendingWillShop } = pending as { choices: Record<string, string>; willShop?: boolean; askedAt: number };
     const trimmed = text.trim();
 
     // キャンセル判定を先に行う（selectedTypeチェックの前）
@@ -930,8 +953,8 @@ async function handleFridgeRegistration(
 
       if (selectedType === 'dinner_and_tomorrow_breakfast') {
         // 今夜の夕食＋明日の朝食を順に生成
-        const dinnerResult = await generateMenuPlan(userId, today, 'dinner');
-        const breakfastResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast');
+        const dinnerResult = await generateMenuPlan(userId, today, 'dinner', pendingWillShop);
+        const breakfastResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast', pendingWillShop);
         const combinedMessage = `${dinnerResult.message}
 
 ―――――――――――――――――
@@ -940,9 +963,9 @@ ${breakfastResult.message}`;
         await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }]);
       } else if (selectedType === 'tomorrow_dinner') {
         // 明日の朝食＋昼食＋夕食を順に生成
-        const bfResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast');
-        const lunchResult = await generateMenuPlan(userId, tomorrow, 'lunch');
-        const dinnerResult = await generateMenuPlan(userId, tomorrow, 'dinner');
+        const bfResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast', pendingWillShop);
+        const lunchResult = await generateMenuPlan(userId, tomorrow, 'lunch', pendingWillShop);
+        const dinnerResult = await generateMenuPlan(userId, tomorrow, 'dinner', pendingWillShop);
         const combinedMessage = `🌟 明日の献立をまとめて提案します！
 
 ${bfResult.message}
@@ -959,7 +982,7 @@ ${dinnerResult.message}`;
         // 単一食事タイプ
         const mealType = selectedType as import('./menu').MealType;
         const targetDate = (selectedType === 'tomorrow_breakfast') ? tomorrow : today;
-        const result = await generateMenuPlan(userId, targetDate, mealType);
+        const result = await generateMenuPlan(userId, targetDate, mealType, pendingWillShop);
         await replyLineMessage(replyToken, [{ type: 'text', text: result.message }]);
 
         // 夕食・翔日朝食の場合は3案提示するのでmenu_option_selectionをセット
@@ -1621,7 +1644,21 @@ ${dinnerResult.message}`;
             },
             { role: 'user', content: itemsText },
           ],
-          response_format: { type: 'json_object' },
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'ingredient_list',
+              strict: true,
+              schema: {
+                type: 'object',
+                properties: {
+                  items: { type: 'array', items: { type: 'string' }, description: '食材名の配列' },
+                },
+                required: ['items'],
+                additionalProperties: false,
+              },
+            },
+          } as any,
         });
         const content = splitResp.choices[0]?.message?.content;
         const contentStr = typeof content === 'string' ? content : JSON.stringify(content ?? {});
@@ -2066,7 +2103,7 @@ ${itemList}
     {
       // 「献立」「冷蔵庫」等のキーワードマッチするテキストは後続のキーワードマッチングで処理するためLLM判定をスキップ
       const isDirectKeyword =
-        /献立/.test(text) ||
+        /^献立$|^今日の献立$|^今夜の献立$|^明日の献立$|^献立を$|^献立お願い$|^献立提案$/.test(text.trim()) ||
         /冷蔵庫/.test(text) ||
         /買い物リスト/.test(text) ||
         /今日何(作|つく)ろ/.test(text) ||
