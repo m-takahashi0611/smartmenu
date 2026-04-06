@@ -1808,6 +1808,18 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
 
   if (!lineUserId) return;
 
+  // ─── BOT返信を自動的に履歴保存するラッパー ──────────────────────────────────
+  // replyLineMessageを呼ぶと同時に、テキストメッセージをassistantとして履歴保存する
+  const replyAndSave = async (token: string, messages: object[]) => {
+    await replyLineMessage(token, messages);
+    if (!_skipHistory) {
+      const textMessages = (messages as any[]).filter(m => m.type === 'text' && m.text);
+      for (const m of textMessages) {
+        await addConversationMessage({ lineUserId, role: 'assistant', content: m.text }).catch(() => {});
+      }
+    }
+  };
+
   if (type === "follow") {
     const profile = await getLineUserProfile(lineUserId);
     const db = await getDb();
@@ -1840,7 +1852,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
     }
 
         // replyTokenで挨拶テキストのみ送信（3ステップは画像で伝えるため不要）
-    await replyLineMessage(replyToken, [
+    await replyAndSave(replyToken, [
       {
         type: "text",
         text: `🍽️ こんにちは、${profile?.displayName ?? "ゲスト"}さん！
@@ -1925,7 +1937,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
       const weather = await getWeatherInfo(latitude, longitude, today);
       const weatherDesc = formatWeatherForPrompt(weather);
 
-      await replyLineMessage(replyToken, [
+      await replyAndSave(replyToken, [
         {
           type: "text",
           text: `位置情報を登録しました！\n場所：${region}\n\n現在の天気：${weatherDesc}\n\nこれからはあなたの地域の天気に合った献立を提案します！`,
@@ -1948,7 +1960,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
         const transcription = await transcribeAudio({ audioUrl, language: "ja", prompt: "食材や料理、買い物に関する音声を文字起こししてください" });
         if ("error" in transcription) {
           console.error("[LINE] Transcription failed:", transcription.error);
-          await replyLineMessage(replyToken, [{ type: "text", text: "音声の認識に失敗しました。もう一度お試しください。" }]);
+          await replyAndSave(replyToken, [{ type: "text", text: "音声の認識に失敗しました。もう一度お試しください。" }]);
           return;
         }
         const transcribedText = transcription.text.trim();
@@ -1966,7 +1978,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
             type: "voice_confirm",
             transcribedText,
           });
-          await replyLineMessage(replyToken, [{
+          await replyAndSave(replyToken, [{
             type: "text",
             text: `🎤 「${transcribedText}」
 
@@ -1977,7 +1989,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
         }
       } catch (err) {
         console.error("[LINE] Audio processing failed:", err);
-        await replyLineMessage(replyToken, [{ type: "text", text: "音声の処理中にエラーが発生しました。もう一度お試しください。" }]);
+        await replyAndSave(replyToken, [{ type: "text", text: "音声の処理中にエラーが発生しました。もう一度お試しください。" }]);
       }
       return;
     }
@@ -1993,7 +2005,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
         const fileKey = `line-images/${lineUserId}-${messageId}.jpg`;
         const { url: imageUrl } = await storagePut(fileKey, imageBuffer, "image/jpeg");
         // LLMでレシート解析
-        await replyLineMessage(replyToken, [{ type: "text", text: "🧳 レシートを解析中です……" }]);
+        await replyAndSave(replyToken, [{ type: "text", text: "🧳 レシートを解析中です……" }]);
         const analysisResult = await analyzeReceiptImage(imageUrl, userId);
         if (!analysisResult.success || analysisResult.items.length === 0) {
           await sendLineMessage(lineUserId, [{ type: "text", text: "レシートから商品を読み取れませんでした。レシートを正面から撑して撑して再度お試しください。" }]);
@@ -2086,7 +2098,7 @@ ${itemList}
       const isFirstMessage = lineUser && (lineUser.updatedAt.getTime() - lineUser.createdAt.getTime()) < 5 * 60 * 1000;
       if (!hasFamilySetup && isFirstMessage) {
         // 初回メッセージ時のみ家族登録を促す
-        await replyLineMessage(replyToken, [
+        await replyAndSave(replyToken, [
           {
             type: "text",
             text: `${displayName}さん、はじめまして！\n\nAIが献立を提案するために、まず家族情報を登録しましょう👨‍👩‍👧\n\n家族の人数・アレルギー・買い物回数などを登録すると、より精度の高い献立を提案できます！\n\n📝 ダッシュボードで登録\nhttps://www.kondatebiyori.com/family\n\n登録後に「献立」と送ってください😊`,
@@ -2128,7 +2140,7 @@ ${itemList}
         if (handled) return;
       }
       if (!userId) {
-        await replyLineMessage(replyToken, [
+        await replyAndSave(replyToken, [
           {
             type: "text",
             text: `${displayName}さん、まずはアプリにログインして家族情報を登録してください\n\nこちらから\nhttps://www.kondatebiyori.com`,
@@ -2151,7 +2163,7 @@ ${itemList}
           askedAt: Date.now(),
         });
         const hearingText = `献立を考える前に少し聞かせてください😊\n\n${shopDayText}、買い物に行く予定はありますか？\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります\n\n番号で教えてください`;
-        await replyLineMessage(replyToken, [{ type: 'text', text: hearingText }]);
+        await replyAndSave(replyToken, [{ type: 'text', text: hearingText }]);
         return;
       }
 
@@ -2208,12 +2220,12 @@ ${itemList}
         askedAt: Date.now(),
       });
 
-      await replyLineMessage(replyToken, [{ type: "text", text: questionText }]);
+      await replyAndSave(replyToken, [{ type: "text", text: questionText }]);
       return;
     }
 
     if (text === "ヘルプ" || text === "help") {
-      await replyLineMessage(replyToken, [
+      await replyAndSave(replyToken, [
         {
           type: "text",
           text: "【献立日和 coto coto の使い方】\n\n献立 → 今日の献立を提案\n天気 → 天気に合った料理を提案\n冷蔵庫 → 在庫で作れる料理を提案\n\n位置情報を送ると地域の天気に合わせた提案ができます！\n\n設定（家族構成・冷蔵庫・店舗）はアプリから\nhttps://www.kondatebiyori.com",
@@ -2229,7 +2241,7 @@ ${itemList}
     const normalizedText = text.normalize('NFC');
     if (normalizedText === "冷蔵庫の中身を教えて" || text.includes("冷蔵庫の中身を教えて")) {
       if (!userId) {
-        await replyLineMessage(replyToken, [{
+        await replyAndSave(replyToken, [{
           type: "text",
           text: `${displayName}さん、まずはダッシュボードから家族情報を登録してください
 https://www.kondatebiyori.com`,
@@ -2238,13 +2250,13 @@ https://www.kondatebiyori.com`,
       }
       const items = await getFridgeItems(userId);
       if (items.length === 0) {
-        await replyLineMessage(replyToken, [{
+        await replyAndSave(replyToken, [{
           type: "text",
           text: "冷蔵庫に食材が登録されていません。\n\n「冷蔵庫に　を追加」と送ると登録できます！\n例：「冷蔵庫に豚肉、キャベツ、卵を追加」",
         }]);
       } else {
         const itemList = items.map((f) => `・${f.name}${f.quantity ? "（" + f.quantity + "）" : ""}`).join("\n");
-        await replyLineMessage(replyToken, [{
+        await replyAndSave(replyToken, [{
           type: "text",
           text: `❄️ 現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください`,
         }]);
@@ -2256,13 +2268,13 @@ https://www.kondatebiyori.com`,
     const isShoppingDone = /買い物リスト購入済み|買い物完了|買い物した|買い物おわった|買い物終わった|買い物終了|購入完了|全部買った|買い物全部完了/.test(text);
     if (isShoppingDone) {
       if (!userId) {
-        await replyLineMessage(replyToken, [{ type: "text", text: `${displayName}さん、まずはダッシュボードからログインしてください
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはダッシュボードからログインしてください
 https://www.kondatebiyori.com` }]);
         return;
       }
       const db = await getDb();
       if (!db) {
-        await replyLineMessage(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
+        await replyAndSave(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
         return;
       }
       // 未チェックの買い物リストを全て完了に更新
@@ -2272,9 +2284,9 @@ https://www.kondatebiyori.com` }]);
         .where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.isChecked, false)));
       const updatedCount = result[0]?.affectedRows ?? 0;
       if (updatedCount === 0) {
-        await replyLineMessage(replyToken, [{ type: "text", text: "買い物リストはすでに空です！\n\n次回の献立は「献立」と送ってください😊" }]);
+        await replyAndSave(replyToken, [{ type: "text", text: "買い物リストはすでに空です！\n\n次回の献立は「献立」と送ってください😊" }]);
       } else {
-        await replyLineMessage(replyToken, [{ type: "text", text: `✅ 買い物お疲れさまでした！\n${updatedCount}件のアイテムを購入済みにしました👍\n\n冷蔵庫の中身も更新しましたか？\n「冷蔵庫に追加」と送ると登録できます🥬` }]);
+        await replyAndSave(replyToken, [{ type: "text", text: `✅ 買い物お疲れさまでした！\n${updatedCount}件のアイテムを購入済みにしました👍\n\n冷蔵庫の中身も更新しましたか？\n「冷蔵庫に追加」と送ると登録できます🥬` }]);
       }
       return;
     }
@@ -2282,7 +2294,7 @@ https://www.kondatebiyori.com` }]);
     // ─── リッチメニュー「買い物リスト」ボタンからのトーク返信 ──────────────────────
     if (normalizedText === "買い物リストを教えて" || text.includes("買い物リストを教えて")) {
       if (!userId) {
-        await replyLineMessage(replyToken, [{
+        await replyAndSave(replyToken, [{
           type: "text",
           text: `${displayName}さん、まずはダッシュボードから家族情報を登録してください
 https://www.kondatebiyori.com`,
@@ -2291,7 +2303,7 @@ https://www.kondatebiyori.com`,
       }
       const db = await getDb();
       if (!db) {
-        await replyLineMessage(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
+        await replyAndSave(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
         return;
       }
       const shoppingItems = await db
@@ -2302,13 +2314,13 @@ https://www.kondatebiyori.com`,
       const pendingItems = shoppingItems.filter((s) => !s.isChecked);
       console.log(`[LINE] Shopping list for userId=${userId}: ${shoppingItems.length} total, ${pendingItems.length} pending`);
       if (pendingItems.length === 0) {
-        await replyLineMessage(replyToken, [{
+        await replyAndSave(replyToken, [{
           type: "text",
           text: "買い物リストは空です。\n\n献立を生成すると買い物リスト候補がダッシュボードに表示されます。\n必要なものだけ選んで追加できます！\nhttps://www.kondatebiyori.com/dashboard",
         }]);
       } else {
         const itemList = pendingItems.map((s) => `・${s.name}${s.quantity ? " " + s.quantity : ""}`).join("\n");
-        await replyLineMessage(replyToken, [{
+        await replyAndSave(replyToken, [{
           type: "text",
           text: `🛒 買い物リスト（${pendingItems.length}件）：\n${itemList}\n\n買い物が完了したらダッシュボードからチェックできます！`,
         }]);
@@ -2394,7 +2406,7 @@ https://www.kondatebiyori.com`,
 
       const db = await getDb();
       if (!db || parsedItems.length === 0) {
-        await replyLineMessage(replyToken, [{ type: 'text', text: '買い物リストに追加する商品が分かりませんでした。例：「玉ねぎを買い物リストに追加して」' }]);
+        await replyAndSave(replyToken, [{ type: 'text', text: '買い物リストに追加する商品が分かりませんでした。例：「玉ねぎを買い物リストに追加して」' }]);
         return;
       }
       const addedItems: string[] = [];
@@ -2412,9 +2424,9 @@ https://www.kondatebiyori.com`,
       }
       if (addedItems.length > 0) {
         const itemList = addedItems.map((i: string) => `・${i}`).join('\n');
-        await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 買い物リストに追加しました！\n${itemList}\n\nダッシュボードで確認・チェックできます🛒` }]);
+        await replyAndSave(replyToken, [{ type: 'text', text: `✅ 買い物リストに追加しました！\n${itemList}\n\nダッシュボードで確認・チェックできます🛒` }]);
       } else {
-        await replyLineMessage(replyToken, [{ type: 'text', text: '追加できる商品が見つかりませんでした。例：「玉ねぎを買い物リストに追加して」' }]);
+        await replyAndSave(replyToken, [{ type: 'text', text: '追加できる商品が見つかりませんでした。例：「玉ねぎを買い物リストに追加して」' }]);
       }
       return;
     }
@@ -2437,7 +2449,7 @@ https://www.kondatebiyori.com`,
     if (fridgeQueryPatterns.some(p => p.test(text))) {
       console.log(`[LINE] FALLBACK: Caught fridge query: "${text}"`);
       if (!userId) {
-        await replyLineMessage(replyToken, [{
+        await replyAndSave(replyToken, [{
           type: "text",
           text: `${displayName}さん、まずはダッシュボードから家族情報を登録してください\nhttps://www.kondatebiyori.com`,
         }]);
@@ -2445,13 +2457,13 @@ https://www.kondatebiyori.com`,
       }
       const items = await getFridgeItems(userId);
       if (items.length === 0) {
-        await replyLineMessage(replyToken, [{
+        await replyAndSave(replyToken, [{
           type: "text",
           text: "冷蔵庫に食材が登録されていません。\n\n「冷蔵庫に　を追加」と送ると登録できます！\n例：「冷蔵庫に豚肉、キャベツ、卵を追加」",
         }]);
       } else {
         const itemList = items.map((f) => `・${f.name}${f.quantity ? "（" + f.quantity + "）" : ""}`).join("\n");
-        await replyLineMessage(replyToken, [{
+        await replyAndSave(replyToken, [{
           type: "text",
           text: `❄️ 現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください`,
         }]);
@@ -2469,7 +2481,7 @@ https://www.kondatebiyori.com`,
     if (shoppingQueryPatterns.some(p => p.test(text))) {
       console.log(`[LINE] FALLBACK: Caught shopping list query: "${text}"`);
       if (!userId) {
-        await replyLineMessage(replyToken, [{
+        await replyAndSave(replyToken, [{
           type: "text",
           text: `${displayName}さん、まずはダッシュボードから家族情報を登録してください\nhttps://www.kondatebiyori.com`,
         }]);
@@ -2477,7 +2489,7 @@ https://www.kondatebiyori.com`,
       }
       const db = await getDb();
       if (!db) {
-        await replyLineMessage(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
+        await replyAndSave(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
         return;
       }
       const shoppingItems = await db
@@ -2487,13 +2499,13 @@ https://www.kondatebiyori.com`,
         .orderBy(shoppingListItems.createdAt);
       const pendingItems = shoppingItems.filter((s) => !s.isChecked);
       if (pendingItems.length === 0) {
-        await replyLineMessage(replyToken, [{
+        await replyAndSave(replyToken, [{
           type: "text",
           text: "買い物リストは空です。\n\n献立を生成すると買い物リスト候補がダッシュボードに表示されます。\n必要なものだけ選んで追加できます！\nhttps://www.kondatebiyori.com/dashboard",
         }]);
       } else {
         const itemList = pendingItems.map((s) => `・${s.name}${s.quantity ? " " + s.quantity : ""}`).join("\n");
-        await replyLineMessage(replyToken, [{
+        await replyAndSave(replyToken, [{
           type: "text",
           text: `🛒 買い物リスト（${pendingItems.length}件）：\n${itemList}\n\n買い物が完了したらダッシュボードからチェックできます！`,
         }]);
@@ -2512,11 +2524,11 @@ https://www.kondatebiyori.com`,
         lineUser?.latitude,
         lineUser?.longitude
       );
-      await replyLineMessage(replyToken, [{ type: "text", text: reply }]);
+      await replyAndSave(replyToken, [{ type: "text", text: reply }]);
     } catch (err) {
       console.error("[LINE] Contextual reply failed:", err);
       const fallbackMsg = "「献立」と送ると今日の献立を提案します";
-      await replyLineMessage(replyToken, [{ type: "text", text: fallbackMsg }]);
+      await replyAndSave(replyToken, [{ type: "text", text: fallbackMsg }]);
       await addConversationMessage({ lineUserId, role: 'assistant', content: fallbackMsg }).catch(() => {});
     }
   }
