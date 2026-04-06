@@ -70,7 +70,7 @@ export async function sendLineMessage(lineUserId: string, messages: object[]) {
   });
 }
 
-export async function replyLineMessage(replyToken: string, messages: object[]) {
+export async function replyLineMessage(replyToken: string, messages: object[], lineUserIdForHistory?: string) {
   const body = JSON.stringify({ replyToken, messages });
 
   return new Promise<void>((resolve, reject) => {
@@ -101,6 +101,14 @@ export async function replyLineMessage(replyToken: string, messages: object[]) {
     req.on("error", reject);
     req.write(body);
     req.end();
+  }).then(async () => {
+    // lineUserIdForHistoryが渡された場合、テキストメッセージを履歴保存
+    if (lineUserIdForHistory) {
+      const textMessages = (messages as any[]).filter(m => m.type === 'text' && m.text);
+      for (const m of textMessages) {
+        await addConversationMessage({ lineUserId: lineUserIdForHistory, role: 'assistant', content: m.text }).catch(() => {});
+      }
+    }
   });
 }
 
@@ -706,7 +714,7 @@ async function handleIntentAction(
     case 'shopping_add': {
       // 買い物リストに直接追加
       if (!userId) {
-        await replyLineMessage(replyToken, [{ type: 'text', text: 'ユーザー登録が必要です。ダッシュボードからログインしてください。' }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: 'ユーザー登録が必要です。ダッシュボードからログインしてください。' }], lineUserId);
         return true;
       }
       try {
@@ -723,23 +731,23 @@ async function handleIntentAction(
             }
           }
           if (added.length > 0) {
-            await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 買い物リストに「${added.join('、')}」を追加しました！` }]);
+            await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 買い物リストに「${added.join('、')}」を追加しました！` }], lineUserId);
           } else {
-            await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」はすでに買い物リストに登録済みです。` }]);
+            await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」はすでに買い物リストに登録済みです。` }], lineUserId);
           }
         } else {
-          await replyLineMessage(replyToken, [{ type: 'text', text: '買い物リストに追加する食材が認識できませんでした。' }]);
+          await replyLineMessage(replyToken, [{ type: 'text', text: '買い物リストに追加する食材が認識できませんでした。' }], lineUserId);
         }
       } catch (err) {
         console.error('[LINE] shopping_add error:', err);
-        await replyLineMessage(replyToken, [{ type: 'text', text: '買い物リストへの追加に失敗しました。もう一度お試しください。' }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: '買い物リストへの追加に失敗しました。もう一度お試しください。' }], lineUserId);
       }
       return true;
     }
     case 'fridge_add': {
       // 冷蔵庫に直接追加
       if (!userId) {
-        await replyLineMessage(replyToken, [{ type: 'text', text: 'ユーザー登録が必要です。ダッシュボードからログインしてください。' }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: 'ユーザー登録が必要です。ダッシュボードからログインしてください。' }], lineUserId);
         return true;
       }
       try {
@@ -756,29 +764,29 @@ async function handleIntentAction(
             }
             added.push(itemName.trim());
           }
-          await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${added.join('、')}」を登録しました！` }]);
+          await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${added.join('、')}」を登録しました！` }], lineUserId);
         } else {
-          await replyLineMessage(replyToken, [{ type: 'text', text: '冷蔵庫に登録する食材が認識できませんでした。' }]);
+          await replyLineMessage(replyToken, [{ type: 'text', text: '冷蔵庫に登録する食材が認識できませんでした。' }], lineUserId);
         }
       } catch (err) {
         console.error('[LINE] fridge_add error:', err);
-        await replyLineMessage(replyToken, [{ type: 'text', text: '冷蔵庫への登録に失敗しました。もう一度お試しください。' }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: '冷蔵庫への登録に失敗しました。もう一度お試しください。' }], lineUserId);
       }
       return true;
     }
     case 'ingredients_only': {
       await setLineUserPendingAction(lineUserId, { type: 'voice_ingredient_action', transcribedText: text, ingredients: items });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n番号で教えてください😊` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n番号で教えてください😊` }], lineUserId);
       return true;
     }
     case 'used_ingredient': {
       await setLineUserPendingAction(lineUserId, { type: 'used_ingredient_action', items, text });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」を使ったんですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫から削除\n2️⃣ 数量を減らす\n3️⃣ そのまま（何もしない）\n\n番号で教えてください😊` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」を使ったんですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫から削除\n2️⃣ 数量を減らす\n3️⃣ そのまま（何もしない）\n\n番号で教えてください😊` }], lineUserId);
       return true;
     }
     case 'bought_item': {
       await setLineUserPendingAction(lineUserId, { type: 'bought_item_action', items, text });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」を買ってきたんですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストから削除\n3️⃣ 両方（冷蔵庫追加＋リスト削除）\n\n番号で教えてください😊` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」を買ってきたんですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストから削除\n3️⃣ 両方（冷蔵庫追加＋リスト削除）\n\n番号で教えてください😊` }], lineUserId);
       return true;
     }
     case 'menu_vague': {
@@ -794,20 +802,20 @@ async function handleIntentAction(
     case 'mood_theme': {
       const themeText = theme || itemDisplay;
       await setLineUserPendingAction(lineUserId, { type: 'mood_theme_action', theme: themeText, text });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${themeText}」の気分ですね！\n\nどうしますか？\n\n1️⃣ 今日の献立テーマに設定して提案\n2️⃣ キャンセル\n\n番号で教えてください😊` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${themeText}」の気分ですね！\n\nどうしますか？\n\n1️⃣ 今日の献立テーマに設定して提案\n2️⃣ キャンセル\n\n番号で教えてください😊` }], lineUserId);
       return true;
     }
     case 'family_preference': {
       const member = memberName || '家族';
       const pref = preference || text;
       await setLineUserPendingAction(lineUserId, { type: 'family_preference_action', memberName: member, preference: pref, items, text });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${member}が${pref}」ですね！\n\nどうしますか？\n\n1️⃣ 好み・嫌いとして登録\n2️⃣ キャンセル\n\n番号で教えてください😊` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${member}が${pref}」ですね！\n\nどうしますか？\n\n1️⃣ 好み・嫌いとして登録\n2️⃣ キャンセル\n\n番号で教えてください😊` }], lineUserId);
       return true;
     }
     case 'quantity_update': {
       const qty = quantity || '不明';
       await setLineUserPendingAction(lineUserId, { type: 'quantity_update_action', items, quantity: qty, text });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}が${qty}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫の数量を更新\n2️⃣ 在庫確認（現在の冷蔵庫を表示）\n3️⃣ キャンセル\n\n番号で教えてください😊` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}が${qty}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫の数量を更新\n2️⃣ 在庫確認（現在の冷蔵庫を表示）\n3️⃣ キャンセル\n\n番号で教えてください😊` }], lineUserId);
       return true;
     }
   }
@@ -830,7 +838,7 @@ async function handleFridgeRegistration(
     // キャンセル判定
     if (/^(キャンセル|cancel|やめる|やめて)$/i.test(trimmed)) {
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。またいつでも「献立」と送ってください！' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。またいつでも「献立」と送ってください！' }], lineUserId);
       return true;
     }
 
@@ -839,7 +847,7 @@ async function handleFridgeRegistration(
     const willNotShop = /^[2２]$/.test(trimmed) || /いいえ|行かない|ない/.test(trimmed);
 
     if (!willShop && !willNotShop) {
-      await replyLineMessage(replyToken, [{ type: 'text', text: `1または2の番号で教えてください😊\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `1または2の番号で教えてください😊\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります` }], lineUserId);
       return true;
     }
 
@@ -919,7 +927,7 @@ async function handleFridgeRegistration(
       willShop,
       askedAt: Date.now(),
     });
-    await replyLineMessage(replyToken, [{ type: 'text', text: questionText }]);
+    await replyLineMessage(replyToken, [{ type: 'text', text: questionText }], lineUserId);
     return true;
   }
 
@@ -931,7 +939,7 @@ async function handleFridgeRegistration(
     // キャンセル判定を先に行う（selectedTypeチェックの前）
     if (/^(キャンセル|cancel|やめる|やめて|いいえ|no)$/i.test(trimmed)) {
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。またいつでも「献立」と送ってください！' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。またいつでも「献立」と送ってください！' }], lineUserId);
       return true;
     }
 
@@ -941,7 +949,7 @@ async function handleFridgeRegistration(
       // 不明な入力→再度聴く
       await replyLineMessage(replyToken, [
         { type: 'text', text: '番号か「夕飯」「朝食」などで教えてください😊\n\nキャンセルする場合は「キャンセル」と送ってください' }
-      ]);
+      ], lineUserId);
       return true;
     }
 
@@ -960,7 +968,7 @@ async function handleFridgeRegistration(
 ―――――――――――――――――
 
 ${breakfastResult.message}`;
-        await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }], lineUserId);
       } else if (selectedType === 'tomorrow_dinner') {
         // 明日の朝食＋昼食＋夕食を順に生成
         const bfResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast', pendingWillShop);
@@ -977,13 +985,13 @@ ${lunchResult.message}
 ―――――――――――――――――
 
 ${dinnerResult.message}`;
-        await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }], lineUserId);
       } else {
         // 単一食事タイプ
         const mealType = selectedType as import('./menu').MealType;
         const targetDate = (selectedType === 'tomorrow_breakfast') ? tomorrow : today;
         const result = await generateMenuPlan(userId, targetDate, mealType, pendingWillShop);
-        await replyLineMessage(replyToken, [{ type: 'text', text: result.message }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: result.message }], lineUserId);
 
         // 夕食・翔日朝食の場合は3案提示するのでmenu_option_selectionをセット
         if (mealType === 'dinner' || mealType === 'tomorrow_breakfast') {
@@ -1016,7 +1024,7 @@ ${dinnerResult.message}`;
       }
     } catch (err) {
       console.error('[LINE] Menu generation failed:', err);
-      await replyLineMessage(replyToken, [{ type: 'text', text: '申し訳ありません。献立の生成に失敗しました。しばらくしてからもう一度お試しください。' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '申し訳ありません。献立の生成に失敗しました。しばらくしてからもう一度お試しください。' }], lineUserId);
     }
     return true;
   }
@@ -1034,7 +1042,7 @@ ${dinnerResult.message}`;
     // キャンセル
     if (/^(キャンセル|やめる|やめて|cancel|いいえ)$/i.test(trimmed)) {
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。またいつでも「献立」と送ってください！' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。またいつでも「献立」と送ってください！' }], lineUserId);
       return true;
     }
 
@@ -1058,7 +1066,7 @@ ${dinnerResult.message}`;
         await replyLineMessage(replyToken, [{
           type: 'text',
           text: `『${numStr}』とお送りいただきましたが、先ほどの献立候補から${numStr}番（${selected.name}）を選ぶということでしょうか？\n\n「はい」→ ${selected.name}のレシピを表示します\n「レシピ」→ 詳しいレシピを見る\n「キャンセル」→ 選び直す`,
-        }]);
+        }], lineUserId);
         return true;
       }
     }
@@ -1066,7 +1074,7 @@ ${dinnerResult.message}`;
     // 「レシピ」「教えて」などのキーワード → 全候補を再表示
     if (/レシピ|教えて|見せて/.test(trimmed)) {
       const optionLines = options.map((o, i) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
-      await replyLineMessage(replyToken, [{ type: 'text', text: `どの献立のレシピを見ますか？\n\n${optionLines}\n\n番号で教えてください😊` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `どの献立のレシピを見ますか？\n\n${optionLines}\n\n番号で教えてください😊` }], lineUserId);
       return true;
     }
 
@@ -1096,7 +1104,7 @@ ${dinnerResult.message}`;
         targetDate,
         askedAt: Date.now(),
       });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `わかりました！どれにしますか？\n\n${optionLines}\n\n番号で教えてください😊` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `わかりました！どれにしますか？\n\n${optionLines}\n\n番号で教えてください😊` }], lineUserId);
       return true;
     }
 
@@ -1113,10 +1121,10 @@ ${dinnerResult.message}`;
           ],
         });
         const recipeText = recipeResponse.choices[0]?.message?.content ?? 'レシピの取得に失敗しました。';
-        await replyLineMessage(replyToken, [{ type: 'text', text: `🍳 ${selected.name} のレシピ\n\n${recipeText}` }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: `🍳 ${selected.name} のレシピ\n\n${recipeText}` }], lineUserId);
       } catch (err) {
         console.error('[LINE] Recipe generation failed:', err);
-        await replyLineMessage(replyToken, [{ type: 'text', text: '申し訳ありません。レシピの取得に失敗しました。しばらくしてからもう一度お試しください。' }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: '申し訳ありません。レシピの取得に失敗しました。しばらくしてからもう一度お試しください。' }], lineUserId);
       }
       return true;
     }
@@ -1133,7 +1141,7 @@ ${dinnerResult.message}`;
     // 「いいえ」「キャンセル」→キャンセル
     if (/^(いいえ|no|キャンセル|やめる|やめて|cancel)$/i.test(trimmed)) {
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。もう一度音声を送ってください。' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。もう一度音声を送ってください。' }], lineUserId);
       return true;
     }
 
@@ -1162,7 +1170,7 @@ ${dinnerResult.message}`;
 
 「はい」→ そのまま処理します
 「いいえ」→ キャンセルします`,
-    }]);
+    }], lineUserId);
     return true;
   }
 
@@ -1174,7 +1182,7 @@ ${dinnerResult.message}`;
     // キャンセル
     if (/^(キャンセル|やめる|やめて|cancel|いいえ)$/i.test(trimmed)) {
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。' }], lineUserId);
       return true;
     }
 
@@ -1197,7 +1205,7 @@ ${dinnerResult.message}`;
       const itemList = addedNames.join('、');
       await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！
 
-献立を提案しましょうか？「献立」と送ってください` }]);
+献立を提案しましょうか？「献立」と送ってください` }], lineUserId);
       return true;
     }
 
@@ -1218,7 +1226,7 @@ ${dinnerResult.message}`;
         addedItems.push(name);
       }
       const itemList = addedItems.map(i => `・${i}`).join('\n');
-      await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 買い物リストに追加しました！\n${itemList}\n\nダッシュボードで確認・チェックできます🛒` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 買い物リストに追加しました！\n${itemList}\n\nダッシュボードで確認・チェックできます🛒` }], lineUserId);
       return true;
     }
 
@@ -1240,7 +1248,7 @@ ${dinnerResult.message}`;
     await replyLineMessage(replyToken, [{
       type: 'text',
       text: `「${ingredientDisplay}」をどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n番号で教えてください😊`,
-    }]);
+    }], lineUserId);
     return true;
   }
 
@@ -1250,7 +1258,7 @@ ${dinnerResult.message}`;
     const trimmed = text.trim();
     if (/^(\u30ad\u30e3\u30f3\u30bb\u30eb|\u3084\u3081\u308b|\u3084\u3081\u3066|cancel|\u3044\u3044\u3048)$/i.test(trimmed)) {
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }], lineUserId);
       return true;
     }
     if (/^[1\uff11]$/.test(trimmed) || /\u524a\u9664/.test(trimmed)) {
@@ -1266,7 +1274,7 @@ ${dinnerResult.message}`;
         }
       }
       const msg = deleted.length > 0 ? `\u2705 \u51b7\u8535\u5eab\u304b\u3089\u300c${deleted.join('\u3001')}\u300d\u3092\u524a\u9664\u3057\u307e\u3057\u305f\uff01` : '\u51b7\u8535\u5eab\u306b\u8a72\u5f53\u3059\u308b\u98df\u6750\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3067\u3057\u305f\u3002';
-      await replyLineMessage(replyToken, [{ type: 'text', text: msg }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: msg }], lineUserId);
       return true;
     }
     if (/^[2\uff12]$/.test(trimmed) || /\u6e1b/.test(trimmed)) {
@@ -1288,12 +1296,12 @@ ${dinnerResult.message}`;
         }
       }
       const msg = updated.length > 0 ? `\u2705 \u300c${updated.join('\u3001')}\u300d\u306e\u6570\u91cf\u30921\u6e1b\u3089\u3057\u307e\u3057\u305f\uff01` : '\u51b7\u8535\u5eab\u306b\u8a72\u5f53\u3059\u308b\u98df\u6750\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3067\u3057\u305f\u3002';
-      await replyLineMessage(replyToken, [{ type: 'text', text: msg }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: msg }], lineUserId);
       return true;
     }
     // 3 or \u305d\u306e\u307e\u307e
     await setLineUserPendingAction(lineUserId, null);
-    await replyLineMessage(replyToken, [{ type: 'text', text: '\u4f55\u3082\u3057\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u307e\u305f\u3044\u3064\u3067\u3082\u8a18\u9332\u3057\u3066\u304f\u3060\u3055\u3044\uff01' }]);
+    await replyLineMessage(replyToken, [{ type: 'text', text: '\u4f55\u3082\u3057\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u307e\u305f\u3044\u3064\u3067\u3082\u8a18\u9332\u3057\u3066\u304f\u3060\u3055\u3044\uff01' }], lineUserId);
     return true;
   }
 
@@ -1303,7 +1311,7 @@ ${dinnerResult.message}`;
     const trimmed = text.trim();
     if (/^(\u30ad\u30e3\u30f3\u30bb\u30eb|\u3084\u3081\u308b|\u3084\u3081\u3066|cancel|\u3044\u3044\u3048)$/i.test(trimmed)) {
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }], lineUserId);
       return true;
     }
     const addToFridge = /^[1\uff11]$/.test(trimmed) || /^[3\uff13]$/.test(trimmed) || /\u51b7\u8535\u5eab/.test(trimmed) || /\u4e21\u65b9/.test(trimmed);
@@ -1325,7 +1333,7 @@ ${dinnerResult.message}`;
       msgs.push(`\u8cb7\u3044\u7269\u30ea\u30b9\u30c8\u304b\u3089\u300c${boughtItems.join('\u3001')}\u300d\u3092\u524a\u9664\u3057\u307e\u3057\u305f\uff01`);
     }
     await setLineUserPendingAction(lineUserId, null);
-    await replyLineMessage(replyToken, [{ type: 'text', text: msgs.length > 0 ? '\u2705 ' + msgs.join('\n') : '\u4f55\u3082\u3057\u307e\u305b\u3093\u3067\u3057\u305f\u3002' }]);
+    await replyLineMessage(replyToken, [{ type: 'text', text: msgs.length > 0 ? '\u2705 ' + msgs.join('\n') : '\u4f55\u3082\u3057\u307e\u305b\u3093\u3067\u3057\u305f\u3002' }], lineUserId);
     return true;
   }
 
@@ -1335,22 +1343,22 @@ ${dinnerResult.message}`;
     const trimmed = text.trim();
     if (/^(\u30ad\u30e3\u30f3\u30bb\u30eb|\u3084\u3081\u308b|\u3084\u3081\u3066|cancel|\u3044\u3044\u3048|^[2\uff12]$)$/i.test(trimmed)) {
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }], lineUserId);
       return true;
     }
     // 1 or \u8a2d\u5b9a\u3057\u3066 → \u732e\u7acb\u30c6\u30fc\u30de\u306b\u8a2d\u5b9a\u3057\u3066\u751f\u6210
     await setLineUserPendingAction(lineUserId, null);
     if (!userId) {
-      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059\u3002https://www.kondatebiyori.com' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059\u3002https://www.kondatebiyori.com' }], lineUserId);
       return true;
     }
     try {
       const today = new Date().toISOString().split('T')[0];
-      const result = await generateMenuPlan(userId, today, 'dinner');
-      await replyLineMessage(replyToken, [{ type: 'text', text: result.message }]);
+      const result = await generateMenuPlan(userId, today, 'dinner', undefined, moodTheme);
+      await replyLineMessage(replyToken, [{ type: 'text', text: result.message }], lineUserId);
     } catch (err) {
       console.error('[LINE] mood_theme menu generation failed:', err);
-      await replyLineMessage(replyToken, [{ type: 'text', text: '献立の生成に失敗しました。しばらくしてから再度お試しください。' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '献立の生成に失敗しました。しばらくしてから再度お試しください。' }], lineUserId);
     }
     return true;
   }
@@ -1361,7 +1369,7 @@ ${dinnerResult.message}`;
     const trimmed = text.trim();
     if (/^(\u30ad\u30e3\u30f3\u30bb\u30eb|\u3084\u3081\u308b|\u3084\u3081\u3066|cancel|\u3044\u3044\u3048|^[2\uff12]$)$/i.test(trimmed)) {
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }], lineUserId);
       return true;
     }
     // 1 or \u767b\u9332 → user_preferences\u306b\u4fdd\u5b58
@@ -1381,10 +1389,10 @@ ${dinnerResult.message}`;
           });
         }
       }
-      await replyLineMessage(replyToken, [{ type: 'text', text: `\u2705 \u300c${prefMember}\u304c${prefContent}\u300d\u3092\u597d\u307f\u30fb\u5acc\u3044\u3068\u3057\u3066\u767b\u9332\u3057\u307e\u3057\u305f\uff01\n\n\u732e\u7acb\u63d0\u6848\u6642\u306b\u8003\u616e\u3057\u307e\u3059\ud83d\ude0a` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `\u2705 \u300c${prefMember}\u304c${prefContent}\u300d\u3092\u597d\u307f\u30fb\u5acc\u3044\u3068\u3057\u3066\u767b\u9332\u3057\u307e\u3057\u305f\uff01\n\n\u732e\u7acb\u63d0\u6848\u6642\u306b\u8003\u616e\u3057\u307e\u3059\ud83d\ude0a` }], lineUserId);
     } catch (err) {
       console.error('[LINE] family_preference save failed:', err);
-      await replyLineMessage(replyToken, [{ type: 'text', text: '\u767b\u9332\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u767b\u9332\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002' }], lineUserId);
     }
     return true;
   }
@@ -1395,7 +1403,7 @@ ${dinnerResult.message}`;
     const trimmed = text.trim();
     if (/^(\u30ad\u30e3\u30f3\u30bb\u30eb|\u3084\u3081\u308b|\u3084\u3081\u3066|cancel|\u3044\u3044\u3048|^[3\uff13]$)$/i.test(trimmed)) {
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002' }], lineUserId);
       return true;
     }
     if (/^[2\uff12]$/.test(trimmed) || /\u5728\u5eab/.test(trimmed) || /\u78ba\u8a8d/.test(trimmed)) {
@@ -1403,10 +1411,10 @@ ${dinnerResult.message}`;
       await setLineUserPendingAction(lineUserId, null);
       const items = await getFridgeItems(userId);
       if (items.length === 0) {
-        await replyLineMessage(replyToken, [{ type: 'text', text: '\u51b7\u8535\u5eab\u306f\u7a7a\u3067\u3059\u3002\u98df\u6750\u3092\u767b\u9332\u3057\u3066\u307f\u307e\u3057\u3087\u3046\uff01' }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: '\u51b7\u8535\u5eab\u306f\u7a7a\u3067\u3059\u3002\u98df\u6750\u3092\u767b\u9332\u3057\u3066\u307f\u307e\u3057\u3087\u3046\uff01' }], lineUserId);
       } else {
         const list = items.map(i => `\u30fb${i.name}${i.quantity ? '\uff08' + i.quantity + '\uff09' : ''}`).join('\n');
-        await replyLineMessage(replyToken, [{ type: 'text', text: `\ud83d\udce6 \u73fe\u5728\u306e\u51b7\u8535\u5eab\n\n${list}` }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: `\ud83d\udce6 \u73fe\u5728\u306e\u51b7\u8535\u5eab\n\n${list}` }], lineUserId);
       }
       return true;
     }
@@ -1425,7 +1433,7 @@ ${dinnerResult.message}`;
         updated.push(name);
       }
     }
-    await replyLineMessage(replyToken, [{ type: 'text', text: `\u2705 \u300c${updated.join('\u3001')}\u300d\u306e\u6570\u91cf\u3092\u300c${qtyVal}\u300d\u306b\u66f4\u65b0\u3057\u307e\u3057\u305f\uff01` }]);
+    await replyLineMessage(replyToken, [{ type: 'text', text: `\u2705 \u300c${updated.join('\u3001')}\u300d\u306e\u6570\u91cf\u3092\u300c${qtyVal}\u300d\u306b\u66f4\u65b0\u3057\u307e\u3057\u305f\uff01` }], lineUserId);
     return true;
   }
 
@@ -1446,14 +1454,14 @@ ${dinnerResult.message}`;
         await db.insert(fridgeItemsTable).values({ userId, name: itemName, quantity: String(addQty) + '個', category: 'other' });
       }
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: `✅ ${itemName}を${addQty}個追加しました！（合計${newQty}個）` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `✅ ${itemName}を${addQty}個追加しました！（合計${newQty}個）` }], lineUserId);
       return true;
     }
 
     // 「いいえ」「キャンセル」→ キャンセル
     if (/^(いいえ|no|キャンセル|やめる|やめて|cancel)$/i.test(text.trim())) {
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: `${itemName}の追加をキャンセルしました。` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `${itemName}の追加をキャンセルしました。` }], lineUserId);
       return true;
     }
 
@@ -1473,7 +1481,7 @@ ${dinnerResult.message}`;
       }
       await setLineUserPendingAction(lineUserId, null);
       const msg = `✅ ${itemName}を${quantityStr}追加しました！`;
-      await replyLineMessage(replyToken, [{ type: 'text', text: msg }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: msg }], lineUserId);
       return true;
     }
 
@@ -1493,7 +1501,7 @@ ${dinnerResult.message}`;
       const msg = existingQty
         ? `✅ ${itemName}を${qty}個追加しました！（今まで${existingQty}個 → 合計${newQty}個）`
         : `✅ ${itemName}を${qty}個追加しました！`;
-      await replyLineMessage(replyToken, [{ type: 'text', text: msg }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: msg }], lineUserId);
       return true;
     }
 
@@ -1518,12 +1526,12 @@ ${dinnerResult.message}`;
         await db.insert(fridgeItemsTable).values({ userId, name: itemName, quantity: trimmedText, category: 'other' });
       }
       await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: `✅ ${itemName}（${trimmedText}）を登録しました！` }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `✅ ${itemName}（${trimmedText}）を登録しました！` }], lineUserId);
       return true;
     }
 
     // 数量として解釈できない入力 → 再度聴く
-    await replyLineMessage(replyToken, [{ type: 'text', text: `数量を教えてください。\n例：「3個」「300g」「半分くらい」「少し」\n\nキャンセルする場合は「キャンセル」と送ってください。` }]);
+    await replyLineMessage(replyToken, [{ type: 'text', text: `数量を教えてください。\n例：「3個」「300g」「半分くらい」「少し」\n\nキャンセルする場合は「キャンセル」と送ってください。` }], lineUserId);
     return true;
   }
 
@@ -1569,7 +1577,7 @@ ${dinnerResult.message}`;
           }
         }
         if (results.length > 0) {
-          await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫を更新しました！\n${results.join('\n')}` }]);
+          await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫を更新しました！\n${results.join('\n')}` }], lineUserId);
           return true;
         }
       }
@@ -1585,7 +1593,7 @@ ${dinnerResult.message}`;
     // 「を追加して」「追加して」が付いていない場合も食材リストとして扱う
     const fridgeText = text.trim();
     if (/^(キャンセル|やめる|やめて|cancel|いいえ)$/i.test(fridgeText)) {
-      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。' }]);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。' }], lineUserId);
       return true;
     }
     // 「を追加して」が付いていない場合は付けて再処理
@@ -1681,7 +1689,7 @@ ${dinnerResult.message}`;
           await db.insert(fridgeItemsTable).values({ userId, name: item, quantity: null, category: 'other' });
         }
         const itemList = finalItems.join('、');
-        await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！\n\n献立を提案しましょうか？「献立」と送ってください` }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！\n\n献立を提案しましょうか？「献立」と送ってください` }], lineUserId);
         return true;
       }
       const itemName = finalItems[0];
@@ -1701,7 +1709,7 @@ ${dinnerResult.message}`;
         await replyLineMessage(replyToken, [{
           type: 'text',
           text: `${itemName}は今${existing.quantity}残っています。\n何個追加しますか？\n\n（数字で入力してください。例：「3個」）`,
-        }]);
+        }], lineUserId);
       } else if (existing) {
         // 既存だが数量未設定
         await setLineUserPendingAction(lineUserId, {
@@ -1713,7 +1721,7 @@ ${dinnerResult.message}`;
         await replyLineMessage(replyToken, [{
           type: 'text',
           text: `${itemName}は既に冷蔵庫にあります。\n何個追加しますか？\n\n（数字で入力してください。例：「3個」）`,
-        }]);
+        }], lineUserId);
       } else {
         // 新規追加
         await setLineUserPendingAction(lineUserId, {
@@ -1725,7 +1733,7 @@ ${dinnerResult.message}`;
         await replyLineMessage(replyToken, [{
           type: 'text',
           text: `${itemName}を追加します。\n何個ありますか？\n\n（数字で入力してください。例：「3個」）`,
-        }]);
+        }], lineUserId);
       }
       return true;
     }
@@ -1737,10 +1745,10 @@ ${dinnerResult.message}`;
     if (pattern.test(text)) {
       const items = await getFridgeItems(userId);
       if (items.length === 0) {
-        await replyLineMessage(replyToken, [{ type: 'text', text: '冷蔵庫に食材が登録されていません。\n\n「玉ねぎ追加して」のように送ると登録できます！' }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: '冷蔵庫に食材が登録されていません。\n\n「玉ねぎ追加して」のように送ると登録できます！' }], lineUserId);
       } else {
         const itemList = items.map((f) => `・${f.name}${f.quantity ? '（' + f.quantity + '）' : ''}`).join('\n');
-        await replyLineMessage(replyToken, [{ type: 'text', text: `❄️ 現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください` }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: `❄️ 現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください` }], lineUserId);
       }
       return true;
     }
@@ -1784,7 +1792,7 @@ ${dinnerResult.message}`;
         replyText += `\n\n⚠️ 「${notFound.join('」「')}」は冷蔵庫に見つかりませんでした。`;
       }
       if (replyText) {
-        await replyLineMessage(replyToken, [{ type: 'text', text: replyText.trim() }]);
+        await replyLineMessage(replyToken, [{ type: 'text', text: replyText.trim() }], lineUserId);
         return true;
       }
     }
@@ -1793,7 +1801,7 @@ ${dinnerResult.message}`;
   // ─── Step 5: 「冷蔵庫に」単独送信時→次のメッセージを食材リストとして受け取る─────────────────
   if (/^冷蔵庫に$/.test(text.trim())) {
     await setLineUserPendingAction(lineUserId, { type: 'fridge_input_wait' });
-    await replyLineMessage(replyToken, [{ type: 'text', text: '冷蔵庫に登録する食材を教えてください😊\n\n例：「白菜、にんじん、卵」' }]);
+    await replyLineMessage(replyToken, [{ type: 'text', text: '冷蔵庫に登録する食材を教えてください😊\n\n例：「白菜、にんじん、卵」' }], lineUserId);
     return true;
   }
 

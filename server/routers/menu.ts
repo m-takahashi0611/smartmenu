@@ -44,7 +44,8 @@ export async function generateMenuPlan(
   userId: number,
   planDate: string,
   mealType?: MealType,
-  willShop?: boolean
+  willShop?: boolean,
+  theme?: string
 ): Promise<{ message: string; menuPlanId?: number; shoppingList?: string[] }> {
 
   // 時間帯を決定（引数がなければ現在時刻から判定）
@@ -181,6 +182,7 @@ export async function generateMenuPlan(
 【家族構成】${familyDesc}
 【買い物・自炊プロフィール】${shoppingProfileDesc}
 ${shoppingAvailabilityDesc ? `【買い物予定】${shoppingAvailabilityDesc}\n` : ""}
+${theme ? `【今日のテーマ・気分】${theme}→このテーマに合った料理を優先して提案すること\n` : ""}
 ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyList}\n` : ""}【冷蔵庫の食材】${fridgeDesc}
 【最近の献立（重複を避けて）】${recentDesc}
 
@@ -240,6 +242,7 @@ ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyLis
 【家族構成】${familyDesc}
 【買い物・自炊プロフィール】${shoppingProfileDesc}
 ${shoppingAvailabilityDesc ? `【買い物予定】${shoppingAvailabilityDesc}\n` : ""}
+${theme ? `【今日のテーマ・気分】${theme}→このテーマに合った料理を優先して提案すること\n` : ""}
 ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyList}\n` : ""}【冷蔵庫の食材】${fridgeDesc}
 
 冷蔵庫の食材を活かした${targetMeal}を1案提案してください。`;
