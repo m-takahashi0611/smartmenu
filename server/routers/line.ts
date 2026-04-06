@@ -2104,21 +2104,16 @@ ${itemList}
       const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const currentHourJST = nowJST.getUTCHours();
 
-      // ─── 夕方〜深夜（15時以降）は買い物ヒアリングを挿入 ──────────────────────
-      if (currentHourJST >= 15 || currentHourJST < 5) {
+      // ─── 全時間帯で買い物ヒアリングを挿入 ──────────────────────────────
+      {
+        // 朝〜昼（5〜15時）は「今日」、夕方〜深夜（15時以降）は「明日」と表現を変える
+        const shopDayText = (currentHourJST >= 5 && currentHourJST < 15) ? '今日' : '明日';
         await setLineUserPendingAction(lineUserId, {
           type: 'shopping_hearing',
           hourJST: currentHourJST,
           askedAt: Date.now(),
         });
-        const hearingText = `献立を考える前に少し聞かせてください😊
-
-明日、買い物に行く予定はありますか？
-
-1️⃣ はい、行く予定です
-2️⃣ いいえ、今ある食材で作ります
-
-番号で教えてください`;
+        const hearingText = `献立を考える前に少し聞かせてください😊\n\n${shopDayText}、買い物に行く予定はありますか？\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります\n\n番号で教えてください`;
         await replyLineMessage(replyToken, [{ type: 'text', text: hearingText }]);
         return;
       }
