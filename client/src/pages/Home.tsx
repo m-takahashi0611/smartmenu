@@ -329,7 +329,7 @@ export default function Home() {
                 className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
               />
               <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_v2-LPsLQY5thk4ETUwVwztweb.png"
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_v3_4a4e56c1.png"
                 alt="AIに伝えるコツ"
                 className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
               />
