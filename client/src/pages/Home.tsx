@@ -292,26 +292,8 @@ export default function Home() {
       {/* 使い方セクション */}
       <section id="how-to-use" className="py-20">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-foreground mb-4">使い方</h2>
-            <p className="text-muted-foreground text-lg">{user ? '3' : '4'}ステップで始められます</p>
-          </div>
-          <div className="space-y-6">
-            {stepsAll.filter(s => !user || !s.requiresGuest).map((step, index) => (
-              <div key={step.step} className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg shrink-0">
-                  {String(index + 1).padStart(2, '0')}
-                </div>
-                <div className="pt-2">
-                  <h3 className="text-lg font-bold text-foreground mb-1">{step.title}</h3>
-                  <p className="text-base text-gray-600">{step.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
           {/* 使い方説明画像 */}
-          <div className="mt-12">
-            <h3 className="text-xl font-bold text-foreground text-center mb-6">📖 詳しい使い方ガイド</h3>
+          <div>
             <div className="space-y-4">
               <img
                 src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_v2-67CVHzzsUKLqKBHGHokDi9.png"
