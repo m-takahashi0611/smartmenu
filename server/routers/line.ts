@@ -1077,7 +1077,7 @@ ${dinnerResult.message}`;
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
-          text: `${numStr}番（${selected.name}）ですね！\n\n「はい」→ ${selected.name}のレシピを表示します\n「レシピ」→ 詳しいレシピを見る\n「キャンセル」→ 選び直す`,
+          text: `${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
         }], lineUserId);
         return true;
       } else {
@@ -1112,8 +1112,22 @@ ${dinnerResult.message}`;
     };
     const trimmed = text.trim();
 
-    // キャンセル → 選び直し
-    if (/^(キャンセル|やめる|やめて|cancel|いいえ)$/i.test(trimmed)) {
+    // 「その他」→ 献立をやり直す
+    if (/^(その他|やり直し|やりなおし|別の|ほかの|other)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '別の献立を提案しますね！\n\n「今日の献立」ともう一度送っていただくか、気分やテーマ（例：「和食がいい」「さっぱりしたもの」）を教えてください😊' }], lineUserId);
+      return true;
+    }
+
+    // 「3」→ 案内を終了して通常メニューに戻る
+    if (/^[3３]$/.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '案内を終了します😊またいつでも「献立」と送ってください！' }], lineUserId);
+      return true;
+    }
+
+    // 「2」→ 違う献立を選び直す（候補に戻る）
+    if (/^[2２]$/.test(trimmed)) {
       const optionLines = options.map((o, i) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
       await setLineUserPendingAction(lineUserId, {
         type: 'menu_option_selection',
@@ -1126,8 +1140,8 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // 「はい」または「レシピ」→ レシピを生成して返す
-    if (/^(はい|yes|ok|おねがい|そうして|大丈夫|だいじょうぶ|レシピ|教えて|見せて|詳しく)/.test(trimmed)) {
+    // 「1」またはテキスト系 → レシピを生成して返す
+    if (/^[1１]$/.test(trimmed) || /^(はい|yes|ok|おねがい|そうして|大丈夫|だいじょうぶ|レシピ|教えて|見せて|詳しく)/.test(trimmed)) {
       await setLineUserPendingAction(lineUserId, null);
       try {
         const selected = options[selectedIndex];
@@ -1147,8 +1161,9 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // それ以外 → pendingActionをクリアして通常処理へ
-    await setLineUserPendingAction(lineUserId, null);
+    // それ以外 → 案内を再表示
+    await replyLineMessage(replyToken, [{ type: 'text', text: `1か2か3で選んでください😊\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）` }], lineUserId);
+    return true;
   }
 
   // ─── 音声復唱確認待ちの場合 ─────────────────────────────────────────────────────

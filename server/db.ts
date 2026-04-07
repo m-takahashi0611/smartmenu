@@ -396,8 +396,9 @@ export async function updateLineUserLocation(
 // リッチメニュー切り替えが必要なpendingActionの型一覧
 // これらのpendingActionがセットされたときに数字メニューに切り替わる
 const NUMBER_MENU_PENDING_TYPES = new Set([
-  'menu_type_selection',       // 食事タイプ選択（朝食・昼食・夕食）
+  'menu_type_selection',       // 長事タイプ選択（朝食・昼食・夕食）
   'menu_option_selection',     // 献立候補選択（1・2・3番）
+  'menu_option_confirm',       // 献立選択後の確認（1:はい 2:レシピ 3:キャンセル）
   'voice_ingredient_action',   // 音声入力後の3择（冷蔵庫・買い物・献立）
   'used_ingredient_action',    // 使った食材の確認
   'bought_item_action',        // 買った商品の確認
