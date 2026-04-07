@@ -71,6 +71,13 @@
       "when": 1775193960436,
       "tag": "0009_boring_supreme_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1775538058234,
+      "tag": "0010_smiling_inhumans",
+      "breakpoints": true
     }
   ]
 }

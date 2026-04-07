@@ -7,16 +7,17 @@
  * 2. 数字選択メニュー: １・２・３・その他 （pendingAction中に表示）
  */
 import * as https from "https";
-import * as fs from "fs";
-import * as path from "path";
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { getDb } from "../db";
+import { systemSettings } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "";
 
-// ─── 数字メニューIDのメモリキャッシュ ─────────────────────────────────────────
-// サーバー再起動時はダッシュボードから再登録が必要
+// ─── 数字メニューIDのキャッシュ（メモリ + DB永続化） ──────────────────────────
+const DB_KEY_NUMBER_MENU = "number_rich_menu_id";
 let cachedNumberMenuId: string | null = null;
 
 export function getCachedNumberMenuId(): string | null {
@@ -25,6 +26,39 @@ export function getCachedNumberMenuId(): string | null {
 
 export function setCachedNumberMenuId(id: string | null) {
   cachedNumberMenuId = id;
+}
+
+/** サーバー起動時にDBから数字メニューIDを復元する */
+export async function loadNumberMenuIdFromDb(): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    const rows = await db
+      .select({ value: systemSettings.value })
+      .from(systemSettings)
+      .where(eq(systemSettings.key, DB_KEY_NUMBER_MENU))
+      .limit(1);
+    if (rows.length > 0 && rows[0].value) {
+      cachedNumberMenuId = rows[0].value;
+      console.log("[RichMenu] DBから数字メニューID復元:", cachedNumberMenuId);
+    }
+  } catch (e) {
+    console.error("[RichMenu] DBからの数字メニューID読み込み失敗:", e);
+  }
+}
+
+/** 数字メニューIDをDBに保存する */
+async function saveNumberMenuIdToDb(id: string): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db
+      .insert(systemSettings)
+      .values({ key: DB_KEY_NUMBER_MENU, value: id })
+      .onDuplicateKeyUpdate({ set: { value: id } });
+  } catch (e) {
+    console.error("[RichMenu] DBへの数字メニューID保存失敗:", e);
+  }
 }
 
 // ─── LINE API ヘルパー ────────────────────────────────────────────────────────
@@ -262,8 +296,9 @@ export async function createNumberRichMenu(): Promise<string> {
   await uploadRichMenuImage(richMenuId, imageBuffer, "image/jpeg");
   console.log("[RichMenu] 画像アップロード完了");
 
-  // キャッシュに保存
+  // メモリキャッシュとDBに保存
   setCachedNumberMenuId(richMenuId);
+  await saveNumberMenuIdToDb(richMenuId);
 
   return richMenuId;
 }
@@ -289,6 +324,10 @@ export async function getDefaultRichMenu(): Promise<string | null> {
  * pendingActionがセットされるタイミングで呼び出す
  */
 export async function switchToNumberMenu(lineUserId: string): Promise<void> {
+  // メモリキャッシュがなければDBから復元を試みる
+  if (!cachedNumberMenuId) {
+    await loadNumberMenuIdFromDb();
+  }
   const menuId = getCachedNumberMenuId();
   if (!menuId) {
     console.warn("[RichMenu] 数字メニューIDが未設定。ダッシュボードから登録してください。");
@@ -320,6 +359,10 @@ export const richMenuRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user.role !== "admin") {
       throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
+    }
+    // DBから最新のIDを取得してキャッシュを更新
+    if (!cachedNumberMenuId) {
+      await loadNumberMenuIdFromDb();
     }
     const menus = await listRichMenus();
     const defaultId = await getDefaultRichMenu();
@@ -367,6 +410,7 @@ export const richMenuRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
       }
       setCachedNumberMenuId(input.richMenuId);
+      await saveNumberMenuIdToDb(input.richMenuId);
       return { success: true, richMenuId: input.richMenuId };
     }),
 
@@ -380,6 +424,11 @@ export const richMenuRouter = router({
       await deleteRichMenu(input.richMenuId);
       if (getCachedNumberMenuId() === input.richMenuId) {
         setCachedNumberMenuId(null);
+        // DBからも削除
+        try {
+          const db = await getDb();
+          if (db) await db.delete(systemSettings).where(eq(systemSettings.key, DB_KEY_NUMBER_MENU));
+        } catch {}
       }
       return { success: true };
     }),
