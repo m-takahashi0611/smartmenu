@@ -27,30 +27,18 @@ const LiffContext = createContext<LiffContextType>({
 /**
  * LIFF URLから開かれたかどうかをURLパラメータで判定する
  * liff.init()不要で即座に判定可能
+ *
+ * 【重要】User-Agentによる判定は使用しない。
+ * LINEアプリ内ブラウザで開いた場合でも、LIFF URLでなければ通常のWebViewとして扱う。
+ * isLiff=trueにすると自動ログインが走り「ログイン中...」フリーズが発生するため。
  */
 function detectIsLiff(): boolean {
-  // LIFF URLから開かれた場合、URLに liff.state パラメータが含まれる
-  // または、URLが https://liff.line.me/ から始まる場合
-  const url = window.location.href;
   const search = window.location.search;
 
-  // liff.stateパラメータが存在する場合はLIFF環境
+  // liff.stateパラメータが存在する場合のみLIFF環境と判定
+  // これはLIFF URLから遷移した時にLINEが付与するパラメータ
   if (search.includes("liff.state") || search.includes("liffClientId")) {
     return true;
-  }
-
-  // LIFF_IDが設定されていて、かつLINEのUser-Agentを持つ場合
-  const ua = navigator.userAgent;
-  if (LIFF_ID && (ua.includes("Line/") || ua.includes("LIFF"))) {
-    return true;
-  }
-
-  // URLにliff関連パラメータがある場合
-  if (url.includes("liff") || search.includes("code=") && search.includes("state=")) {
-    // OAuthコールバックの可能性もあるので、より厳密に判定
-    if (search.includes("liff")) {
-      return true;
-    }
   }
 
   return false;
