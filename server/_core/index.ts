@@ -8,6 +8,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleLineWebhookEvent, verifyLineSignature } from "../routers/line";
 import { loadNumberMenuIdFromDb } from "../routers/richMenu";
+import { handleStripeWebhook } from "../stripe/webhook";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -71,6 +72,9 @@ async function startServer() {
       res.status(500).json({ error: "Internal server error" });
     }
   });
+
+  // ❗重要: Stripe Webhookも express.json() より先に登録（raw body が必要）
+  app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
 
   // Configure body parser with larger size limit for file uploads (after LINE webhook)
   app.use(express.json({ limit: "50mb" }));

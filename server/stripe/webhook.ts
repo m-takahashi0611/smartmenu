@@ -1,0 +1,215 @@
+import { Request, Response } from "express";
+import Stripe from "stripe";
+import { getStripe } from "./client";
+import { ENV } from "../_core/env";
+import { getDb } from "../db";
+import { subscriptions } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
+
+/**
+ * Stripe Webhookイベントを処理する
+ * /api/stripe/webhook エンドポイントで受信
+ */
+export async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
+  const sig = req.headers["stripe-signature"] as string;
+  const rawBody = req.body as Buffer;
+
+  let event: Stripe.Event;
+
+  try {
+    const stripe = getStripe();
+    event = stripe.webhooks.constructEvent(rawBody, sig, ENV.stripeWebhookSecret);
+  } catch (err: any) {
+    console.error("[Stripe Webhook] Signature verification failed:", err.message);
+    res.status(400).json({ error: `Webhook Error: ${err.message}` });
+    return;
+  }
+
+  console.log(`[Stripe Webhook] Event received: ${event.type} (${event.id})`);
+
+  // テストイベントの検証用レスポンス
+  if (event.id.startsWith("evt_test_")) {
+    console.log("[Stripe Webhook] Test event detected, returning verification response");
+    res.json({ verified: true });
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        await handleCheckoutSessionCompleted(session);
+        break;
+      }
+      case "customer.subscription.updated": {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleSubscriptionUpdated(subscription);
+        break;
+      }
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleSubscriptionDeleted(subscription);
+        break;
+      }
+      case "invoice.paid": {
+        const invoice = event.data.object as Stripe.Invoice;
+        await handleInvoicePaid(invoice);
+        break;
+      }
+      default:
+        console.log(`[Stripe Webhook] Unhandled event type: ${event.type}`);
+    }
+
+    res.json({ received: true });
+  } catch (err: any) {
+    console.error(`[Stripe Webhook] Error processing event ${event.type}:`, err);
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+}
+
+/**
+ * Checkout完了 → サブスクリプションをアクティブ化
+ */
+async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<void> {
+  const userId = parseInt(session.client_reference_id ?? session.metadata?.userId ?? "0");
+  if (!userId) {
+    console.error("[Stripe Webhook] No userId in checkout session:", session.id);
+    return;
+  }
+
+  const stripeSubscriptionId = session.subscription as string;
+  const stripeCustomerId = session.customer as string;
+
+  if (!stripeSubscriptionId) {
+    console.error("[Stripe Webhook] No subscription ID in checkout session:", session.id);
+    return;
+  }
+
+  // Stripeからサブスクリプション詳細を取得
+  const stripe = getStripe();
+  const stripeSubscriptionRaw = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+  const stripeSubscription = stripeSubscriptionRaw as any;
+  const currentPeriodEnd = new Date(stripeSubscription.current_period_end * 1000);
+
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  // サブスクリプションをアクティブ化
+  const [existing] = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(subscriptions)
+      .set({
+        plan: "premium",
+        status: "active",
+        stripeCustomerId,
+        stripeSubscriptionId,
+        currentPeriodEnd,
+        cancelledAt: null,
+      })
+      .where(eq(subscriptions.userId, userId));
+  } else {
+    await db.insert(subscriptions).values({
+      userId,
+      plan: "premium",
+      status: "active",
+      trialDays: 45,
+      stripeCustomerId,
+      stripeSubscriptionId,
+      currentPeriodEnd,
+    });
+  }
+
+  console.log(`[Stripe Webhook] User ${userId} upgraded to premium. Period end: ${currentPeriodEnd.toISOString()}`);
+}
+
+/**
+ * サブスクリプション更新 → 期末日を更新
+ */
+async function handleSubscriptionUpdated(stripeSubscription: Stripe.Subscription): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  const subAny = stripeSubscription as any;
+  const currentPeriodEnd = new Date(subAny.current_period_end * 1000);
+  const isCancelAtPeriodEnd = stripeSubscription.cancel_at_period_end;
+
+  // stripeSubscriptionIdで対象ユーザーを検索
+  const [sub] = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.stripeSubscriptionId, stripeSubscription.id))
+    .limit(1);
+
+  if (!sub) {
+    console.warn(`[Stripe Webhook] No subscription found for Stripe ID: ${stripeSubscription.id}`);
+    return;
+  }
+
+  await db
+    .update(subscriptions)
+    .set({
+      currentPeriodEnd,
+      status: isCancelAtPeriodEnd ? "cancelled" : "active",
+    })
+    .where(eq(subscriptions.stripeSubscriptionId, stripeSubscription.id));
+
+  console.log(`[Stripe Webhook] Subscription updated for user ${sub.userId}. Cancel at period end: ${isCancelAtPeriodEnd}`);
+}
+
+/**
+ * サブスクリプション削除 → 期限切れに変更
+ */
+async function handleSubscriptionDeleted(stripeSubscription: Stripe.Subscription): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  await db
+    .update(subscriptions)
+    .set({
+      plan: "free",
+      status: "expired",
+      stripeSubscriptionId: null,
+      cancelledAt: new Date(),
+    })
+    .where(eq(subscriptions.stripeSubscriptionId, stripeSubscription.id));
+
+  console.log(`[Stripe Webhook] Subscription deleted: ${stripeSubscription.id}`);
+}
+
+/**
+ * 請求書支払い完了 → 次回請求日を更新
+ */
+async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
+  // Stripe API v2025+: subscription info is in invoice.parent.subscription_details
+  const invoiceAny = invoice as any;
+  const stripeSubscriptionId: string | undefined =
+    invoiceAny.subscription ||
+    invoiceAny.parent?.subscription_details?.subscription ||
+    undefined;
+
+  if (!stripeSubscriptionId) return;
+
+  const db = await getDb();
+  if (!db) return;
+
+  const stripe = getStripe();
+  const stripeSubscriptionRaw = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+  const stripeSubscription = stripeSubscriptionRaw as any;
+  const currentPeriodEnd = new Date(stripeSubscription.current_period_end * 1000);
+
+  await db
+    .update(subscriptions)
+    .set({
+      status: "active",
+      currentPeriodEnd,
+    })
+    .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
+
+  console.log(`[Stripe Webhook] Invoice paid for subscription: ${stripeSubscriptionId}. New period end: ${currentPeriodEnd.toISOString()}`);
+}

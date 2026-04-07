@@ -16,6 +16,8 @@ import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
 import MenuTheme from "./pages/MenuTheme";
 import BentoMode from "./pages/BentoMode";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PlanManagement from "./pages/PlanManagement";
 
 function Router() {
   return (
@@ -31,6 +33,8 @@ function Router() {
       <Route path={"/admin-login"} component={AdminLogin} />
       <Route path={"/menu-theme"} component={MenuTheme} />
       <Route path={"/bento-mode"} component={BentoMode} />
+      <Route path={"/payment-success"} component={PaymentSuccess} />
+      <Route path={"/plan"} component={PlanManagement} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

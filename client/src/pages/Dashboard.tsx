@@ -168,18 +168,28 @@ export default function Dashboard() {
           <Link href="/">
             <div className="flex items-center gap-2 cursor-pointer">
               <span className="text-lg">🍽️</span>
-              <span className="font-bold text-primary text-sm">献立日和〜coto coto〜</span>
+              <span className="font-bold text-primary text-sm hidden sm:inline">献立日和～coto coto～</span>
+              <span className="font-bold text-primary text-sm sm:hidden">coto coto</span>
             </div>
           </Link>
           <div className="flex items-center gap-1">
             <Link href="/family">
-              <Button variant="ghost" size="sm" className="text-xs px-2">👨‍👩‍👧 家族</Button>
+              <button className="flex flex-col items-center justify-center px-3 py-1.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors min-w-[56px]">
+                <span className="text-xl mb-0.5">👨‍👩‍👧</span>
+                <span className="text-xs font-medium text-gray-700">家族</span>
+              </button>
             </Link>
             <Link href="/history">
-              <Button variant="ghost" size="sm" className="text-xs px-2">📋 履歴</Button>
+              <button className="flex flex-col items-center justify-center px-3 py-1.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors min-w-[56px]">
+                <span className="text-xl mb-0.5">📋</span>
+                <span className="text-xs font-medium text-gray-700">履歴</span>
+              </button>
             </Link>
             <a href="/#how-to-use">
-              <Button variant="ghost" size="sm" className="text-xs px-2">❓ 使い方</Button>
+              <button className="flex flex-col items-center justify-center px-3 py-1.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors min-w-[56px]">
+                <span className="text-xl mb-0.5">❓</span>
+                <span className="text-xs font-medium text-gray-700">使い方</span>
+              </button>
             </a>
           </div>
         </div>
@@ -187,21 +197,22 @@ export default function Dashboard() {
 
       {/* タブナビゲーション */}
       <div className="sticky top-14 z-40 bg-background border-b border-border">
-        <div className="max-w-2xl mx-auto px-4">
+        <div className="max-w-2xl mx-auto px-2">
           <div className="flex">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${
+                className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors border-b-2 relative ${
                   activeTab === tab.key
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {tab.icon} {tab.label}
+                <span className="text-2xl leading-none">{tab.icon}</span>
+                <span className="text-xs font-medium">{tab.label}</span>
                 {tab.key === "shopping" && shoppingList && shoppingList.filter(i => !i.isChecked).length > 0 && (
-                  <span className="ml-1 bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">
+                  <span className="absolute top-1 right-3 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                     {shoppingList.filter(i => !i.isChecked).length}
                   </span>
                 )}
@@ -590,6 +601,11 @@ export default function Dashboard() {
                     </Link>
                     <Link href="/bento-mode">
                       <Button variant="outline" size="sm" className="w-full text-xs text-amber-600 border-amber-300/60 bg-amber-50/50 dark:bg-amber-950/20">🍱 お弁当モード</Button>
+                    </Link>
+                  </div>
+                  <div className="mt-2">
+                    <Link href="/plan">
+                      <Button variant="outline" size="sm" className="w-full text-xs text-orange-600 border-orange-300/60 bg-orange-50/50">💳 プラン管理・アップグレード</Button>
                     </Link>
                   </div>
                 </div>
