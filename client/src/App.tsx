@@ -14,6 +14,8 @@ import Shopping from "./pages/Shopping";
 import History from "./pages/History";
 import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
+import MenuTheme from "./pages/MenuTheme";
+import BentoMode from "./pages/BentoMode";
 
 function Router() {
   return (
@@ -27,6 +29,8 @@ function Router() {
       <Route path={"/history"} component={History} />
       <Route path={"/admin"} component={Admin} />
       <Route path={"/admin-login"} component={AdminLogin} />
+      <Route path={"/menu-theme"} component={MenuTheme} />
+      <Route path={"/bento-mode"} component={BentoMode} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

@@ -582,6 +582,17 @@ export default function Dashboard() {
                     <Button variant="outline" size="sm" className="w-full text-xs text-primary border-primary/30">配信時間・プラン設定を変更 →</Button>
                   </Link>
                 </div>
+                <div className="mt-2 pt-2 border-t border-border/30">
+                  <p className="text-xs text-muted-foreground mb-2">👑 プレミアム機能</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link href="/menu-theme">
+                      <Button variant="outline" size="sm" className="w-full text-xs text-amber-600 border-amber-300/60 bg-amber-50/50 dark:bg-amber-950/20">🎯 献立テーマ設定</Button>
+                    </Link>
+                    <Link href="/bento-mode">
+                      <Button variant="outline" size="sm" className="w-full text-xs text-amber-600 border-amber-300/60 bg-amber-50/50 dark:bg-amber-950/20">🍱 お弁当モード</Button>
+                    </Link>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
