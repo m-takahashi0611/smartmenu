@@ -167,6 +167,14 @@ export default function Admin() {
     onError: (err) => toast.error("作成に失敗しました", { description: err.message }),
   });
 
+  const createNumberMenu = trpc.richMenu.createNumberMenu.useMutation({
+    onSuccess: (result) => {
+      toast.success("数字選択メニューを登録しました", { description: result.message });
+      refetchRichMenu();
+    },
+    onError: (err) => toast.error("数字メニュー登録に失敗しました", { description: err.message }),
+  });
+
   const deleteRichMenu = trpc.richMenu.delete.useMutation({
     onSuccess: () => {
       toast.success("リッチメニューを削除しました");
@@ -602,10 +610,20 @@ export default function Admin() {
                       <p className="text-sm text-muted-foreground">リッチメニューが設定されていません</p>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  {/* 数字選択メニューの状態 */}
+                  <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4">
+                    <p className="text-sm font-medium mb-1">🔢 数字選択メニュー（1・2・3・その他）</p>
+                    {richMenuData?.cachedNumberMenuId ? (
+                      <p className="text-xs text-green-600">✅ 登録済み（ID: {richMenuData.cachedNumberMenuId}）</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">⚠️ 未登録—下のボタンで登録してください</p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       onClick={() => {
-                        if (confirm("リッチメニューを新規作成・設定しますか？\n既存のリッチメニューは削除されます。")) {
+                        if (confirm("通常リッチメニューを新規作成・設定しますか？\n既存のリッチメニューは削除されます。")) {
                           createRichMenu.mutate({});
                         }
                       }}
@@ -615,14 +633,30 @@ export default function Admin() {
                       {createRichMenu.isPending ? (
                         <><Loader2 className="h-4 w-4 animate-spin mr-2" />作成中...</>
                       ) : (
-                        "リッチメニューを作成・設定"
+                        "通常メニューを作成・設定"
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (confirm("数字選択メニュー（1・2・3・その他）をLINEに登録しますか？\nサーバー再起動後は再登録が必要です。")) {
+                          createNumberMenu.mutate();
+                        }
+                      }}
+                      disabled={createNumberMenu.isPending}
+                      className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                    >
+                      {createNumberMenu.isPending ? (
+                        <><Loader2 className="h-4 w-4 animate-spin mr-2" />登録中...</>
+                      ) : (
+                        "🔢 数字メニューを登録"
                       )}
                     </Button>
                     {richMenuData?.defaultId && (
                       <Button
                         variant="outline"
                         onClick={() => {
-                          if (confirm("リッチメニューを削除しますか？")) {
+                          if (confirm("通常リッチメニューを削除しますか？")) {
                             deleteRichMenu.mutate({ richMenuId: richMenuData.defaultId! });
                           }
                         }}

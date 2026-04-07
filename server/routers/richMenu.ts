@@ -1,6 +1,10 @@
 /**
  * LINE リッチメニュー管理
  * LINE Messaging API を使ってリッチメニューを作成・設定する
+ *
+ * 2種類のリッチメニューを管理:
+ * 1. 通常メニュー: 今日の献立・冷蔵庫管理・ダッシュボードへ・買い物リスト
+ * 2. 数字選択メニュー: １・２・３・その他 （pendingAction中に表示）
  */
 import * as https from "https";
 import * as fs from "fs";
@@ -10,6 +14,18 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "";
+
+// ─── 数字メニューIDのメモリキャッシュ ─────────────────────────────────────────
+// サーバー再起動時はダッシュボードから再登録が必要
+let cachedNumberMenuId: string | null = null;
+
+export function getCachedNumberMenuId(): string | null {
+  return cachedNumberMenuId;
+}
+
+export function setCachedNumberMenuId(id: string | null) {
+  cachedNumberMenuId = id;
+}
 
 // ─── LINE API ヘルパー ────────────────────────────────────────────────────────
 
@@ -81,7 +97,8 @@ async function uploadRichMenuImage(richMenuId: string, imageBuffer: Buffer, cont
 
 // ─── リッチメニュー定義 ───────────────────────────────────────────────────────
 
-function buildRichMenuBody() {
+/** 通常メニュー（機能ショートカット4ボタン） */
+function buildNormalRichMenuBody() {
   return {
     size: { width: 2500, height: 1686 },
     selected: true,
@@ -128,24 +145,64 @@ function buildRichMenuBody() {
   };
 }
 
+// 後方互換のためエイリアスを残す
+function buildRichMenuBody() {
+  return buildNormalRichMenuBody();
+}
+
+/** 数字選択メニュー（pendingAction中に表示: １・２・３・その他） */
+function buildNumberRichMenuBody() {
+  return {
+    size: { width: 2500, height: 1686 },
+    selected: true,
+    name: "献立日和 数字選択メニュー",
+    chatBarText: "選択してください",
+    areas: [
+      // １（左上）
+      {
+        bounds: { x: 0, y: 0, width: 1250, height: 843 },
+        action: {
+          type: "message",
+          label: "１",
+          text: "1",
+        },
+      },
+      // ２（右上）
+      {
+        bounds: { x: 1250, y: 0, width: 1250, height: 843 },
+        action: {
+          type: "message",
+          label: "２",
+          text: "2",
+        },
+      },
+      // ３（左下）
+      {
+        bounds: { x: 0, y: 843, width: 1250, height: 843 },
+        action: {
+          type: "message",
+          label: "３",
+          text: "3",
+        },
+      },
+      // その他（右下）
+      {
+        bounds: { x: 1250, y: 843, width: 1250, height: 843 },
+        action: {
+          type: "message",
+          label: "その他",
+          text: "その他",
+        },
+      },
+    ],
+  };
+}
+
 // ─── リッチメニュー操作関数 ──────────────────────────────────────────────────
 
-export async function createAndSetRichMenu(imageUrl?: string): Promise<{
-  richMenuId: string;
-  message: string;
-}> {
-  // 1. リッチメニューを作成
-  const createRes = await lineApiRequest("POST", "/v2/bot/richmenu", buildRichMenuBody());
-  if (createRes.status !== 200) {
-    throw new Error(`リッチメニュー作成失敗: ${JSON.stringify(createRes.data)}`);
-  }
-  const richMenuId: string = createRes.data.richMenuId;
-
-  // 2. 画像をアップロード（URLから取得してアップロード）
-  const imgUrl = imageUrl ?? "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/rich_menu_dashboard_2500x1686_42be9ca0.jpg";
-
-  // URLから画像を取得
-  const imageBuffer = await new Promise<Buffer>((resolve, reject) => {
+/** 画像URLからBufferを取得するヘルパー */
+async function fetchImageBuffer(imgUrl: string): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
     const protocol = imgUrl.startsWith("https") ? https : require("http");
     protocol.get(imgUrl, (res: any) => {
       const chunks: Buffer[] = [];
@@ -154,6 +211,22 @@ export async function createAndSetRichMenu(imageUrl?: string): Promise<{
       res.on("error", reject);
     }).on("error", reject);
   });
+}
+
+export async function createAndSetRichMenu(imageUrl?: string): Promise<{
+  richMenuId: string;
+  message: string;
+}> {
+  // 1. リッチメニューを作成
+  const createRes = await lineApiRequest("POST", "/v2/bot/richmenu", buildNormalRichMenuBody());
+  if (createRes.status !== 200) {
+    throw new Error(`リッチメニュー作成失敗: ${JSON.stringify(createRes.data)}`);
+  }
+  const richMenuId: string = createRes.data.richMenuId;
+
+  // 2. 画像をアップロード（URLから取得してアップロード）
+  const imgUrl = imageUrl ?? "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/rich_menu_dashboard_2500x1686_42be9ca0.jpg";
+  const imageBuffer = await fetchImageBuffer(imgUrl);
 
   // Content-Typeを画像URLの拡張子から判定
   const contentType = imgUrl.endsWith(".jpg") || imgUrl.endsWith(".jpeg") ? "image/jpeg" : "image/png";
@@ -171,6 +244,25 @@ export async function createAndSetRichMenu(imageUrl?: string): Promise<{
   };
 }
 
+/** 数字選択メニューを作成してIDを返す（デフォルト設定はしない） */
+export async function createNumberRichMenu(): Promise<string> {
+  const imgUrl = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/rich_menu_numbers_v2-5nwFgEJQ5Z2X6pyxmCy8RS.png";
+
+  const createRes = await lineApiRequest("POST", "/v2/bot/richmenu", buildNumberRichMenuBody());
+  if (createRes.status !== 200) {
+    throw new Error(`数字メニュー作成失敗: ${JSON.stringify(createRes.data)}`);
+  }
+  const richMenuId: string = createRes.data.richMenuId;
+
+  const imageBuffer = await fetchImageBuffer(imgUrl);
+  await uploadRichMenuImage(richMenuId, imageBuffer, "image/png");
+
+  // キャッシュに保存
+  setCachedNumberMenuId(richMenuId);
+
+  return richMenuId;
+}
+
 export async function listRichMenus(): Promise<any[]> {
   const res = await lineApiRequest("GET", "/v2/bot/richmenu/list");
   return res.data?.richmenus ?? [];
@@ -185,6 +277,37 @@ export async function getDefaultRichMenu(): Promise<string | null> {
   return res.data?.richMenuId ?? null;
 }
 
+// ─── ユーザー別リッチメニュー切り替え ────────────────────────────────────────
+
+/**
+ * 特定ユーザーに数字選択メニューを表示する
+ * pendingActionがセットされるタイミングで呼び出す
+ */
+export async function switchToNumberMenu(lineUserId: string): Promise<void> {
+  const menuId = getCachedNumberMenuId();
+  if (!menuId) {
+    console.warn("[RichMenu] 数字メニューIDが未設定。ダッシュボードから登録してください。");
+    return;
+  }
+  try {
+    await lineApiRequest("POST", `/v2/bot/user/${lineUserId}/richmenu/${menuId}`);
+  } catch (e) {
+    console.error("[RichMenu] 数字メニュー切り替え失敗:", e);
+  }
+}
+
+/**
+ * 特定ユーザーを通常メニュー（デフォルト）に戻す
+ * pendingActionが解除されるタイミングで呼び出す
+ */
+export async function switchToNormalMenu(lineUserId: string): Promise<void> {
+  try {
+    await lineApiRequest("DELETE", `/v2/bot/user/${lineUserId}/richmenu`);
+  } catch (e) {
+    console.error("[RichMenu] 通常メニューへの戻し失敗:", e);
+  }
+}
+
 // ─── tRPC router ──────────────────────────────────────────────────────────────
 
 export const richMenuRouter = router({
@@ -195,10 +318,10 @@ export const richMenuRouter = router({
     }
     const menus = await listRichMenus();
     const defaultId = await getDefaultRichMenu();
-    return { menus, defaultId };
+    return { menus, defaultId, cachedNumberMenuId: getCachedNumberMenuId() };
   }),
 
-  // リッチメニューを作成してデフォルト設定
+  // 通常リッチメニューを作成してデフォルト設定
   create: protectedProcedure
     .input(z.object({ imageUrl: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
@@ -206,6 +329,30 @@ export const richMenuRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
       }
       return createAndSetRichMenu(input.imageUrl);
+    }),
+
+  // 数字選択メニューを作成（IDをキャッシュ）
+  createNumberMenu: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
+      }
+      const richMenuId = await createNumberRichMenu();
+      return {
+        richMenuId,
+        message: `数字選択メニューを作成しました（ID: ${richMenuId}）`,
+      };
+    }),
+
+  // 数字メニューIDを手動でキャッシュに設定（既存メニューを再利用する場合）
+  setNumberMenuId: protectedProcedure
+    .input(z.object({ richMenuId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
+      }
+      setCachedNumberMenuId(input.richMenuId);
+      return { success: true, richMenuId: input.richMenuId };
     }),
 
   // リッチメニューを削除
@@ -216,6 +363,9 @@ export const richMenuRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
       }
       await deleteRichMenu(input.richMenuId);
+      if (getCachedNumberMenuId() === input.richMenuId) {
+        setCachedNumberMenuId(null);
+      }
       return { success: true };
     }),
 

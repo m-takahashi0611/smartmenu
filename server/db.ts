@@ -391,9 +391,18 @@ export async function updateLineUserLocation(
     .update(lineUsers)
     .set({ latitude, longitude, region, updatedAt: new Date() })
     .where(eq(lineUsers.lineUserId, lineUserId));
-}
+}// ─── 会話状態管理（pendingAction） ───────────────────────────────────────────────
 
-// ─── 会話状態管理（pendingAction） ───────────────────────────────────────────
+// リッチメニュー切り替えが必要なpendingActionの型一覧
+// これらのpendingActionがセットされたときに数字メニューに切り替わる
+const NUMBER_MENU_PENDING_TYPES = new Set([
+  'menu_type_selection',       // 食事タイプ選択（朝食・昼食・夕食）
+  'menu_option_selection',     // 献立候補選択（1・2・3番）
+  'voice_ingredient_action',   // 音声入力後の3择（冷蔵庫・買い物・献立）
+  'used_ingredient_action',    // 使った食材の確認
+  'bought_item_action',        // 買った商品の確認
+  'shopping_hearing',          // 買い物ヒアリング（行く・行かない）
+]);
 
 export async function setLineUserPendingAction(lineUserId: string, action: object | null) {
   const db = await getDb();
@@ -402,9 +411,22 @@ export async function setLineUserPendingAction(lineUserId: string, action: objec
     .update(lineUsers)
     .set({ pendingAction: action, updatedAt: new Date() })
     .where(eq(lineUsers.lineUserId, lineUserId));
-}
 
-export async function getLineUserPendingAction(lineUserId: string): Promise<any | null> {
+  // リッチメニュー切り替え（非同期で実行，エラーは無視）
+  try {
+    const { switchToNumberMenu, switchToNormalMenu, getCachedNumberMenuId } = await import('./routers/richMenu');
+    if (action !== null && typeof action === 'object' && 'type' in action) {
+      const actionType = (action as any).type as string;
+      if (NUMBER_MENU_PENDING_TYPES.has(actionType) && getCachedNumberMenuId()) {
+        switchToNumberMenu(lineUserId).catch(() => {});
+      }
+    } else if (action === null) {
+      if (getCachedNumberMenuId()) {
+        switchToNormalMenu(lineUserId).catch(() => {});
+      }
+    }
+  } catch { /* richMenuモジュール未ロード時は無視 */ }
+}export async function getLineUserPendingAction(lineUserId: string): Promise<any | null> {
   const db = await getDb();
   if (!db) return null;
   const rows = await db

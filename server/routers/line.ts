@@ -27,6 +27,7 @@ import { publicProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { getWeatherInfo, formatWeatherForPrompt } from "../weather";
 import { transcribeAudio } from "../_core/voiceTranscription";
+import { switchToNumberMenu, switchToNormalMenu } from "./richMenu";
 
 // ─── LINE API helper ──────────────────────────────────────────────────────────
 
@@ -1050,6 +1051,13 @@ ${dinnerResult.message}`;
       return true;
     }
 
+    // 「その他」ボタン → 献立をやり直す
+    if (/^(その他|やり直し|やりなおし|別の|ほかの|other)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '別の献立を提案しますね！\n\n「今日の献立」ともう一度送っていただくか、気分やテーマ（例：「和食がいい」「さっぱりしたもの」）を教えてください😊' }], lineUserId);
+      return true;
+    }
+
     // 「1」「2」「3」の番号入力 → 復唱確認
     const numMatch = trimmed.match(/^([1-3１-３])$/);
     if (numMatch) {
@@ -1069,8 +1077,14 @@ ${dinnerResult.message}`;
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
-          text: `『${numStr}』とお送りいただきましたが、先ほどの献立候補から${numStr}番（${selected.name}）を選ぶということでしょうか？\n\n「はい」→ ${selected.name}のレシピを表示します\n「レシピ」→ 詳しいレシピを見る\n「キャンセル」→ 選び直す`,
+          text: `${numStr}番（${selected.name}）ですね！\n\n「はい」→ ${selected.name}のレシピを表示します\n「レシピ」→ 詳しいレシピを見る\n「キャンセル」→ 選び直す`,
         }], lineUserId);
+        return true;
+      } else {
+        // 選択肢の範囲外の番号（例：2択なのに3を押した）
+        const maxNum = options.length;
+        const optionLines = options.map((o, i) => `${i + 1}. ${o.name}`).join('\n');
+        await replyLineMessage(replyToken, [{ type: 'text', text: `今回の選択肢は${maxNum}つです😊\n\n${optionLines}\n\n${Array.from({length: maxNum}, (_, i) => i + 1).join('か')}で選んでください！` }], lineUserId);
         return true;
       }
     }
