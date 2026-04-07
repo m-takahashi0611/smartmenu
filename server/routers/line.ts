@@ -1201,7 +1201,9 @@ ${dinnerResult.message}`;
         const normalizedName = await resolveProductName(name);
         const existing = await db.select().from(fridgeItemsTable)
           .where(eq(fridgeItemsTable.userId, userId)).then(rows => findMatchingFridgeItem(rows, normalizedName));
-        if (!existing) {
+        if (existing) {
+          // 既存あり：数量なしの場合はそのまま保持（重複登録しない）
+        } else {
           await db.insert(fridgeItemsTable).values({ userId, name: normalizedName, quantity: null, category: 'other' });
         }
         addedNames.push(normalizedName);
@@ -1705,10 +1707,19 @@ ${dinnerResult.message}`;
       const db = await getDb();
       if (!db || finalItems.length === 0) return false;
 
-      // 複数食材に分割できた場合はまとめて登録
+      // 複数食材に分割できた場合はまとめて登録（既存あり→数量更新、なし→新規追加）
       if (finalItems.length > 1) {
+        const existingFridgeRows = await db.select().from(fridgeItemsTable).where(eq(fridgeItemsTable.userId, userId));
         for (const item of finalItems) {
-          await db.insert(fridgeItemsTable).values({ userId, name: item.name, quantity: item.quantity, category: 'other' });
+          const existingRow = existingFridgeRows.find(r => r.name === item.name);
+          if (existingRow) {
+            if (item.quantity) {
+              await db.update(fridgeItemsTable).set({ quantity: item.quantity, updatedAt: new Date() }).where(eq(fridgeItemsTable.id, existingRow.id));
+            }
+            // 数量なし＆既存ありの場合はそのまま（既存データを保持）
+          } else {
+            await db.insert(fridgeItemsTable).values({ userId, name: item.name, quantity: item.quantity, category: 'other' });
+          }
         }
         const itemList = finalItems.map(i => i.quantity ? `${i.name}（${i.quantity}）` : i.name).join('、');
         await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！\n\n献立を提案しましょうか？「献立」と送ってください` }], lineUserId);
