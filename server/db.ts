@@ -413,19 +413,24 @@ export async function setLineUserPendingAction(lineUserId: string, action: objec
     .where(eq(lineUsers.lineUserId, lineUserId));
 
   // リッチメニュー切り替え（非同期で実行，エラーは無視）
+  // switchToNumberMenu内でDBからIDを読み込むため、キャッシュチェックは不要
   try {
-    const { switchToNumberMenu, switchToNormalMenu, getCachedNumberMenuId } = await import('./routers/richMenu');
+    const { switchToNumberMenu, switchToNormalMenu } = await import('./routers/richMenu');
     if (action !== null && typeof action === 'object' && 'type' in action) {
       const actionType = (action as any).type as string;
-      if (NUMBER_MENU_PENDING_TYPES.has(actionType) && getCachedNumberMenuId()) {
-        switchToNumberMenu(lineUserId).catch(() => {});
+      if (NUMBER_MENU_PENDING_TYPES.has(actionType)) {
+        switchToNumberMenu(lineUserId).catch((e) => {
+          console.warn('[RichMenu] switchToNumberMenu失敗:', e?.message);
+        });
       }
     } else if (action === null) {
-      if (getCachedNumberMenuId()) {
-        switchToNormalMenu(lineUserId).catch(() => {});
-      }
+      switchToNormalMenu(lineUserId).catch((e) => {
+        console.warn('[RichMenu] switchToNormalMenu失敗:', e?.message);
+      });
     }
-  } catch { /* richMenuモジュール未ロード時は無視 */ }
+  } catch (e) {
+    console.warn('[RichMenu] richMenuモジュール読み込み失敗:', (e as any)?.message);
+  }
 }export async function getLineUserPendingAction(lineUserId: string): Promise<any | null> {
   const db = await getDb();
   if (!db) return null;

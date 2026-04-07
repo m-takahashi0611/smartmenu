@@ -7,6 +7,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleLineWebhookEvent, verifyLineSignature } from "../routers/line";
+import { loadNumberMenuIdFromDb } from "../routers/richMenu";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -30,6 +31,9 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+
+  // サーバー起動時にDBから数字メニューIDを復元
+  loadNumberMenuIdFromDb().catch((e) => console.warn('[RichMenu] 起動時ID読み込み失敗:', e?.message));
 
   // デバッグ用バージョン確認エンドポイント
   app.get("/api/debug/version", (req, res) => {
