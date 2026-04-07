@@ -246,16 +246,21 @@ export async function createAndSetRichMenu(imageUrl?: string): Promise<{
 
 /** 数字選択メニューを作成してIDを返す（デフォルト設定はしない） */
 export async function createNumberRichMenu(): Promise<string> {
-  const imgUrl = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/rich_menu_numbers_v2-5nwFgEJQ5Z2X6pyxmCy8RS.png";
-
+  console.log("[RichMenu] createNumberRichMenu 開始");
   const createRes = await lineApiRequest("POST", "/v2/bot/richmenu", buildNumberRichMenuBody());
+  console.log("[RichMenu] メニュー作成ステータス:", createRes.status, JSON.stringify(createRes.data));
   if (createRes.status !== 200) {
     throw new Error(`数字メニュー作成失敗: ${JSON.stringify(createRes.data)}`);
   }
   const richMenuId: string = createRes.data.richMenuId;
 
-  const imageBuffer = await fetchImageBuffer(imgUrl);
-  await uploadRichMenuImage(richMenuId, imageBuffer, "image/png");
+  // CDN URLから画像を取得してLINE APIにアップロード
+  const NUMBER_MENU_IMAGE_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663223584738/yOhkPqIzBzRwypfw.jpg";
+  console.log("[RichMenu] CDN URLから画像取得:", NUMBER_MENU_IMAGE_URL);
+  const imageBuffer = await fetchImageBuffer(NUMBER_MENU_IMAGE_URL);
+  console.log("[RichMenu] 画像取得完了 サイズ:", imageBuffer.length, "bytes");
+  await uploadRichMenuImage(richMenuId, imageBuffer, "image/jpeg");
+  console.log("[RichMenu] 画像アップロード完了");
 
   // キャッシュに保存
   setCachedNumberMenuId(richMenuId);
@@ -337,11 +342,21 @@ export const richMenuRouter = router({
       if (ctx.user.role !== "admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
       }
-      const richMenuId = await createNumberRichMenu();
-      return {
-        richMenuId,
-        message: `数字選択メニューを作成しました（ID: ${richMenuId}）`,
-      };
+      try {
+        console.log("[tRPC] createNumberMenu 呼び出し開始");
+        const richMenuId = await createNumberRichMenu();
+        console.log("[tRPC] createNumberMenu 成功:", richMenuId);
+        return {
+          richMenuId,
+          message: `数字選択メニューを作成しました（ID: ${richMenuId}）`,
+        };
+      } catch (e: any) {
+        console.error("[tRPC] createNumberMenu エラー:", e?.message, e?.stack);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `エラー詳細: ${e?.message ?? String(e)}`,
+        });
+      }
     }),
 
   // 数字メニューIDを手動でキャッシュに設定（既存メニューを再利用する場合）
