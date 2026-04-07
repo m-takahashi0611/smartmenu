@@ -330,3 +330,15 @@
 - [x] BENTO-6: 夕食＋お弁当同時提案のプレビューUI（モックイメージ）
 - [x] BENTO-7: 無料ユーザーにはロック表示＋アップグレード導線
 - [x] BENTO-8: App.tsxにルート追加、ダッシュボードから遷移できるボタン追加
+
+## 課金UI Phase 2：subscriptions DB・プレミアム判定・課金確認ポップアップ（2026-04-07）
+
+- [x] SUB-1: subscriptionsテーブルをDBに適用（migration SQL実行）
+- [x] SUB-2: 既存ユーザー全員にプレミアムプラン（plan=premium, status=active）を付与
+- [x] SUB-3: tRPCにsubscription.getMyPlan クエリを追加（プレミアム判定を返す）
+- [x] SUB-4: MenuTheme.tsxのIS_PREMIUMモックを実際のtrpcクエリに差し替え
+- [x] SUB-5: BentoMode.tsxのIS_PREMIUMモックを実際のtrpcクエリに差し替え
+- [x] SUB-6: 無料期間終了後にレ点チェックしようとした際の課金確認ポップアップを実装
+  - ポップアップ内容：「課金対象プランへの追加になりますがよろしいですか？」
+  - 「はい（プレミアムへ）」→ アップグレードページへ遷移（後でStripe連携）
+  - 「キャンセル」→ ポップアップを閉じる

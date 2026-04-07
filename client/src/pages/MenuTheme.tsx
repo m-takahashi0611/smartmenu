@@ -1,9 +1,18 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight, Lock, Crown, Check } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ─── テーマデータ定義 ───────────────────────────────────────────────────
 const THEME_CATEGORIES = [
@@ -53,14 +62,15 @@ const THEME_CATEGORIES = [
     ],
   },
 ];
-
-// ─── モックのプレミアム状態（後でバックエンドと連携） ───────────────────
-const IS_PREMIUM = false; // TODO: trpc.subscription.isPremium.useQuery() に差し替え
-
 export default function MenuTheme() {
   const [openCategories, setOpenCategories] = useState<string[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+
+  const { data: planData, isLoading: planLoading } = trpc.subscription.getMyPlan.useQuery();
+  const IS_PREMIUM = planData?.isPremium ?? false;
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [, navigate] = useLocation();
 
   const toggleCategory = (id: string) => {
     setOpenCategories((prev) =>
@@ -69,7 +79,11 @@ export default function MenuTheme() {
   };
 
   const toggleItem = (id: string) => {
-    if (!IS_PREMIUM) return; // 無料ユーザーは操作不可
+    if (!IS_PREMIUM) {
+      // 無料期間終了後は課金確認ダイアログを表示
+      setShowUpgradeDialog(true);
+      return;
+    }
     setSelectedItems((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
@@ -258,6 +272,40 @@ export default function MenuTheme() {
 
         <div className="h-8" />
       </div>
+
+      {/* 課金確認ダイアログ */}
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent className="max-w-sm mx-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Crown className="w-5 h-5 text-amber-500" />
+              プレミアムプランの追加
+            </DialogTitle>
+            <DialogDescription className="text-sm leading-relaxed">
+              設定を変更するには、月額480円のプレミアムプランへの登録が必要です。
+              課金対象プランへの追加になりますが、よろしいですか？
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white"
+              onClick={() => {
+                setShowUpgradeDialog(false);
+                navigate("/premium"); // アップグレードページ（後で実装）
+              }}
+            >
+              プレミアムにアップグレードする
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowUpgradeDialog(false)}
+            >
+              キャンセル
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

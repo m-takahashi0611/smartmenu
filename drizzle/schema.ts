@@ -287,3 +287,25 @@ export const systemSettings = mysqlTable("system_settings", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 export type SystemSetting = typeof systemSettings.$inferSelect;
+
+/**
+ * サブスクリプション（課金）テーブル
+ * ユーザーのプラン・トライアル状態を管理
+ */
+export const subscriptions = mysqlTable("subscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  plan: mysqlEnum("plan", ["free", "premium"]).default("free").notNull(),
+  status: mysqlEnum("status", ["trial", "active", "cancelled", "expired"]).default("trial").notNull(),
+  trialStartedAt: timestamp("trialStartedAt").defaultNow().notNull(),
+  trialDays: int("trialDays").default(45).notNull(), // 通常45日、キャンペーンで60日
+  campaignCode: varchar("campaignCode", { length: 50 }), // 適用済みキャンペーンコード
+  stripeCustomerId: varchar("stripeCustomerId", { length: 100 }),
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 100 }),
+  currentPeriodEnd: timestamp("currentPeriodEnd"), // 次回請求日
+  cancelledAt: timestamp("cancelledAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = typeof subscriptions.$inferInsert;

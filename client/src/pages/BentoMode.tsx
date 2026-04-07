@@ -1,22 +1,20 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Lock, Crown, Check, ChevronDown } from "lucide-react";
-
-// ─── モックのプレミアム状態（後でバックエンドと連携） ───────────────────
-const IS_PREMIUM = false; // TODO: trpc.subscription.isPremium.useQuery() に差し替え
-
-// ─── モックの家族メンバー（後でtrpcから取得） ─────────────────────────
-const MOCK_MEMBERS = [
-  { id: 1, name: "自分" },
-  { id: 2, name: "夫" },
-  { id: 3, name: "子供（長男）" },
-  { id: 4, name: "子供（長女）" },
-];
+import { trpc } from "@/lib/trpc";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const BOX_SIZES = [
   { id: "small", label: "小", desc: "子供用・400ml以下" },
@@ -45,7 +43,23 @@ export default function BentoMode() {
   const [prepEvening, setPrepEvening] = useState(true);
   const [saved, setSaved] = useState(false);
 
+  const { data: planData } = trpc.subscription.getMyPlan.useQuery();
+  const IS_PREMIUM = planData?.isPremium ?? false;
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [, navigate] = useLocation();
+
+  // 家族メンバーを実データから取得
+  const { data: familyData } = trpc.family.getProfile.useQuery();
+  const members = familyData?.members ?? [
+    { id: 1, name: "自分" },
+    { id: 2, name: "家族1" },
+  ];
+
   const toggleMember = (id: number) => {
+    if (!IS_PREMIUM) {
+      setShowUpgradeDialog(true);
+      return;
+    }
     setSelectedMembers((prev) =>
       prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
     );
@@ -145,7 +159,7 @@ export default function BentoMode() {
             </CardHeader>
             <CardContent className="pt-0 pb-3 px-4">
               <div className="grid grid-cols-2 gap-2">
-                {MOCK_MEMBERS.map((member) => {
+                {members.map((member: { id: number; name: string }) => {
                   const isSelected = selectedMembers.includes(member.id);
                   return (
                     <button
@@ -175,7 +189,7 @@ export default function BentoMode() {
                 <div className="mt-3 space-y-3 border-t border-border/30 pt-3">
                   <p className="text-xs text-muted-foreground font-medium">お弁当箱のサイズ</p>
                   {selectedMembers.map((memberId) => {
-                    const member = MOCK_MEMBERS.find((m) => m.id === memberId);
+                    const member = members.find((m: { id: number; name: string }) => m.id === memberId);
                     if (!member) return null;
                     return (
                       <div key={memberId}>
@@ -328,6 +342,40 @@ export default function BentoMode() {
 
         <div className="h-8" />
       </div>
+
+      {/* 課金確認ダイアログ */}
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent className="max-w-sm mx-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Crown className="w-5 h-5 text-amber-500" />
+              プレミアムプランの追加
+            </DialogTitle>
+            <DialogDescription className="text-sm leading-relaxed">
+              お弁当モードは月額480円のプレミアムプランの機能です。
+              課金対象プランへの追加になりますが、よろしいですか？
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white"
+              onClick={() => {
+                setShowUpgradeDialog(false);
+                navigate("/premium");
+              }}
+            >
+              プレミアムにアップグレードする
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowUpgradeDialog(false)}
+            >
+              キャンセル
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
