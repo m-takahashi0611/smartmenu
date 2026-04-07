@@ -754,15 +754,19 @@ async function handleIntentAction(
         const db = await getDb();
         if (db && items.length > 0) {
           const added: string[] = [];
+          // 食材が1つで数量がある場合はその数量を使う
+          const itemQty = items.length === 1 && quantity ? quantity : null;
           for (const itemName of items) {
             if (!itemName.trim()) continue;
             const existing = await db.select().from(fridgeItemsTable).where(eq(fridgeItemsTable.userId, userId)).then(rows => rows.find(r => r.name === itemName.trim()));
             if (existing) {
-              await db.update(fridgeItemsTable).set({ updatedAt: new Date() }).where(eq(fridgeItemsTable.id, existing.id));
+              const updateData: { updatedAt: Date; quantity?: string } = { updatedAt: new Date() };
+              if (itemQty) updateData.quantity = itemQty;
+              await db.update(fridgeItemsTable).set(updateData).where(eq(fridgeItemsTable.id, existing.id));
             } else {
-              await db.insert(fridgeItemsTable).values({ userId, name: itemName.trim(), quantity: null, category: 'other' });
+              await db.insert(fridgeItemsTable).values({ userId, name: itemName.trim(), quantity: itemQty, category: 'other' });
             }
-            added.push(itemName.trim());
+            added.push(itemQty ? `${itemName.trim()}（${itemQty}）` : itemName.trim());
           }
           await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${added.join('、')}」を登録しました！` }], lineUserId);
         } else {
@@ -1635,20 +1639,21 @@ ${dinnerResult.message}`;
     if (match) {
       const itemsText = match[itemGroup];
       // ── 常にLLMで食材抽出（正規表現分割は「と」「や」等が食材名に含まれるため使用しない）
-      let finalItems: string[] = [];
+      let finalItems: Array<{ name: string; quantity: string | null }> = [];
       try {
         const splitResp = await invokeLLM({
           messages: [
             {
               role: 'system',
-              content: `あなたは食材名抽出AIです。入力テキストから食材名のみをJSON配列で返してください。
+              content: `あなたは食材名抽出AIです。入力テキストから食材名と数量を抽出してJSON形式で返してください。
 # ルール
-- 食材を個別に分割する（「万能ネギブロッコリー」→["万能ネギ","ブロッコリー"]）
-- 数量・単位は除く（「白菜半分」→"白菜"、「卵3個」→"卵"）
+- 食材を個別に分割する（「万能ネギブロッコリー」→[万能ネギ,ブロッコリー]）
+- 数量がある場合は quantity に入れる（「白菜半分」→name:白菜,quantity:半分、「卵300g」→name:卵,quantity:300g、「牛乳1本」→name:牛乳,quantity:1本）
+- 数量がない場合は quantity を null にする
 - 「を追加して」「冷蔵庫に」などの指示語は除く
-- 食材名のみ返す（形容詞・調理法は除く）
-# 出力形式（JSON配列のみ）
-["豚肉","玉ねぎ","にんじん"]`,
+- 食材名は簡潔に（形容詞・調理法は除く）
+# 出力形式
+{"items": [{"name": "豚肉", "quantity": "300g"}, {"name": "玉ねぎ", "quantity": null}]}`,
             },
             { role: 'user', content: itemsText },
           ],
@@ -1660,7 +1665,18 @@ ${dinnerResult.message}`;
               schema: {
                 type: 'object',
                 properties: {
-                  items: { type: 'array', items: { type: 'string' }, description: '食材名の配列' },
+                  items: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        name: { type: 'string' },
+                        quantity: { type: ['string', 'null'] },
+                      },
+                      required: ['name', 'quantity'],
+                      additionalProperties: false,
+                    },
+                  },
                 },
                 required: ['items'],
                 additionalProperties: false,
@@ -1671,13 +1687,19 @@ ${dinnerResult.message}`;
         const content = splitResp.choices[0]?.message?.content;
         const contentStr = typeof content === 'string' ? content : JSON.stringify(content ?? {});
         const parsed = JSON.parse(contentStr);
-        const extracted: string[] = Array.isArray(parsed) ? parsed : (parsed.items ?? parsed.foods ?? parsed.ingredients ?? []);
+        const extracted = parsed.items ?? [];
         if (extracted.length > 0) {
-          finalItems = extracted.map((s: string) => String(s).trim()).filter((s: string) => s.length > 0 && s.length <= 20);
+          finalItems = extracted
+            .map((s: { name: string; quantity: string | null }) => ({ name: String(s.name).trim(), quantity: s.quantity ? String(s.quantity).trim() : null }))
+            .filter((s: { name: string; quantity: string | null }) => s.name.length > 0 && s.name.length <= 20);
         }
       } catch (_) {
-        // LLM失敗時は読点・スペース・改行のみで粗く分割（「と」「や」等は使わない）
-        finalItems = itemsText.split(/[、,，・\n\r\s\u3000]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length <= 20);
+        // LLM失敗時は読点・スペース・改行のみで粗く分割
+        const rawItems = itemsText.split(/[、,，・\n\r\s\u3000]+/).map((s: string) => s.trim()).filter((s: string) => s.length > 0 && s.length <= 20);
+        finalItems = rawItems.map((raw: string) => {
+          const qtyMatch = raw.match(/^(.+?)([0-9０-９]+(?:[.,][0-9０-９]+)?\s*(?:g|ml|kg|L|l|cc|枚|本|個|袋|パック|缶|切れ|匹|尾|頭|羽|束|房|玉|串|瓶|箱|丁|合|カップ|半分|少し|適量))$/);
+          return { name: qtyMatch ? qtyMatch[1].trim() : raw, quantity: qtyMatch?.[2]?.trim() || null };
+        });
       }
 
       const db = await getDb();
@@ -1686,18 +1708,27 @@ ${dinnerResult.message}`;
       // 複数食材に分割できた場合はまとめて登録
       if (finalItems.length > 1) {
         for (const item of finalItems) {
-          await db.insert(fridgeItemsTable).values({ userId, name: item, quantity: null, category: 'other' });
+          await db.insert(fridgeItemsTable).values({ userId, name: item.name, quantity: item.quantity, category: 'other' });
         }
-        const itemList = finalItems.join('、');
+        const itemList = finalItems.map(i => i.quantity ? `${i.name}（${i.quantity}）` : i.name).join('、');
         await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${itemList}」を登録しました！\n\n献立を提案しましょうか？「献立」と送ってください` }], lineUserId);
         return true;
       }
-      const itemName = finalItems[0];
+      const itemName = finalItems[0].name;
+      const itemQuantity = finalItems[0].quantity;
       const existing = await db.select().from(fridgeItemsTable)
         .where(eq(fridgeItemsTable.userId, userId))
         .then(rows => rows.find(r => r.name === itemName));
 
-      if (existing && existing.quantity) {
+      // 数量が既に指定されている場合はそのまま登録（質問スキップ）
+      if (itemQuantity) {
+        if (existing) {
+          await db.update(fridgeItemsTable).set({ quantity: itemQuantity, updatedAt: new Date() }).where(eq(fridgeItemsTable.id, existing.id));
+        } else {
+          await db.insert(fridgeItemsTable).values({ userId, name: itemName, quantity: itemQuantity, category: 'other' });
+        }
+        await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${itemName}（${itemQuantity}）」を登録しました！\n\n献立を提案しましょうか？「献立」と送ってください` }], lineUserId);
+      } else if (existing && existing.quantity) {
         const existingQtyNum = parseQuantityNumber(existing.quantity) ?? 0;
         // pendingActionをセット
         await setLineUserPendingAction(lineUserId, {
@@ -1723,7 +1754,7 @@ ${dinnerResult.message}`;
           text: `${itemName}は既に冷蔵庫にあります。\n何個追加しますか？\n\n（数字で入力してください。例：「3個」）`,
         }], lineUserId);
       } else {
-        // 新規追加
+        // 新規追加（数量なし→質問する）
         await setLineUserPendingAction(lineUserId, {
           type: 'fridge_add_qty',
           itemName,
@@ -1732,7 +1763,7 @@ ${dinnerResult.message}`;
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
-          text: `${itemName}を追加します。\n何個ありますか？\n\n（数字で入力してください。例：「3個」）`,
+          text: `${itemName}を追加します。\n何個ありますか？\n\n（数字で入力してください。例：「3個」「300g」「1本」）`,
         }], lineUserId);
       }
       return true;
@@ -2272,6 +2303,64 @@ https://www.kondatebiyori.com`,
       return;
     }
 
+    // ─── 買い物リスト全部冷蔵庫へ移動 ──────────────────────────────────────────────────────
+    if (/買い物リストを全部冷蔵庫に移動して|買い物リストを冷蔵庫に移動して|買い物リスト.*全部.*冷蔵庫/.test(text)) {
+      if (!userId) {
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはダッシュボードからログインしてください\nhttps://www.kondatebiyori.com` }]);
+        return;
+      }
+      const db = await getDb();
+      if (!db) {
+        await replyAndSave(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
+        return;
+      }
+      const pendingShoppingItems = await db.select().from(shoppingListItems)
+        .where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.isChecked, false)));
+      if (pendingShoppingItems.length === 0) {
+        await replyAndSave(replyToken, [{ type: "text", text: "買い物リストは空です！" }]);
+        return;
+      }
+      // 冷蔵庫に追加（既存なら数量を更新、なければ新規追加）
+      const existingFridgeItems = await db.select().from(fridgeItemsTable).where(eq(fridgeItemsTable.userId, userId));
+      let addedCount = 0;
+      for (const item of pendingShoppingItems) {
+        const existing = existingFridgeItems.find(f => f.name === item.name);
+        if (existing) {
+          await db.update(fridgeItemsTable).set({ quantity: item.quantity ?? existing.quantity, updatedAt: new Date() }).where(eq(fridgeItemsTable.id, existing.id));
+        } else {
+          await db.insert(fridgeItemsTable).values({ userId, name: item.name, quantity: item.quantity, category: 'other' });
+        }
+        addedCount++;
+      }
+      // 買い物リストを全て購入済みにする
+      await db.update(shoppingListItems).set({ isChecked: true, updatedAt: new Date() })
+        .where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.isChecked, false)));
+      await replyAndSave(replyToken, [{ type: "text", text: `✅ ${addedCount}件を冷蔵庫に移動しました！\n\n献立を提案しましょうか？「献立」と送ってください😊` }]);
+      return;
+    }
+
+    // ─── 買い物リスト全部削除 ──────────────────────────────────────────────────────────────
+    if (/買い物リストを全部削除して|買い物リストを削除して|買い物リスト.*全部.*削除/.test(text)) {
+      if (!userId) {
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはダッシュボードからログインしてください\nhttps://www.kondatebiyori.com` }]);
+        return;
+      }
+      const db = await getDb();
+      if (!db) {
+        await replyAndSave(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
+        return;
+      }
+      const result = await db.delete(shoppingListItems)
+        .where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.isChecked, false)));
+      const deletedCount = result[0]?.affectedRows ?? 0;
+      if (deletedCount === 0) {
+        await replyAndSave(replyToken, [{ type: "text", text: "買い物リストはすでに空です！" }]);
+      } else {
+        await replyAndSave(replyToken, [{ type: "text", text: `🗑️ 買い物リスト（${deletedCount}件）を削除しました。` }]);
+      }
+      return;
+    }
+
     // ─── 買い物完了（購入済み）キーワード：買い物リストを全チェック完了にする ──────────────────────
     const isShoppingDone = /買い物リスト購入済み|買い物完了|買い物した|買い物おわった|買い物終わった|買い物終了|購入完了|全部買った|買い物全部完了/.test(text);
     if (isShoppingDone) {
@@ -2330,7 +2419,35 @@ https://www.kondatebiyori.com`,
         const itemList = pendingItems.map((s) => `・${s.name}${s.quantity ? " " + s.quantity : ""}`).join("\n");
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `🛒 買い物リスト（${pendingItems.length}件）：\n${itemList}\n\n買い物が完了したらダッシュボードからチェックできます！`,
+          text: `🛒 買い物リスト（${pendingItems.length}件）：\n${itemList}\n\n買い物は完了しましたか？`,
+          quickReply: {
+            items: [
+              {
+                type: "action",
+                action: {
+                  type: "message",
+                  label: "✅ 全部購入→冷蔵庫へ",
+                  text: "買い物リストを全部冷蔵庫に移動して",
+                },
+              },
+              {
+                type: "action",
+                action: {
+                  type: "message",
+                  label: "🗑️ 全部削除",
+                  text: "買い物リストを全部削除して",
+                },
+              },
+              {
+                type: "action",
+                action: {
+                  type: "uri",
+                  label: "📋 個別に選ぶ",
+                  uri: "https://www.kondatebiyori.com/dashboard",
+                },
+              },
+            ],
+          },
         }]);
       }
       return;
@@ -2515,7 +2632,35 @@ https://www.kondatebiyori.com`,
         const itemList = pendingItems.map((s) => `・${s.name}${s.quantity ? " " + s.quantity : ""}`).join("\n");
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `🛒 買い物リスト（${pendingItems.length}件）：\n${itemList}\n\n買い物が完了したらダッシュボードからチェックできます！`,
+          text: `🛒 買い物リスト（${pendingItems.length}件）：\n${itemList}\n\n買い物は完了しましたか？`,
+          quickReply: {
+            items: [
+              {
+                type: "action",
+                action: {
+                  type: "message",
+                  label: "✅ 全部購入→冷蔵庫へ",
+                  text: "買い物リストを全部冷蔵庫に移動して",
+                },
+              },
+              {
+                type: "action",
+                action: {
+                  type: "message",
+                  label: "🗑️ 全部削除",
+                  text: "買い物リストを全部削除して",
+                },
+              },
+              {
+                type: "action",
+                action: {
+                  type: "uri",
+                  label: "📋 個別に選ぶ",
+                  uri: "https://www.kondatebiyori.com/dashboard",
+                },
+              },
+            ],
+          },
         }]);
       }
       return;
