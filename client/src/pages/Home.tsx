@@ -176,7 +176,6 @@ export default function Home() {
             <span className="text-base font-bold text-primary whitespace-nowrap">献立日和〜coto coto〜</span>
           </div>
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">機能</a>
             <a href="#how-to-use" className="text-sm text-muted-foreground hover:text-foreground transition-colors">使い方</a>
           </nav>
           <div className="flex items-center gap-2">
@@ -257,41 +256,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 機能セクション */}
-      <section id="features" className="py-20 bg-muted/30">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-foreground mb-4">献立日和～coto coto～の機能</h2>
-            <p className="text-muted-foreground text-lg">毎日の食事計画をスマートに管理</p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feature) => (
-              <Card key={feature.title} className="border-border/50 hover:shadow-md transition-shadow flex flex-col">
-                <CardContent className="p-6 flex flex-col flex-1">
-                  <div className="text-3xl mb-3">{feature.icon}</div>
-                  <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed flex-1">{feature.description}</p>
-                  {/* 各機能へのショートカットボタン */}
-                  <div className="mt-4 pt-3 border-t border-border/30">
-                    {user ? (
-                      <Link href={feature.link}>
-                        <Button size="sm" variant="outline" className="text-primary border-primary/30 hover:bg-primary/5 w-full">
-                          {feature.linkLabel}
-                        </Button>
-                      </Link>
-                    ) : (
-                      <Button size="sm" variant="outline" className="text-muted-foreground w-full" disabled>
-                        ログイン後に利用できます
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* 使い方セクション */}
       <section id="how-to-use" className="py-20">
         <div className="max-w-4xl mx-auto px-4">
@@ -323,66 +287,6 @@ export default function Home() {
           {/* 使い方確認後のCTA */}
           <div className="mt-12 text-center">
             {renderCTA("lg")}
-          </div>
-        </div>
-      </section>
-
-      {/* CTAセクション */}
-      <section className="py-20 bg-primary text-primary-foreground">
-        <div className="max-w-3xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold mb-4">今すぐ始めましょう</h2>
-          <p className="text-primary-foreground/80 text-lg mb-8">
-            毎日の献立の悩みから解放されて、家族との食卓をもっと楽しく。
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            {user ? (
-              <Link href="/dashboard">
-                <Button size="lg" variant="secondary" className="text-base px-10">
-                  ダッシュボードへ →
-                </Button>
-              </Link>
-            ) : isLiff ? (
-              <button
-                type="button"
-                onTouchEnd={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (!isLoggingIn) loginWithLine();
-                }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (!isLoggingIn) loginWithLine();
-                }}
-                disabled={isLoggingIn}
-                style={{
-                  backgroundColor: isLoggingIn ? '#aaa' : 'white',
-                  color: '#06C755',
-                  fontWeight: 'bold',
-                  fontSize: '18px',
-                  padding: '18px 40px',
-                  borderRadius: '12px',
-                  border: 'none',
-                  cursor: isLoggingIn ? 'not-allowed' : 'pointer',
-                  WebkitTapHighlightColor: 'transparent',
-                  WebkitUserSelect: 'none',
-                  userSelect: 'none',
-                  touchAction: 'manipulation',
-                  outline: 'none',
-                  WebkitAppearance: 'none',
-                  minHeight: '56px',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                }}
-              >
-                {isLoggingIn ? "ログイン中..." : "🟢 LINEでログイン"}
-              </button>
-            ) : (
-              <a href={getLoginUrl()}>
-                <Button size="lg" variant="secondary" className="text-base px-10">
-                  無料で始める →
-                </Button>
-              </a>
-            )}
           </div>
         </div>
       </section>
