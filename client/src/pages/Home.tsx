@@ -74,10 +74,13 @@ export default function Home() {
     console.log("[Home] isLiff:", isLiff, "isLoggingIn:", isLoggingIn, "user:", !!user);
   }, [isLiff, isLoggingIn, user]);
 
-  // LIFF環境でセッション切れの場合、自動的にLINEログインを再試行
+  // LIFF URL経由（liff.stateパラメータあり）の場合のみ自動ログインを実行
+  // UA検出（LINEアプリ内ブラウザ）の場合は自動ログインしない（ボタン表示のみ）
   useEffect(() => {
-    if (isLiff && !authLoading && !user && !isLoggingIn) {
-      console.log("[Home] LIFF session expired, auto-retrying LINE login...");
+    const search = window.location.search;
+    const isLiffUrl = search.includes("liff.state") || search.includes("liffClientId");
+    if (isLiff && isLiffUrl && !authLoading && !user && !isLoggingIn) {
+      console.log("[Home] LIFF URL detected, auto-retrying LINE login...");
       const timer = setTimeout(() => {
         loginWithLine();
       }, 500);

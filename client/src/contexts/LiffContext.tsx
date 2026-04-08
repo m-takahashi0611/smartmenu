@@ -25,19 +25,27 @@ const LiffContext = createContext<LiffContextType>({
 });
 
 /**
- * LIFF URLから開かれたかどうかをURLパラメータで判定する
- * liff.init()不要で即座に判定可能
+ * LINEアプリ内ブラウザかどうかを判定する
  *
- * 【重要】User-Agentによる判定は使用しない。
- * LINEアプリ内ブラウザで開いた場合でも、LIFF URLでなければ通常のWebViewとして扱う。
- * isLiff=trueにすると自動ログインが走り「ログイン中...」フリーズが発生するため。
+ * 判定方法:
+ * 1. URLパラメータ（liff.state / liffClientId）が存在する場合 → LIFF URL経由
+ * 2. User-Agentに "Line/" が含まれる場合 → LINEアプリ内ブラウザ（トーク画面リンクなど）
+ *
+ * 【注意】isLiff=trueでも自動ログインは走らせない。
+ * ボタンタップ時のみloginWithLine()を実行する設計を維持する。
  */
 function detectIsLiff(): boolean {
   const search = window.location.search;
 
-  // liff.stateパラメータが存在する場合のみLIFF環境と判定
-  // これはLIFF URLから遷移した時にLINEが付与するパラメータ
+  // liff.stateパラメータが存在する場合 → LIFF URL経由
   if (search.includes("liff.state") || search.includes("liffClientId")) {
+    return true;
+  }
+
+  // User-AgentでLINEアプリ内ブラウザを検出
+  // LINEアプリ内ブラウザのUAには "Line/" が含まれる
+  const ua = navigator.userAgent || "";
+  if (ua.includes("Line/")) {
     return true;
   }
 
