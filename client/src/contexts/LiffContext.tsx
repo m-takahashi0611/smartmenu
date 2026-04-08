@@ -1,16 +1,17 @@
 /**
- * LIFF Context - シンプル版
+ * LIFF Context - Android LINE内ブラウザ対応版
  *
  * 設計方針:
- * - liff.init()の完了を待ってボタンを有効化するのではなく、
- *   ボタンタップ時にinit→loginを直列実行する
- * - ボタンは常に押せる状態（disabledにしない）
- * - isLiff判定はURLパラメータ（liff.state）で行う（init不要）
+ * - liff.stateパラメータがある場合のみ isLiff=true（LIFF URL経由）
+ * - User-Agent で "Line/" を検出しても isLiff=false（通常のOAuthログインを使用）
+ *   → Android LINE内ブラウザでは liff.init() が失敗するケースがあるため
+ * - liff.init() にタイムアウトを設けて必ず setIsLoggingIn(false) を呼ぶ
  */
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { trpc } from "@/lib/trpc";
 
 const LIFF_ID = import.meta.env.VITE_LIFF_ID as string;
+const LIFF_INIT_TIMEOUT_MS = 10000; // 10秒タイムアウト
 
 type LiffContextType = {
   isLiff: boolean;
@@ -25,31 +26,42 @@ const LiffContext = createContext<LiffContextType>({
 });
 
 /**
- * LINEアプリ内ブラウザかどうかを判定する
+ * LINEのLIFF URL経由かどうかを判定する
  *
- * 判定方法:
- * 1. URLパラメータ（liff.state / liffClientId）が存在する場合 → LIFF URL経由
- * 2. User-Agentに "Line/" が含まれる場合 → LINEアプリ内ブラウザ（トーク画面リンクなど）
- *
- * 【注意】isLiff=trueでも自動ログインは走らせない。
- * ボタンタップ時のみloginWithLine()を実行する設計を維持する。
+ * 【重要】User-Agentによる判定は廃止
+ * Android LINE内ブラウザ（UA: "Line/"）でも isLiff=false にする。
+ * 理由: liff.init() がAndroid環境で失敗し「ログイン中...」のまま固まるため。
+ * LINE内ブラウザからのアクセスでも通常のOAuth（Manusログイン）を使用する。
  */
 function detectIsLiff(): boolean {
   const search = window.location.search;
 
-  // liff.stateパラメータが存在する場合 → LIFF URL経由
+  // liff.stateパラメータが存在する場合のみ LIFF URL経由と判定
   if (search.includes("liff.state") || search.includes("liffClientId")) {
     return true;
   }
 
-  // User-AgentでLINEアプリ内ブラウザを検出
-  // LINEアプリ内ブラウザのUAには "Line/" が含まれる
-  const ua = navigator.userAgent || "";
-  if (ua.includes("Line/")) {
-    return true;
-  }
-
+  // User-Agent判定は廃止（Android LINE内ブラウザでliff.init()が失敗するため）
   return false;
+}
+
+/**
+ * liff.init() にタイムアウトを設けるラッパー
+ */
+async function liffInitWithTimeout(liff: any, liffId: string, timeoutMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`liff.init() timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    liff.init({ liffId }).then(() => {
+      clearTimeout(timer);
+      resolve();
+    }).catch((err: any) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
 }
 
 export function LiffProvider({ children }: { children: ReactNode }) {
@@ -86,8 +98,8 @@ export function LiffProvider({ children }: { children: ReactNode }) {
       // 毎回liff.init()を実行（ボタンタップ時）
       const liff = (await import("@line/liff")).default;
 
-      console.log("[LIFF] Initializing...");
-      await liff.init({ liffId: LIFF_ID });
+      console.log("[LIFF] Initializing (timeout: " + LIFF_INIT_TIMEOUT_MS + "ms)...");
+      await liffInitWithTimeout(liff, LIFF_ID, LIFF_INIT_TIMEOUT_MS);
       console.log("[LIFF] Initialized. isLoggedIn:", liff.isLoggedIn(), "isInClient:", liff.isInClient());
 
       if (!liff.isLoggedIn()) {
