@@ -7,6 +7,28 @@ import { subscriptions } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 
 /**
+ * Stripe API 2025-03-31.basil では current_period_end は
+ * subscription直下ではなく items.data[0] に移動している
+ */
+function getSubscriptionPeriodEnd(stripeSubscription: any): Date {
+  // 新API: items.data[0].current_period_end
+  const itemPeriodEnd = stripeSubscription?.items?.data?.[0]?.current_period_end;
+  if (itemPeriodEnd && typeof itemPeriodEnd === "number") {
+    return new Date(itemPeriodEnd * 1000);
+  }
+  // 旧API: subscription.current_period_end（フォールバック）
+  const subPeriodEnd = stripeSubscription?.current_period_end;
+  if (subPeriodEnd && typeof subPeriodEnd === "number") {
+    return new Date(subPeriodEnd * 1000);
+  }
+  // どちらもなければ1ヶ月後をデフォルト
+  const fallback = new Date();
+  fallback.setMonth(fallback.getMonth() + 1);
+  console.warn("[Stripe Webhook] current_period_end not found, using fallback:", fallback.toISOString());
+  return fallback;
+}
+
+/**
  * Stripe Webhookイベントを処理する
  * /api/stripe/webhook エンドポイントで受信
  */
@@ -85,11 +107,12 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session):
     return;
   }
 
-  // Stripeからサブスクリプション詳細を取得
+  // Stripeからサブスクリプション詳細を取得（items展開）
   const stripe = getStripe();
-  const stripeSubscriptionRaw = await stripe.subscriptions.retrieve(stripeSubscriptionId);
-  const stripeSubscription = stripeSubscriptionRaw as any;
-  const currentPeriodEnd = new Date(stripeSubscription.current_period_end * 1000);
+  const stripeSubscriptionRaw = await stripe.subscriptions.retrieve(stripeSubscriptionId, {
+    expand: ["items"],
+  });
+  const currentPeriodEnd = getSubscriptionPeriodEnd(stripeSubscriptionRaw);
 
   const db = await getDb();
   if (!db) throw new Error("DB not available");
@@ -135,8 +158,7 @@ async function handleSubscriptionUpdated(stripeSubscription: Stripe.Subscription
   const db = await getDb();
   if (!db) return;
 
-  const subAny = stripeSubscription as any;
-  const currentPeriodEnd = new Date(subAny.current_period_end * 1000);
+  const currentPeriodEnd = getSubscriptionPeriodEnd(stripeSubscription);
   const isCancelAtPeriodEnd = stripeSubscription.cancel_at_period_end;
 
   // stripeSubscriptionIdで対象ユーザーを検索
@@ -199,9 +221,10 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
   if (!db) return;
 
   const stripe = getStripe();
-  const stripeSubscriptionRaw = await stripe.subscriptions.retrieve(stripeSubscriptionId);
-  const stripeSubscription = stripeSubscriptionRaw as any;
-  const currentPeriodEnd = new Date(stripeSubscription.current_period_end * 1000);
+  const stripeSubscriptionRaw = await stripe.subscriptions.retrieve(stripeSubscriptionId, {
+    expand: ["items"],
+  });
+  const currentPeriodEnd = getSubscriptionPeriodEnd(stripeSubscriptionRaw);
 
   await db
     .update(subscriptions)
