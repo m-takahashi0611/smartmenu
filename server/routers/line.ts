@@ -974,6 +974,24 @@ async function handleFridgeRegistration(
 
 ${breakfastResult.message}`;
         await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }], lineUserId);
+
+        // 夕食＋朝食の両方の選択肢をpendingActionに保存
+        const dinnerPlan = await getMenuPlanByDate(userId, today);
+        const breakfastPlan = await getMenuPlanByDate(userId, tomorrow);
+        const dinnerPlanData = dinnerPlan ? (typeof dinnerPlan.menuData === 'string' ? JSON.parse(dinnerPlan.menuData) : dinnerPlan.menuData) : null;
+        const breakfastPlanData = breakfastPlan ? (typeof breakfastPlan.menuData === 'string' ? JSON.parse(breakfastPlan.menuData) : breakfastPlan.menuData) : null;
+        if (dinnerPlanData?.dinnerOptions && breakfastPlanData?.dinnerOptions) {
+          await setLineUserPendingAction(lineUserId, {
+            type: 'menu_option_selection_dual',
+            dinnerOptions: dinnerPlanData.dinnerOptions,
+            breakfastOptions: breakfastPlanData.dinnerOptions,
+            dinnerDate: today,
+            breakfastDate: tomorrow,
+            dinnerMenuPlanId: dinnerPlan!.id,
+            breakfastMenuPlanId: breakfastPlan!.id,
+            askedAt: Date.now(),
+          });
+        }
       } else if (selectedType === 'tomorrow_dinner') {
         // 明日の朝食＋昼食＋夕食を順に生成
         const bfResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast', pendingWillShop);
@@ -1032,6 +1050,156 @@ ${dinnerResult.message}`;
       await replyLineMessage(replyToken, [{ type: 'text', text: '申し訳ありません。献立の生成に失敗しました。しばらくしてからもう一度お試しください。' }], lineUserId);
     }
     return true;
+  }
+
+  // ─── 夕食＋朝食同時提案の選択待ち（数字のみ送信時に食事タイプを確認）─────────────────────────────────────────────────────
+  if (pending?.type === 'menu_option_selection_dual') {
+    const { dinnerOptions, breakfastOptions, dinnerDate, breakfastDate, dinnerMenuPlanId, breakfastMenuPlanId } = pending as {
+      dinnerOptions: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
+      breakfastOptions: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
+      dinnerDate: string;
+      breakfastDate: string;
+      dinnerMenuPlanId: number;
+      breakfastMenuPlanId: number;
+    };
+    const trimmed = text.trim();
+
+    // キャンセル
+    if (/^(キャンセル|やめる|やめて|cancel|いいえ)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。またいつでも「献立」と送ってください！' }], lineUserId);
+      return true;
+    }
+
+    // 「夕食1」「朝食2」のように食事タイプ＋番号で直接指定
+    const dinnerDirectMatch = trimmed.match(/^(夕食|夕飯|今夜|ディナー)([1-3１-３])/);
+    const breakfastDirectMatch = trimmed.match(/^(朝食|朝ごはん|朝|モーニング)([1-3１-３])/);
+
+    if (dinnerDirectMatch) {
+      const numStr = dinnerDirectMatch[2].replace(/[１-３]/g, (c) => String(c.charCodeAt(0) - 0xFF10));
+      const idx = parseInt(numStr, 10) - 1;
+      const selected = dinnerOptions[idx];
+      if (selected) {
+        await setLineUserPendingAction(lineUserId, {
+          type: 'menu_option_confirm',
+          selectedIndex: idx,
+          selectedName: selected.name,
+          options: dinnerOptions,
+          mealType: 'dinner',
+          targetDate: dinnerDate,
+          menuPlanId: dinnerMenuPlanId,
+          askedAt: Date.now(),
+        });
+        await replyLineMessage(replyToken, [{
+          type: 'text',
+          text: `夕食${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
+        }], lineUserId);
+        return true;
+      }
+    }
+
+    if (breakfastDirectMatch) {
+      const numStr = breakfastDirectMatch[2].replace(/[１-３]/g, (c) => String(c.charCodeAt(0) - 0xFF10));
+      const idx = parseInt(numStr, 10) - 1;
+      const selected = breakfastOptions[idx];
+      if (selected) {
+        await setLineUserPendingAction(lineUserId, {
+          type: 'menu_option_confirm',
+          selectedIndex: idx,
+          selectedName: selected.name,
+          options: breakfastOptions,
+          mealType: 'tomorrow_breakfast',
+          targetDate: breakfastDate,
+          menuPlanId: breakfastMenuPlanId,
+          askedAt: Date.now(),
+        });
+        await replyLineMessage(replyToken, [{
+          type: 'text',
+          text: `朝食${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
+        }], lineUserId);
+        return true;
+      }
+    }
+
+    // 数字のみ送信 → どちらの食事か確認する
+    const numOnlyMatch = trimmed.match(/^([1-3１-３])$/);
+    if (numOnlyMatch) {
+      const numStr = numOnlyMatch[1].replace(/[１-３]/g, (c) => String(c.charCodeAt(0) - 0xFF10));
+      const idx = parseInt(numStr, 10) - 1;
+      const dinnerSelected = dinnerOptions[idx];
+      const breakfastSelected = breakfastOptions[idx];
+      const dinnerName = dinnerSelected?.name ?? `夕食${numStr}番`;
+      const breakfastName = breakfastSelected?.name ?? `朝食${numStr}番`;
+      // pendingActionはそのまま維持（次の返答でどちらか判断）
+      await setLineUserPendingAction(lineUserId, {
+        ...pending,
+        type: 'menu_option_selection_dual',
+        ambiguousNum: numStr,
+        askedAt: Date.now(),
+      });
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: `「${numStr}」と認識しましたが、どちらの選択ですか？\n\n1️⃣ 夕食の${numStr}番（${dinnerName}）\n2️⃣ 朝食の${numStr}番（${breakfastName}）\n3️⃣ 出し直し（新しく提案）`,
+      }], lineUserId);
+      return true;
+    }
+
+    // 曖昧番号確認後の返答（1:夕食 2:朝食 3:出し直し）
+    const { ambiguousNum } = pending as { ambiguousNum?: string };
+    if (ambiguousNum) {
+      const idx = parseInt(ambiguousNum, 10) - 1;
+      if (/^[1１]$/.test(trimmed)) {
+        // 夕食を選択
+        const selected = dinnerOptions[idx];
+        if (selected) {
+          await setLineUserPendingAction(lineUserId, {
+            type: 'menu_option_confirm',
+            selectedIndex: idx,
+            selectedName: selected.name,
+            options: dinnerOptions,
+            mealType: 'dinner',
+            targetDate: dinnerDate,
+            menuPlanId: dinnerMenuPlanId,
+            pendingBreakfast: { options: breakfastOptions, targetDate: breakfastDate, menuPlanId: breakfastMenuPlanId },
+            askedAt: Date.now(),
+          });
+          await replyLineMessage(replyToken, [{
+            type: 'text',
+            text: `夕食${ambiguousNum}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
+          }], lineUserId);
+          return true;
+        }
+      } else if (/^[2２]$/.test(trimmed)) {
+        // 朝食を選択
+        const selected = breakfastOptions[idx];
+        if (selected) {
+          await setLineUserPendingAction(lineUserId, {
+            type: 'menu_option_confirm',
+            selectedIndex: idx,
+            selectedName: selected.name,
+            options: breakfastOptions,
+            mealType: 'tomorrow_breakfast',
+            targetDate: breakfastDate,
+            menuPlanId: breakfastMenuPlanId,
+            pendingDinner: { options: dinnerOptions, targetDate: dinnerDate, menuPlanId: dinnerMenuPlanId },
+            askedAt: Date.now(),
+          });
+          await replyLineMessage(replyToken, [{
+            type: 'text',
+            text: `朝食${ambiguousNum}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
+          }], lineUserId);
+          return true;
+        }
+      } else if (/^[3３]$/.test(trimmed)) {
+        // 出し直し
+        await setLineUserPendingAction(lineUserId, null);
+        await replyLineMessage(replyToken, [{ type: 'text', text: '別の献立を提案しますね！\n\n「今日の献立」ともう一度送っていただくか、気分やテーマ（例：「和食がいい」「さっぱりしたもの」）を教えてください😊' }], lineUserId);
+        return true;
+      }
+    }
+
+    // それ以外 → pendingActionをクリアして通常処理へ
+    await setLineUserPendingAction(lineUserId, null);
   }
 
   // ─── 献立候補選択待ちの場合（1/2/3の番号入力に対して復唱確認）─────────────────────────────────────────────────────
@@ -1102,13 +1270,15 @@ ${dinnerResult.message}`;
 
   // ─── 献立候補確認待ちの場合（復唱後の「はい」「レシピ」）─────────────────────────────────────────────────────
   if (pending?.type === 'menu_option_confirm') {
-    const { selectedIndex, selectedName, options, mealType, targetDate } = pending as {
+    const { selectedIndex, selectedName, options, mealType, targetDate, pendingBreakfast, pendingDinner } = pending as {
       selectedIndex: number;
       selectedName: string;
       options: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
       mealType: string;
       targetDate: string;
       menuPlanId: number;
+      pendingBreakfast?: { options: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>; targetDate: string; menuPlanId: number };
+      pendingDinner?: { options: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>; targetDate: string; menuPlanId: number };
     };
     const trimmed = text.trim();
 
@@ -1142,7 +1312,6 @@ ${dinnerResult.message}`;
 
     // 「1」またはテキスト系 → レシピを生成して返す
     if (/^[1１]$/.test(trimmed) || /^(はい|yes|ok|おねがい|そうして|大丈夫|だいじょうぶ|レシピ|教えて|見せて|詳しく)/.test(trimmed)) {
-      await setLineUserPendingAction(lineUserId, null);
       try {
         const selected = options[selectedIndex];
         const ingredientList = selected.mainIngredients.join('・');
@@ -1153,9 +1322,39 @@ ${dinnerResult.message}`;
           ],
         });
         const recipeText = recipeResponse.choices[0]?.message?.content ?? 'レシピの取得に失敗しました。';
-        await replyLineMessage(replyToken, [{ type: 'text', text: `🍳 ${selected.name} のレシピ\n\n${recipeText}` }], lineUserId);
+
+        // 夕食＋朝食セットで、もう一方が未選択の場合はリマインドを追加
+        if (pendingBreakfast) {
+          // 夕食を選んだ後 → 朝食の選択を促す
+          const bfOptionLines = pendingBreakfast.options.map((o, i) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
+          await setLineUserPendingAction(lineUserId, {
+            type: 'menu_option_selection',
+            options: pendingBreakfast.options,
+            mealType: 'tomorrow_breakfast',
+            targetDate: pendingBreakfast.targetDate,
+            menuPlanId: pendingBreakfast.menuPlanId,
+            askedAt: Date.now(),
+          });
+          await replyLineMessage(replyToken, [{ type: 'text', text: `🍳 ${selected.name} のレシピ\n\n${recipeText}\n\n―――――――――――――――――\n\n🌅 朝食はどうしますか？\n\n${bfOptionLines}\n\n番号で教えてください😊` }], lineUserId);
+        } else if (pendingDinner) {
+          // 朝食を選んだ後 → 夕食の選択を促す
+          const dinnerOptionLines = pendingDinner.options.map((o, i) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
+          await setLineUserPendingAction(lineUserId, {
+            type: 'menu_option_selection',
+            options: pendingDinner.options,
+            mealType: 'dinner',
+            targetDate: pendingDinner.targetDate,
+            menuPlanId: pendingDinner.menuPlanId,
+            askedAt: Date.now(),
+          });
+          await replyLineMessage(replyToken, [{ type: 'text', text: `🍳 ${selected.name} のレシピ\n\n${recipeText}\n\n―――――――――――――――――\n\n🍽️ 夕食はどうしますか？\n\n${dinnerOptionLines}\n\n番号で教えてください😊` }], lineUserId);
+        } else {
+          await setLineUserPendingAction(lineUserId, null);
+          await replyLineMessage(replyToken, [{ type: 'text', text: `🍳 ${selected.name} のレシピ\n\n${recipeText}` }], lineUserId);
+        }
       } catch (err) {
         console.error('[LINE] Recipe generation failed:', err);
+        await setLineUserPendingAction(lineUserId, null);
         await replyLineMessage(replyToken, [{ type: 'text', text: '申し訳ありません。レシピの取得に失敗しました。しばらくしてからもう一度お試しください。' }], lineUserId);
       }
       return true;
