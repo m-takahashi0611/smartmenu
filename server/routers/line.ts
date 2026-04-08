@@ -661,6 +661,9 @@ async function classifyUserIntent(text: string): Promise<IntentResult> {
 重要：「買い物リストに追加」「買い物リストへ追加」「買い物リストに入れて」などの表現があれば必ず shopping_add に分類する。bought_itemと混同しないこと。
 
 itemsは食材名・商品名のリスト（複数可）。
+【重要】食材が複数ある場合は全件漏れなくitemsに含めること。省略・要約は絶対禁止。
+食材名が連続して書かれている場合（例：「ナス3本牛乳バター」「もやしきゅうりほうれんそう」）は食材ごとに分割してitemsに入れること。
+改行・スペース・読点・句点・「と」「や」などの区切り文字で分割し、数量は無視して食材名のみを抽出すること。
 quantityは数量（「2個」「半分」など）、なければnull。
 themeは気分・テーマの内容（「和食」「さっぱり系」など）、なければnull。
 memberNameは家族メンバー名（「子供」「夫」など）、なければnull。
@@ -780,8 +783,22 @@ async function handleIntentAction(
       return true;
     }
     case 'ingredients_only': {
-      await setLineUserPendingAction(lineUserId, { type: 'voice_ingredient_action', transcribedText: text, ingredients: items });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n番号で教えてください😊` }], lineUserId);
+      // B10: itemsが1件かつ入力が長い場合（連続入力の可能性）はフォールバック分割を試みる
+      let resolvedItems = items;
+      if (items.length === 1 && text.length > 8) {
+        // 読点・スペース・改行・「と」「や」「、」「・」で分割を試みる
+        const splitResult = text
+          .replace(/[\d０-９]+[個本袋枚切れgGkgmlML]/g, '') // 数量を除去
+          .split(/[、。,\s・と や\n]+/)
+          .map(s => s.trim())
+          .filter(s => s.length > 0 && s.length <= 15);
+        if (splitResult.length > 1) {
+          resolvedItems = splitResult;
+        }
+      }
+      const resolvedDisplay = resolvedItems.join('、') || text;
+      await setLineUserPendingAction(lineUserId, { type: 'voice_ingredient_action', transcribedText: text, ingredients: resolvedItems });
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${resolvedDisplay}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n番号で教えてください😊` }], lineUserId);
       return true;
     }
     case 'used_ingredient': {
@@ -1202,6 +1219,37 @@ ${dinnerResult.message}`;
     await setLineUserPendingAction(lineUserId, null);
   }
 
+  // ─── テーマ指定後の献立再生成待ちの場合 ─────────────────────────────────────────────────────────────────────────────
+  if (pending?.type === 'menu_theme_regen') {
+    const { mealType, targetDate, menuPlanId, regenerateCount } = pending as {
+      mealType: string;
+      targetDate: string;
+      menuPlanId: number;
+      regenerateCount: number;
+    };
+    const trimmed = text.trim();
+    const theme = trimmed === 'なし' || trimmed === 'なし。' ? undefined : trimmed;
+
+    await setLineUserPendingAction(lineUserId, null);
+    await sendLineMessage(lineUserId, [{ type: 'text', text: theme
+      ? `「${theme}」のテーマで出し直しますね🍳\nちょっと待ってください...`
+      : '新しい献立を出し直しますね🍳\nちょっと待ってください...' }]);
+
+    const result = await generateMenuPlan(userId, targetDate, mealType as any, undefined, theme, true);
+    await sendLineMessage(lineUserId, [{ type: 'text', text: result.message }]);
+
+    if (result.menuPlanId) {
+      await setLineUserPendingAction(lineUserId, {
+        type: 'menu_option_selection',
+        options: [],
+        mealType,
+        targetDate,
+        menuPlanId: result.menuPlanId,
+        regenerateCount: (regenerateCount ?? 0) + 1,
+      });
+    }
+  }
+
   // ─── 献立候補選択待ちの場合（1/2/3の番号入力に対して復唱確認）─────────────────────────────────────────────────────
   if (pending?.type === 'menu_option_selection') {
     const { options, mealType, targetDate, menuPlanId } = pending as {
@@ -1219,10 +1267,25 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // 「その他」ボタン → 献立をやり直す
+    // 「その他」ボタン → regenerateCountをチェックしてループ防止＋テーマ収集
     if (/^(その他|やり直し|やりなおし|別の|ほかの|other)$/i.test(trimmed)) {
-      await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: '別の献立を提案しますね！\n\n「今日の献立」ともう一度送っていただくか、気分やテーマ（例：「和食がいい」「さっぱりしたもの」）を教えてください😊' }], lineUserId);
+      const regenerateCount = (pending as any).regenerateCount ?? 0;
+      if (regenerateCount >= 3) {
+        // 3回以上やり直しでループ強制終了
+        await setLineUserPendingAction(lineUserId, null);
+        await replyLineMessage(replyToken, [{ type: 'text', text: '何度も出し直しましたが、なかなか合うものがなくて申し訳ありません😓\n\n一度リセットします。「献立」と送ってもう一度最初から提案しましょうか？' }], lineUserId);
+        return true;
+      }
+      // テーマ収集ステップへ
+      await setLineUserPendingAction(lineUserId, {
+        type: 'menu_theme_regen',
+        mealType,
+        targetDate,
+        menuPlanId,
+        regenerateCount: regenerateCount + 1,
+        askedAt: Date.now(),
+      });
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'どんな気分ですか？テーマを教えてください😊\n\n例：「和食」「さっぱり系」「カレー」「節約」「子供向け」\n\nテーマなしで出し直す場合は「なし」と送ってください' }], lineUserId);
       return true;
     }
 
@@ -1264,13 +1327,15 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // それ以外 → pendingActionをクリアして通常処理へ
-    await setLineUserPendingAction(lineUserId, null);
+    // それ以外 → 候補を再表示して待機続行（通常処理に流さない）
+    const optionLinesB2 = options.map((o, i) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
+    await replyLineMessage(replyToken, [{ type: 'text', text: `番号（1〜${options.length}）で選んでください😊\n\n${optionLinesB2}\n\nキャンセルの場合は「キャンセル」と送ってください。` }], lineUserId);
+    return true;
   }
 
   // ─── 献立候補確認待ちの場合（復唱後の「はい」「レシピ」）─────────────────────────────────────────────────────
   if (pending?.type === 'menu_option_confirm') {
-    const { selectedIndex, selectedName, options, mealType, targetDate, pendingBreakfast, pendingDinner } = pending as {
+    const { selectedIndex, selectedName, options, mealType, targetDate, menuPlanId, pendingBreakfast, pendingDinner } = pending as {
       selectedIndex: number;
       selectedName: string;
       options: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
@@ -1282,10 +1347,23 @@ ${dinnerResult.message}`;
     };
     const trimmed = text.trim();
 
-    // 「その他」→ 献立をやり直す
+    // 「その他」→ regenerateCountを引き継いでテーマ収集へ
     if (/^(その他|やり直し|やりなおし|別の|ほかの|other)$/i.test(trimmed)) {
-      await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: '別の献立を提案しますね！\n\n「今日の献立」ともう一度送っていただくか、気分やテーマ（例：「和食がいい」「さっぱりしたもの」）を教えてください😊' }], lineUserId);
+      const regenerateCount = (pending as any).regenerateCount ?? 0;
+      if (regenerateCount >= 3) {
+        await setLineUserPendingAction(lineUserId, null);
+        await replyLineMessage(replyToken, [{ type: 'text', text: '何度も出し直しましたが、なかなか合うものがなくて申し訳ありません😓\n\n一度リセットします。「献立」と送ってもう一度最初から提案しましょうか？' }], lineUserId);
+        return true;
+      }
+      await setLineUserPendingAction(lineUserId, {
+        type: 'menu_theme_regen',
+        mealType,
+        targetDate,
+        menuPlanId,
+        regenerateCount: regenerateCount + 1,
+        askedAt: Date.now(),
+      });
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'どんな気分ですか？テーマを教えてください😊\n\n例：「和食」「さっぱり系」「カレー」「節約」「子供向け」\n\nテーマなしで出し直す場合は「なし」と送ってください' }], lineUserId);
       return true;
     }
 

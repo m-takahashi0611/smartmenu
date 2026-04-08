@@ -45,7 +45,8 @@ export async function generateMenuPlan(
   planDate: string,
   mealType?: MealType,
   willShop?: boolean,
-  theme?: string
+  theme?: string,
+  forceRegenerate?: boolean
 ): Promise<{ message: string; menuPlanId?: number; shoppingList?: string[] }> {
 
   // 時間帯を決定（引数がなければ現在時刻から判定）
@@ -54,21 +55,23 @@ export async function generateMenuPlan(
   const resolvedMealType: MealType = mealType ?? getMealTypeByHour(currentHour);
   const mealLabel = getMealLabel(resolvedMealType);
 
-  // 既存の献立があればそれを返す（同じ日・同じ食事タイプ）
-  const existing = await getMenuPlanByDate(userId, planDate);
-  if (existing) {
-    const existingData = (() => {
-      try {
-        return typeof existing.menuData === 'string' ? JSON.parse(existing.menuData) : existing.menuData;
-      } catch { return null; }
-    })();
-    // 同じ食事タイプのデータがあればそのまま返す
-    if (existingData?.mealType === resolvedMealType) {
-      return {
-        message: existing.messageText ?? "本日の献立は既に生成されています。",
-        menuPlanId: existing.id,
-        shoppingList: existingData?.shoppingList ?? [],
-      };
+  // 既存の献立があればそれを返す（同じ日・同じ食事タイプ）—forceRegenerate時はスキップ
+  if (!forceRegenerate) {
+    const existing = await getMenuPlanByDate(userId, planDate);
+    if (existing) {
+      const existingData = (() => {
+        try {
+          return typeof existing.menuData === 'string' ? JSON.parse(existing.menuData) : existing.menuData;
+        } catch { return null; }
+      })();
+      // 同じ食事タイプのデータがあればそのまま返す
+      if (existingData?.mealType === resolvedMealType) {
+        return {
+          message: existing.messageText ?? "本日の献立は既に生成されています。",
+          menuPlanId: existing.id,
+          shoppingList: existingData?.shoppingList ?? [],
+        };
+      }
     }
   }
 
