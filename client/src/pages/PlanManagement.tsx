@@ -326,14 +326,14 @@ export default function PlanManagement() {
               { category: null, label: "天気・季節を考慮", free: "—", premium: "対応" },
               { category: null, label: "栄養バランス最適化", free: "—", premium: "対応" },
               { category: null, label: "予算目安の提示", free: "—", premium: "対応" },
-              { category: null, label: "1日の再生成回数", free: "3回まで", premium: "無制限" },
+              { category: null, label: "再生成回数/日", free: "3回まで", premium: "無制限" },
               { category: "📷 画像解析", label: "レシート読み取り", free: "月3回", premium: "無制限" },
-              { category: null, label: "チラシ特売情報解析", free: "月3回", premium: "無制限" },
+              { category: null, label: "チラシ解析", free: "月3回", premium: "無制限" },
               { category: "⚙️ 機能", label: "献立テーマ指定", free: "—", premium: "対応" },
               { category: null, label: "お弁当モード", free: "—", premium: "対応" },
               { category: null, label: "献立履歴", free: "直近7日", premium: "無制限" },
               { category: null, label: "買い物リスト保存", free: "3日間", premium: "1ヶ月" },
-              { category: "🎙️ 音声", label: "音声メッセージ対応", free: "—", premium: "対応" },
+              { category: "🎙️ 音声", label: "音声メッセージ", free: "—", premium: "対応" },
             ].map((row, i) => (
               <div key={i}>
                 {row.category && (
@@ -343,16 +343,14 @@ export default function PlanManagement() {
                     </div>
                   </div>
                 )}
-                <div className={`grid grid-cols-3 items-center border-t border-gray-100 ${
-                  i % 2 === 0 ? "bg-white" : "bg-gray-50/40"
-                }`}>
-                  <span className="text-xs text-gray-700 px-3 py-3 pr-2 leading-snug">{row.label}</span>
-                  <div className="flex justify-center py-3 border-r border-gray-100">
+                <div className="grid grid-cols-3 items-center border-t border-gray-100">
+                  <span className="text-xs text-gray-700 px-3 py-2.5 pr-1 whitespace-nowrap overflow-hidden text-ellipsis">{row.label}</span>
+                  <div className="flex justify-center py-2.5 border-r border-gray-200 bg-gray-100">
                     <span className={`text-xs text-center px-1 ${
-                      row.free === "—" ? "text-gray-300 text-base" : "text-gray-500"
+                      row.free === "—" ? "text-gray-400 text-sm" : "text-gray-600 font-medium"
                     }`}>{row.free}</span>
                   </div>
-                  <div className="flex justify-center py-3 bg-orange-50/60">
+                  <div className="flex justify-center py-2.5 bg-orange-100">
                     <span className={`text-xs font-bold text-center px-1 ${
                       row.premium === "無制限" ? "text-orange-600" :
                       row.premium === "高精度" ? "text-orange-600" :
