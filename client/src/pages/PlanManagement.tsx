@@ -337,12 +337,8 @@ export default function PlanManagement() {
             ].map((row, i) => (
               <div key={i}>
                 {row.category && (
-                  <div className="grid grid-cols-3 border-t border-orange-200">
-                    <div className="col-span-1 bg-orange-100 px-3 py-2 flex items-center">
-                      <span className="text-xs font-extrabold text-orange-700">{row.category}</span>
-                    </div>
-                    <div className="col-span-1 bg-gray-100 border-r border-gray-200" />
-                    <div className="col-span-1 bg-white" />
+                  <div className="border-t border-orange-200 bg-orange-500 px-3 py-2">
+                    <span className="text-xs font-extrabold text-white">{row.category}</span>
                   </div>
                 )}
                 <div className="grid grid-cols-3 items-center border-t border-gray-100">
@@ -378,11 +374,15 @@ export default function PlanManagement() {
             </button>
           )}
           {(isActive || isCancelled) && (
-            <div className="mt-4 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 rounded-2xl p-5 text-white text-center shadow-lg">
+            <button
+              onClick={() => window.location.href = '/plan'}
+              className="mt-4 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 rounded-2xl p-5 text-white text-center shadow-lg active:opacity-90 transition-opacity"
+            >
               <p className="text-xs opacity-90 mb-1">現在ご利用中</p>
               <p className="text-3xl font-extrabold">月額 ¥480<span className="text-sm font-normal ml-1">（税込）</span></p>
               <p className="text-xs opacity-80 mt-1">コーヒー1杯分で毎日の献立をAIにおまかせ</p>
-            </div>
+              <p className="text-xs mt-2 bg-white/20 rounded-full px-3 py-1 inline-block font-semibold">お支払い管理はこちら →</p>
+            </button>
           )}
         </div>
 
