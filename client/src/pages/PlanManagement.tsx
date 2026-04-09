@@ -314,8 +314,8 @@ export default function PlanManagement() {
             <div className="bg-gray-200 py-3 flex items-center justify-center border-r border-gray-300">
               <span className="text-sm font-bold text-gray-600">無料</span>
             </div>
-            <div className="bg-orange-500 py-3 flex items-center justify-center">
-              <span className="text-sm font-bold text-white">✨ プレミアム</span>
+            <div className="bg-white py-3 flex items-center justify-center border-b border-orange-200">
+              <span className="text-sm font-bold text-orange-500">✨ プレミアム</span>
             </div>
           </div>
 
