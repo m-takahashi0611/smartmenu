@@ -53,6 +53,31 @@ export default function BentoMode() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, []);
 
+  // お弁当モード設定をDBから読み込み
+  const { data: bentoData } = trpc.bento.getSettings.useQuery();
+  useEffect(() => {
+    if (bentoData) {
+      setEnabled(bentoData.enabled);
+      setDayMode(bentoData.dayMode);
+      setCustomDays(bentoData.customDays);
+      setPrepEvening(bentoData.prepEvening);
+      setSelectedMembers(bentoData.selectedMembers);
+      const sizes: Record<number, string> = {};
+      for (const [k, v] of Object.entries(bentoData.boxSizes)) {
+        sizes[Number(k)] = v;
+      }
+      setBoxSizes(sizes);
+    }
+  }, [bentoData]);
+
+  // 保存ミューテーション
+  const saveMutation = trpc.bento.saveSettings.useMutation({
+    onSuccess: () => {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    },
+  });
+
   // 家族メンバーを実データから取得
   const { data: familyData } = trpc.family.getProfile.useQuery();
   const members = familyData?.members ?? [
@@ -81,9 +106,18 @@ export default function BentoMode() {
   };
 
   const handleSave = () => {
-    // TODO: trpc.bentoMode.save.useMutation() に差し替え
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    const stringSizes: Record<string, string> = {};
+    for (const [k, v] of Object.entries(boxSizes)) {
+      stringSizes[String(k)] = v;
+    }
+    saveMutation.mutate({
+      enabled,
+      dayMode,
+      customDays,
+      prepEvening,
+      selectedMembers,
+      boxSizes: stringSizes,
+    });
   };
 
   return (

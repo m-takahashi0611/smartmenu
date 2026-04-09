@@ -309,3 +309,22 @@ export const subscriptions = mysqlTable("subscriptions", {
 });
 export type Subscription = typeof subscriptions.$inferSelect;
 export type InsertSubscription = typeof subscriptions.$inferInsert;
+
+/**
+ * お弁当モード設定テーブル
+ * ユーザーごとのお弁当モード設定を保存
+ */
+export const bentoSettings = mysqlTable("bento_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  enabled: boolean("enabled").default(false).notNull(),
+  dayMode: mysqlEnum("dayMode", ["everyday", "weekday", "custom"]).default("weekday").notNull(),
+  customDays: text("customDays"), // JSON配列 e.g. '["mon","tue"]'
+  prepEvening: boolean("prepEvening").default(true).notNull(),
+  selectedMembers: text("selectedMembers"), // JSON配列 e.g. '[1,2]'
+  boxSizes: text("boxSizes"), // JSON object e.g. '{"1":"medium"}'
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BentoSetting = typeof bentoSettings.$inferSelect;
+export type InsertBentoSetting = typeof bentoSettings.$inferInsert;

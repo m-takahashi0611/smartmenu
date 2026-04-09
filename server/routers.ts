@@ -14,6 +14,7 @@ import { richMenuRouter } from "./routers/richMenu";
 import { adminAuthRouter } from "./routers/adminAuth";
 import { subscriptionRouter } from "./routers/subscription";
 import { contactRouter } from "./routers/contact";
+import { bentoRouter } from "./routers/bento";
 
 export const appRouter = router({
   system: systemRouter,
@@ -39,6 +40,7 @@ export const appRouter = router({
   adminAuth: adminAuthRouter,
   subscription: subscriptionRouter,
   contact: contactRouter,
+  bento: bentoRouter,
 });
 
 export type AppRouter = typeof appRouter;
