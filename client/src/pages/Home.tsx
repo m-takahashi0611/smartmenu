@@ -293,8 +293,14 @@ export default function Home() {
 
       {/* フッター */}
       <footer className="py-8 border-t border-border">
-        <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-sm text-muted-foreground">
+        <div className="max-w-6xl mx-auto px-4 text-center space-y-3">
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+            <a href="/terms" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">利用規約</a>
+            <a href="/privacy" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">プライバシーポリシー</a>
+            <a href="/tokushoho" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">特定商取引法に基づく表示</a>
+            <a href="/cancel-policy" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">キャンセルポリシー</a>
+          </div>
+          <p className="text-xs text-muted-foreground">
             © 2025 献立日和～coto coto～. AI献立提案サービス
           </p>
         </div>

@@ -38,6 +38,8 @@ function Router() {
       <Route path={"/plan"} component={PlanManagement} />
       <Route path={"/terms"} component={() => <TermsAndPrivacy page="terms" />} />
       <Route path={"/privacy"} component={() => <TermsAndPrivacy page="privacy" />} />
+      <Route path={"/tokushoho"} component={() => <TermsAndPrivacy page="tokushoho" />} />
+      <Route path={"/cancel-policy"} component={() => <TermsAndPrivacy page="cancel" />} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

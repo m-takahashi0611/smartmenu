@@ -641,9 +641,22 @@ export default function Dashboard() {
         )}
       </main>
 
+      {/* フッター */}
+      <footer className="py-6 border-t border-border mt-4">
+        <div className="max-w-2xl mx-auto px-4 text-center space-y-2">
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+            <a href="/terms" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">利用規約</a>
+            <a href="/privacy" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">プライバシーポリシー</a>
+            <a href="/tokushoho" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">特定商取引法に基づく表示</a>
+            <a href="/cancel-policy" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">キャンセルポリシー</a>
+          </div>
+          <p className="text-xs text-muted-foreground">© 2025 献立日和～coto coto～</p>
+        </div>
+      </footer>
+
       {/* LINE外部サイト警告の安心ポップアップ */}
       <Dialog open={showLineWarningPopup} onOpenChange={(open) => { if (!open) handleCloseLineWarningPopup(); }}>
-        <DialogContent className="max-w-sm mx-4 rounded-2xl">
+        <DialogContent className="max-w-sm w-[calc(100%-2rem)] rounded-2xl">
           <DialogHeader>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-2xl">🔒</span>
