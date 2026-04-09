@@ -299,6 +299,7 @@ export default function Home() {
             <a href="/privacy" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">プライバシーポリシー</a>
             <a href="/tokushoho" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">特定商取引法に基づく表示</a>
             <a href="/cancel-policy" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">キャンセルポリシー</a>
+            <a href="/contact" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">お問い合わせ</a>
           </div>
           <p className="text-xs text-muted-foreground">
             © 2025 献立日和～coto coto～. AI献立提案サービス

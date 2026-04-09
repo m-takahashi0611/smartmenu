@@ -19,6 +19,7 @@ import BentoMode from "./pages/BentoMode";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PlanManagement from "./pages/PlanManagement";
 import TermsAndPrivacy from "./pages/TermsAndPrivacy";
+import Contact from "./pages/Contact";
 
 function Router() {
   return (
@@ -40,6 +41,7 @@ function Router() {
       <Route path={"/privacy"} component={() => <TermsAndPrivacy page="privacy" />} />
       <Route path={"/tokushoho"} component={() => <TermsAndPrivacy page="tokushoho" />} />
       <Route path={"/cancel-policy"} component={() => <TermsAndPrivacy page="cancel" />} />
+      <Route path={"/contact"} component={Contact} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
