@@ -43,8 +43,12 @@ export default function PlanManagement() {
   });
 
   const cancelSubscription = trpc.subscription.cancelSubscription.useMutation({
-    onSuccess: () => {
-      toast.success("解約申請を受け付けました。次回更新日まで引き続きご利用いただけます。");
+    onSuccess: (data) => {
+      if ((data as any).alreadyCancelled) {
+        toast.success("すでに解約申請済みです。次回更新日まで引き続きご利用いただけます。");
+      } else {
+        toast.success("解約申請を受け付けました。次回更新日まで引き続きご利用いただけます。");
+      }
       utils.subscription.getMyPlan.invalidate();
       setShowCancelDialog(false);
     },

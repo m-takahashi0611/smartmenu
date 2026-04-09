@@ -182,10 +182,27 @@ export const subscriptionRouter = router({
 
     const stripe = getStripe();
 
-    // 期末でキャンセル（即時解約ではなく次回更新日に解約）
-    await stripe.subscriptions.update(sub.stripeSubscriptionId, {
-      cancel_at_period_end: true,
-    });
+    try {
+      // 期末でキャンセル（即時解約ではなく次回更新日に解約）
+      await stripe.subscriptions.update(sub.stripeSubscriptionId, {
+        cancel_at_period_end: true,
+      });
+    } catch (err: any) {
+      // すでにキャンセル済みのサブスクリプションの場合は正常として扱う
+      const msg = err?.message ?? "";
+      if (msg.includes("canceled subscription can only update")) {
+        // DBのステータスだけ更新して正常終了
+        await db
+          .update(subscriptions)
+          .set({ cancelledAt: new Date() })
+          .where(eq(subscriptions.userId, userId));
+        return { success: true, alreadyCancelled: true };
+      }
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "解約処理中にエラーが発生しました。しばらくしてから再度お試しください。",
+      });
+    }
 
     // DBのステータスを更新
     await db
