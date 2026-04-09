@@ -342,7 +342,7 @@ export default function PlanManagement() {
                       <span className="text-xs font-extrabold text-orange-700">{row.category}</span>
                     </div>
                     <div className="col-span-1 bg-gray-100 border-r border-gray-200" />
-                    <div className="col-span-1 bg-orange-100" />
+                    <div className="col-span-1 bg-white" />
                   </div>
                 )}
                 <div className="grid grid-cols-3 items-center border-t border-gray-100">
@@ -352,7 +352,7 @@ export default function PlanManagement() {
                       row.free === "—" ? "text-gray-400 text-sm" : "text-gray-600 font-medium"
                     }`}>{row.free}</span>
                   </div>
-                  <div className="flex justify-center py-2.5 bg-orange-100">
+                  <div className="flex justify-center py-2.5 bg-white">
                     <span className={`text-xs font-bold text-center px-1 ${
                       row.premium === "無制限" ? "text-orange-600" :
                       row.premium === "高精度" ? "text-orange-600" :
