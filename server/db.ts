@@ -1,4 +1,4 @@
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, gte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -23,6 +23,7 @@ import {
   type InsertStore,
   productNameCache,
   type InsertProductNameCache,
+  subscriptions,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -297,12 +298,48 @@ export async function markMenuPlanDelivered(id: number) {
   await db.update(menuPlans).set({ isDelivered: true, updatedAt: new Date() }).where(eq(menuPlans.id, id));
 }
 
+// ─── Subscription helpers ─────────────────────────────────────────────────────
+/**
+ * ユーザーがプレミアム（またはトライアル中）かどうかを返す
+ */
+export async function getUserIsPremium(userId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
+  if (!sub) return false;
+  if (sub.status === "active") return true;
+  if (sub.status === "trial") {
+    const daysPassed = Math.floor((Date.now() - new Date(sub.trialStartedAt).getTime()) / (1000 * 60 * 60 * 24));
+    return daysPassed < sub.trialDays;
+  }
+  return false;
+}
+
 // ─── Shopping List ────────────────────────────────────────────────────────────
 
 export async function getShoppingList(userId: number, listDate: string) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(shoppingListItems).where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.listDate, listDate as any)));
+}
+
+/**
+ * プラン別保存期間内の買い物リスト日付一覧を取得
+ * 無料: 直近3日, プレミアム: 直近1ヶ月
+ */
+export async function getShoppingListDates(userId: number, isPremium: boolean): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const days = isPremium ? 30 : 3;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - (days - 1));
+  const cutoffStr = cutoff.toISOString().split("T")[0];
+  const rows = await db
+    .selectDistinct({ listDate: shoppingListItems.listDate })
+    .from(shoppingListItems)
+    .where(and(eq(shoppingListItems.userId, userId), gte(shoppingListItems.listDate, cutoffStr as any)))
+    .orderBy(desc(shoppingListItems.listDate));
+  return rows.map((r) => String(r.listDate));
 }
 
 export async function insertShoppingListItems(items: InsertShoppingListItem[]) {

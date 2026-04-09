@@ -3,20 +3,42 @@ import {
   deleteShoppingItem,
   deleteCheckedShoppingItems,
   getShoppingList,
+  getShoppingListDates,
+  getUserIsPremium,
   insertShoppingListItems,
   toggleShoppingItem,
   moveShoppingItemToFridge,
   moveCheckedShoppingItemsToFridge,
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 
 export const shoppingRouter = router({
-  // 買い物リスト取得
+  // 買い物リスト取得（プラン別保存期間制限付き）
   list: protectedProcedure
     .input(z.object({ date: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      const today = input.date ?? new Date().toISOString().split("T")[0];
-      return getShoppingList(ctx.user.id, today);
+      const today = new Date().toISOString().split("T")[0];
+      const requestedDate = input.date ?? today;
+      const isPremium = await getUserIsPremium(ctx.user.id);
+      // 保存期間チェック
+      const maxDays = isPremium ? 30 : 3;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - (maxDays - 1));
+      const cutoffStr = cutoff.toISOString().split("T")[0];
+      if (requestedDate < cutoffStr) {
+        // 保存期間外のデータは空配列を返す（エラーではなく）
+        return [];
+      }
+      return getShoppingList(ctx.user.id, requestedDate);
+    }),
+
+  // 利用可能な買い物リスト日付一覧（プラン別）
+  dates: protectedProcedure
+    .query(async ({ ctx }) => {
+      const isPremium = await getUserIsPremium(ctx.user.id);
+      const dates = await getShoppingListDates(ctx.user.id, isPremium);
+      return { dates, isPremium, maxDays: isPremium ? 30 : 3 };
     }),
 
   // アイテム追加

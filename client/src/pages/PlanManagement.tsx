@@ -332,7 +332,7 @@ export default function PlanManagement() {
               { category: "⚙️ 機能", label: "献立テーマ指定", free: "—", premium: "対応" },
               { category: null, label: "お弁当モード", free: "—", premium: "対応" },
               { category: null, label: "献立履歴", free: "直近7日", premium: "無制限" },
-              { category: null, label: "買い物リスト保存", free: "当日のみ", premium: "無制限" },
+              { category: null, label: "買い物リスト保存", free: "3日間", premium: "1ヶ月" },
               { category: "🎙️ 音声", label: "音声メッセージ対応", free: "—", premium: "対応" },
             ].map((row, i) => (
               <div key={i}>
