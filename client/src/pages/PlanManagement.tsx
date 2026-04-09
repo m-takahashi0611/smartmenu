@@ -303,77 +303,87 @@ export default function PlanManagement() {
 
         {/* プラン比較表 */}
         <div className="mt-2">
-          <h2 className="text-base font-bold text-gray-800 mb-3 flex items-center gap-2">
-            <Crown className="w-4 h-4 text-orange-500" />
+          <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <Crown className="w-5 h-5 text-orange-500" />
             プラン比較
           </h2>
 
           {/* プランヘッダー */}
-          <div className="grid grid-cols-3 mb-2">
-            <div />
-            <div className="text-center">
-              <span className="text-xs font-semibold text-gray-500 bg-gray-100 rounded-full px-3 py-1">無料</span>
+          <div className="grid grid-cols-3 mb-0 rounded-t-2xl overflow-hidden border border-orange-200 border-b-0">
+            <div className="bg-gray-100 py-3 flex items-center justify-center" />
+            <div className="bg-gray-200 py-3 flex items-center justify-center border-r border-gray-300">
+              <span className="text-sm font-bold text-gray-600">無料</span>
             </div>
-            <div className="text-center">
-              <span className="text-xs font-bold text-white bg-orange-500 rounded-full px-3 py-1">プレミアム</span>
+            <div className="bg-orange-500 py-3 flex items-center justify-center">
+              <span className="text-sm font-bold text-white">✨ プレミアム</span>
             </div>
           </div>
 
           {/* 比較テーブル */}
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-orange-100">
+          <div className="bg-white rounded-b-2xl shadow-sm overflow-hidden border border-orange-200 border-t-0">
             {[
               { category: "🤖 AI献立生成", label: "献立の精度", free: "シンプル", premium: "高精度" },
-              { category: null, label: "天気・季節を考慮", free: false, premium: true },
-              { category: null, label: "栄養バランス最適化", free: false, premium: true },
-              { category: null, label: "予算目安の提示", free: false, premium: true },
+              { category: null, label: "天気・季節を考慮", free: "—", premium: "対応" },
+              { category: null, label: "栄養バランス最適化", free: "—", premium: "対応" },
+              { category: null, label: "予算目安の提示", free: "—", premium: "対応" },
               { category: null, label: "1日の再生成回数", free: "3回まで", premium: "無制限" },
               { category: "📷 画像解析", label: "レシート読み取り", free: "月3回", premium: "無制限" },
               { category: null, label: "チラシ特売情報解析", free: "月3回", premium: "無制限" },
-              { category: "⚙️ 機能", label: "献立テーマ指定", free: false, premium: true },
-              { category: null, label: "お弁当モード", free: false, premium: true },
+              { category: "⚙️ 機能", label: "献立テーマ指定", free: "—", premium: "対応" },
+              { category: null, label: "お弁当モード", free: "—", premium: "対応" },
               { category: null, label: "献立履歴", free: "直近7日", premium: "無制限" },
               { category: null, label: "買い物リスト保存", free: "当日のみ", premium: "無制限" },
-              { category: "🎙️ 音声", label: "音声メッセージ対応", free: false, premium: "近日公開" },
+              { category: "🎙️ 音声", label: "音声メッセージ対応", free: "—", premium: "対応" },
             ].map((row, i) => (
               <div key={i}>
                 {row.category && (
-                  <div className="bg-orange-50 px-4 py-1.5">
-                    <span className="text-xs font-bold text-orange-700">{row.category}</span>
+                  <div className="grid grid-cols-3 bg-orange-50 border-t border-orange-100">
+                    <div className="col-span-3 px-4 py-2 text-center">
+                      <span className="text-sm font-extrabold text-orange-700">{row.category}</span>
+                    </div>
                   </div>
                 )}
-                <div className={`grid grid-cols-3 px-4 py-3 items-center ${
-                  i % 2 === 0 ? "bg-white" : "bg-gray-50/50"
+                <div className={`grid grid-cols-3 items-center border-t border-gray-100 ${
+                  i % 2 === 0 ? "bg-white" : "bg-gray-50/40"
                 }`}>
-                  <span className="text-xs text-gray-700 pr-2">{row.label}</span>
-                  <div className="flex justify-center">
-                    {typeof row.free === "boolean" ? (
-                      row.free
-                        ? <Check className="w-4 h-4 text-green-500" />
-                        : <X className="w-4 h-4 text-gray-300" />
-                    ) : (
-                      <span className="text-xs text-gray-500 text-center">{row.free}</span>
-                    )}
+                  <span className="text-xs text-gray-700 px-3 py-3 pr-2 leading-snug">{row.label}</span>
+                  <div className="flex justify-center py-3 border-r border-gray-100">
+                    <span className={`text-xs text-center px-1 ${
+                      row.free === "—" ? "text-gray-300 text-base" : "text-gray-500"
+                    }`}>{row.free}</span>
                   </div>
-                  <div className="flex justify-center">
-                    {typeof row.premium === "boolean" ? (
-                      row.premium
-                        ? <Check className="w-4 h-4 text-orange-500" />
-                        : <X className="w-4 h-4 text-gray-300" />
-                    ) : (
-                      <span className="text-xs font-semibold text-orange-600 text-center">{row.premium}</span>
-                    )}
+                  <div className="flex justify-center py-3 bg-orange-50/60">
+                    <span className={`text-xs font-bold text-center px-1 ${
+                      row.premium === "無制限" ? "text-orange-600" :
+                      row.premium === "高精度" ? "text-orange-600" :
+                      "text-orange-500"
+                    }`}>{row.premium}</span>
                   </div>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* 月額強調 */}
-          <div className="mt-3 bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-4 text-white text-center shadow">
-            <p className="text-xs opacity-90 mb-1">プレミアムプランは</p>
-            <p className="text-2xl font-extrabold">月額 ¥480<span className="text-sm font-normal ml-1">（税込）</span></p>
-            <p className="text-xs opacity-80 mt-1">コーヒー1杯分で毎日の献立をAIにおまかせ</p>
-          </div>
+          {/* 月額強調バナー（タップで購入画面へ） */}
+          {!isActive && !isCancelled && (
+            <button
+              onClick={handleUpgrade}
+              disabled={createCheckout.isPending}
+              className="mt-4 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 rounded-2xl p-5 text-white text-center shadow-lg active:opacity-90 transition-opacity"
+            >
+              <p className="text-xs opacity-90 mb-1">今すぐ始める</p>
+              <p className="text-3xl font-extrabold">月額 ¥480<span className="text-sm font-normal ml-1">（税込）</span></p>
+              <p className="text-xs opacity-80 mt-1">コーヒー1杯分で毎日の献立をAIにおまかせ</p>
+              <p className="text-xs mt-2 bg-white/20 rounded-full px-3 py-1 inline-block font-semibold">タップしてアップグレード →</p>
+            </button>
+          )}
+          {(isActive || isCancelled) && (
+            <div className="mt-4 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 rounded-2xl p-5 text-white text-center shadow-lg">
+              <p className="text-xs opacity-90 mb-1">現在ご利用中</p>
+              <p className="text-3xl font-extrabold">月額 ¥480<span className="text-sm font-normal ml-1">（税込）</span></p>
+              <p className="text-xs opacity-80 mt-1">コーヒー1杯分で毎日の献立をAIにおまかせ</p>
+            </div>
+          )}
         </div>
 
         {/* 解約済みの再加入 */}
