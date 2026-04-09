@@ -26,22 +26,28 @@ const LiffContext = createContext<LiffContextType>({
 });
 
 /**
- * LINEのLIFF URL経由かどうかを判定する
+ * LINEのLIFF URL経由またはLINE内ブラウザかどうかを判定する
  *
- * 【重要】User-Agentによる判定は廃止
- * Android LINE内ブラウザ（UA: "Line/"）でも isLiff=false にする。
- * 理由: liff.init() がAndroid環境で失敗し「ログイン中...」のまま固まるため。
- * LINE内ブラウザからのアクセスでも通常のOAuth（Manusログイン）を使用する。
+ * 【設計方針】
+ * - liff.stateパラメータがある場合 → LIFF URL経由（isLiff=true）
+ * - User-Agent に "Line/" が含まれる場合 → LINE内ブラウザ（isLiff=true）
+ *   → liff.init()は使わず、LINEログインボタンのみ表示する
+ *   → ボタンタップ時にliff.init()を実行する（タイムアウト付き）
  */
 function detectIsLiff(): boolean {
   const search = window.location.search;
 
-  // liff.stateパラメータが存在する場合のみ LIFF URL経由と判定
+  // liff.stateパラメータが存在する場合 → LIFF URL経由
   if (search.includes("liff.state") || search.includes("liffClientId")) {
     return true;
   }
 
-  // User-Agent判定は廃止（Android LINE内ブラウザでliff.init()が失敗するため）
+  // User-Agent判定: LINE内ブラウザ（Android/iOS両対応）
+  const ua = navigator.userAgent || "";
+  if (ua.includes("Line/") || ua.includes("LIFF")) {
+    return true;
+  }
+
   return false;
 }
 
