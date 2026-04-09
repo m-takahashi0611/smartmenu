@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +32,25 @@ export default function Dashboard() {
   const [showShoppingSelector, setShowShoppingSelector] = useState(false);
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ id: number; name: string } | null>(null);
   const [moveToFridgeConfirm, setMoveToFridgeConfirm] = useState<{ id: number; name: string } | null>(null);
+
+  // 外部サイト警告の安心ポップアップ
+  const STORAGE_KEY = "hide_line_warning_popup";
+  const [showLineWarningPopup, setShowLineWarningPopup] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+
+  useEffect(() => {
+    const hidden = localStorage.getItem(STORAGE_KEY);
+    if (!hidden) {
+      setShowLineWarningPopup(true);
+    }
+  }, []);
+
+  const handleCloseLineWarningPopup = () => {
+    if (dontShowAgain) {
+      localStorage.setItem(STORAGE_KEY, "1");
+    }
+    setShowLineWarningPopup(false);
+  };
 
   const { data: todayMenu, isLoading: menuLoading } = trpc.menu.getByDate.useQuery({ date: today });
   const { data: shoppingList, isLoading: shoppingLoading } = trpc.shopping.list.useQuery({ date: today });
@@ -619,6 +640,39 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* LINE外部サイト警告の安心ポップアップ */}
+      <Dialog open={showLineWarningPopup} onOpenChange={(open) => { if (!open) handleCloseLineWarningPopup(); }}>
+        <DialogContent className="max-w-sm mx-4 rounded-2xl">
+          <DialogHeader>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-2xl">🔒</span>
+              <DialogTitle className="text-base font-bold text-primary">安心してご利用ください</DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-foreground leading-relaxed">
+              LINEから開く際に「外部サービスへの移動」という確認メッセージが表示されることがありますが、<strong className="text-primary">献立日和〜coto coto〜は安全なサービス</strong>です。
+              <br /><br />
+              個人情報は適切に保護されており、安心してご利用いただけます。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 mt-2 mb-1">
+            <Checkbox
+              id="dont-show-again"
+              checked={dontShowAgain}
+              onCheckedChange={(checked) => setDontShowAgain(checked === true)}
+            />
+            <label htmlFor="dont-show-again" className="text-xs text-muted-foreground cursor-pointer select-none">
+              次回から表示しない
+            </label>
+          </div>
+          <Button
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 mt-1"
+            onClick={handleCloseLineWarningPopup}
+          >
+            確認しました
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       {/* 買い物リスト→冷蔵庫移行確認ダイアログ */}
       <AlertDialog open={!!moveToFridgeConfirm} onOpenChange={(open) => !open && setMoveToFridgeConfirm(null)}>
