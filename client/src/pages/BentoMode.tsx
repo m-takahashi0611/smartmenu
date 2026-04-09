@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +47,11 @@ export default function BentoMode() {
   const IS_PREMIUM = planData?.isPremium ?? false;
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [, navigate] = useLocation();
+
+  // ページ遷移時にスクロール位置をトップに戻す
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, []);
 
   // 家族メンバーを実データから取得
   const { data: familyData } = trpc.family.getProfile.useQuery();
