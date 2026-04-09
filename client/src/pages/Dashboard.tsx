@@ -653,6 +653,10 @@ export default function Dashboard() {
               LINEから開く際に「外部サービスへの移動」という確認メッセージが表示されることがありますが、<strong className="text-primary">献立日和〜coto coto〜は安全なサービス</strong>です。
               <br /><br />
               個人情報は適切に保護されており、安心してご利用いただけます。
+              <br /><br />
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline text-xs">利用規約</a>
+              {" "}・{" "}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline text-xs">プライバシーポリシー</a>
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2 mt-2 mb-1">

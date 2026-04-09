@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useLocation } from "wouter";
 import { Crown, ArrowLeft, CreditCard, Calendar, AlertCircle, Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import { trpc } from "@/lib/trpc";
 export default function PlanManagement() {
   const [, navigate] = useLocation();
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const utils = trpc.useUtils();
 
   const { data: plan, isLoading } = trpc.subscription.getMyPlan.useQuery();
@@ -216,10 +218,26 @@ export default function PlanManagement() {
                 </li>
               </ul>
 
+              {/* 利用規約・プライバシーポリシー同意 */}
+              <div className="flex items-start gap-2 bg-orange-50/80 border border-orange-200 rounded-lg p-3">
+                <Checkbox
+                  id="agree-terms"
+                  checked={agreedToTerms}
+                  onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
+                  className="mt-0.5"
+                />
+                <label htmlFor="agree-terms" className="text-xs text-gray-600 leading-relaxed cursor-pointer">
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-orange-600 underline font-medium">利用規約</a>
+                  {" "}および{" "}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-600 underline font-medium">プライバシーポリシー</a>
+                  を読み、同意の上でお支払いを行います。
+                </label>
+              </div>
+
               <Button
                 onClick={handleUpgrade}
-                disabled={createCheckout.isPending}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 font-semibold rounded-xl"
+                disabled={createCheckout.isPending || !agreedToTerms}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {createCheckout.isPending ? (
                   <>

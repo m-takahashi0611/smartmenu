@@ -18,6 +18,7 @@ import MenuTheme from "./pages/MenuTheme";
 import BentoMode from "./pages/BentoMode";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PlanManagement from "./pages/PlanManagement";
+import TermsAndPrivacy from "./pages/TermsAndPrivacy";
 
 function Router() {
   return (
@@ -35,6 +36,8 @@ function Router() {
       <Route path={"/bento-mode"} component={BentoMode} />
       <Route path={"/payment-success"} component={PaymentSuccess} />
       <Route path={"/plan"} component={PlanManagement} />
+      <Route path={"/terms"} component={() => <TermsAndPrivacy page="terms" />} />
+      <Route path={"/privacy"} component={() => <TermsAndPrivacy page="privacy" />} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
