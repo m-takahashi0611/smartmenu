@@ -33,21 +33,33 @@ export default function Dashboard() {
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ id: number; name: string } | null>(null);
   const [moveToFridgeConfirm, setMoveToFridgeConfirm] = useState<{ id: number; name: string } | null>(null);
 
-  // 外部サイト警告の安心ポップアップ
-  const STORAGE_KEY = "hide_line_warning_popup";
+  // 外部サイト警告の安心ポップアップ（1日1回表示）
+  const STORAGE_KEY_NEVER = "hide_line_warning_popup_never"; // 永久非表示フラグ
+  const STORAGE_KEY_DATE = "line_warning_popup_last_shown";  // 最終表示日
   const [showLineWarningPopup, setShowLineWarningPopup] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   useEffect(() => {
-    const hidden = localStorage.getItem(STORAGE_KEY);
-    if (!hidden) {
-      setShowLineWarningPopup(true);
-    }
+    // 永久非表示フラグがあれば表示しない
+    const neverShow = localStorage.getItem(STORAGE_KEY_NEVER);
+    if (neverShow) return;
+
+    // 今日すでに表示済みかチェック
+    const today = new Date().toLocaleDateString("ja-JP"); // 例: "2026/4/9"
+    const lastShown = localStorage.getItem(STORAGE_KEY_DATE);
+    if (lastShown === today) return;
+
+    setShowLineWarningPopup(true);
   }, []);
 
   const handleCloseLineWarningPopup = () => {
     if (dontShowAgain) {
-      localStorage.setItem(STORAGE_KEY, "1");
+      // 「次回から表示しない」チェック時は永久非表示
+      localStorage.setItem(STORAGE_KEY_NEVER, "1");
+    } else {
+      // チェックなしの場合は今日の日付を保存（1日1回制御）
+      const today = new Date().toLocaleDateString("ja-JP");
+      localStorage.setItem(STORAGE_KEY_DATE, today);
     }
     setShowLineWarningPopup(false);
   };
