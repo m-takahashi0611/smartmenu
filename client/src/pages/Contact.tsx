@@ -37,6 +37,16 @@ export default function Contact() {
       setSubmitted(true);
     },
     onError: (err) => {
+      // ZodバリデーションエラーのJSONをパースして日本語メッセージを表示
+      try {
+        const parsed = JSON.parse(err.message);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].message) {
+          toast.error(parsed[0].message);
+          return;
+        }
+      } catch {
+        // JSONでない場合はそのまま表示
+      }
       toast.error(err.message || "送信に失敗しました");
     },
   });
