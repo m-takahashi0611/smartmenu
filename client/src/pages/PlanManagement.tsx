@@ -337,10 +337,12 @@ export default function PlanManagement() {
             ].map((row, i) => (
               <div key={i}>
                 {row.category && (
-                  <div className="grid grid-cols-3 bg-orange-500 border-t border-orange-400">
-                    <div className="col-span-3 px-4 py-2 text-center">
-                      <span className="text-sm font-extrabold text-white">{row.category}</span>
+                  <div className="grid grid-cols-3 border-t border-orange-200">
+                    <div className="col-span-1 bg-orange-100 px-3 py-2 flex items-center">
+                      <span className="text-xs font-extrabold text-orange-700">{row.category}</span>
                     </div>
+                    <div className="col-span-1 bg-gray-100 border-r border-gray-200" />
+                    <div className="col-span-1 bg-orange-100" />
                   </div>
                 )}
                 <div className="grid grid-cols-3 items-center border-t border-gray-100">
