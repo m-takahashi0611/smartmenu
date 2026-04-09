@@ -324,7 +324,7 @@ export default function PlanManagement() {
             {[
               { category: "🤖 AI献立生成", label: "献立の精度", free: "シンプル", premium: "高精度" },
               { category: null, label: "天気・季節を考慮", free: "—", premium: "対応" },
-              { category: null, label: "栄養バランス最適化", free: "—", premium: "対応" },
+              { category: null, label: "栄養バランス", free: "—", premium: "対応" },
               { category: null, label: "予算目安の提示", free: "—", premium: "対応" },
               { category: null, label: "再生成回数/日", free: "3回まで", premium: "無制限" },
               { category: "📷 画像解析", label: "レシート読み取り", free: "月3回", premium: "無制限" },
@@ -337,14 +337,14 @@ export default function PlanManagement() {
             ].map((row, i) => (
               <div key={i}>
                 {row.category && (
-                  <div className="grid grid-cols-3 bg-orange-50 border-t border-orange-100">
+                  <div className="grid grid-cols-3 bg-orange-500 border-t border-orange-400">
                     <div className="col-span-3 px-4 py-2 text-center">
-                      <span className="text-sm font-extrabold text-orange-700">{row.category}</span>
+                      <span className="text-sm font-extrabold text-white">{row.category}</span>
                     </div>
                   </div>
                 )}
                 <div className="grid grid-cols-3 items-center border-t border-gray-100">
-                  <span className="text-xs text-gray-700 px-3 py-2.5 pr-1 whitespace-nowrap overflow-hidden text-ellipsis">{row.label}</span>
+                  <span className="text-xs text-gray-700 px-3 py-2.5 pr-1 leading-tight">{row.label}</span>
                   <div className="flex justify-center py-2.5 border-r border-gray-200 bg-gray-100">
                     <span className={`text-xs text-center px-1 ${
                       row.free === "—" ? "text-gray-400 text-sm" : "text-gray-600 font-medium"
