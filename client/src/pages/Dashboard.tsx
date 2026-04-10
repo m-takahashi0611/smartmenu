@@ -33,6 +33,14 @@ export default function Dashboard() {
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ id: number; name: string } | null>(null);
   const [moveToFridgeConfirm, setMoveToFridgeConfirm] = useState<{ id: number; name: string } | null>(null);
 
+  // 冷蔵庫の選択モード
+  const [fridgeSelectMode, setFridgeSelectMode] = useState(false);
+  const [fridgeSelectedIds, setFridgeSelectedIds] = useState<Set<number>>(new Set());
+
+  // 買い物リストの選択モード
+  const [shoppingSelectMode, setShoppingSelectMode] = useState(false);
+  const [shoppingSelectedIds, setShoppingSelectedIds] = useState<Set<number>>(new Set());
+
   // 外部サイト警告の安心ポップアップ（1日1回表示）
   const STORAGE_KEY_NEVER = "hide_line_warning_popup_never"; // 永久非表示フラグ
   const STORAGE_KEY_DATE = "line_warning_popup_last_shown";  // 最終表示日
@@ -152,6 +160,64 @@ export default function Dashboard() {
     onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
   });
 
+  const bulkDeleteFridge = trpc.fridge.bulkDelete.useMutation({
+    onSuccess: (data) => {
+      utils.fridge.list.invalidate();
+      toast.success(`${data.deletedCount}件の食材を削除しました`);
+      setFridgeSelectMode(false);
+      setFridgeSelectedIds(new Set());
+    },
+    onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
+  });
+
+  const bulkMoveFridgeToShopping = trpc.fridge.bulkMoveToShopping.useMutation({
+    onSuccess: (data) => {
+      utils.fridge.list.invalidate();
+      utils.shopping.list.invalidate({ date: today });
+      toast.success(`${data.movedCount}件を買い物リストに移動しました`);
+      setFridgeSelectMode(false);
+      setFridgeSelectedIds(new Set());
+    },
+    onError: (err) => toast.error("移動に失敗しました", { description: err.message }),
+  });
+
+  const bulkDeleteShopping = trpc.shopping.bulkDelete.useMutation({
+    onSuccess: (data) => {
+      utils.shopping.list.invalidate({ date: today });
+      toast.success(`${data.deletedCount}件を削除しました`);
+      setShoppingSelectMode(false);
+      setShoppingSelectedIds(new Set());
+    },
+    onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
+  });
+
+  const bulkMoveShoppingToFridge = trpc.shopping.bulkMoveToFridge.useMutation({
+    onSuccess: (data) => {
+      utils.shopping.list.invalidate({ date: today });
+      utils.fridge.list.invalidate();
+      toast.success(`${data.movedCount}件を冷蔵庫に移動しました`);
+      setShoppingSelectMode(false);
+      setShoppingSelectedIds(new Set());
+    },
+    onError: (err) => toast.error("移動に失敗しました", { description: err.message }),
+  });
+
+  const toggleFridgeSelect = (id: number) => {
+    setFridgeSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleShoppingSelect = (id: number) => {
+    setShoppingSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   const handleFridgeMinus = (item: { id: number; name: string; quantity?: string | null }) => {
     // 数量が1または数値が1以下になる場合は削除確認ダイアログを表示
     const qtyNum = item.quantity ? parseInt(item.quantity.replace(/[^0-9]/g, ''), 10) : 1;
@@ -268,51 +334,103 @@ export default function Dashboard() {
         {/* ── 冷蔵庫タブ ── */}
         {activeTab === "fridge" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">🥦 冷蔵庫の食材</h2>
-              <Link href="/fridge">
-                <Button size="sm" className="bg-primary text-primary-foreground text-xs">+ 食材を追加</Button>
-              </Link>
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold flex-1">🥦 冷蔵庫の食材</h2>
+              {!fridgeSelectMode ? (
+                <>
+                  <Link href="/fridge">
+                    <Button size="sm" className="bg-primary text-primary-foreground text-xs">+ 食材を追加</Button>
+                  </Link>
+                  {fridgeItems && fridgeItems.length > 0 && (
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => { setFridgeSelectMode(true); setFridgeSelectedIds(new Set()); }}>
+                      選択
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <Button size="sm" variant="ghost" className="text-xs text-muted-foreground" onClick={() => { setFridgeSelectMode(false); setFridgeSelectedIds(new Set()); }}>
+                  キャンセル
+                </Button>
+              )}
             </div>
+
+            {/* 選択モード時のアクションバー */}
+            {fridgeSelectMode && fridgeSelectedIds.size > 0 && (
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                <span className="text-xs text-muted-foreground flex-1">{fridgeSelectedIds.size}件選択中</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs text-primary border-primary/40"
+                  onClick={() => bulkMoveFridgeToShopping.mutate({ ids: Array.from(fridgeSelectedIds) })}
+                  disabled={bulkMoveFridgeToShopping.isPending}
+                >
+                  {bulkMoveFridgeToShopping.isPending ? "移動中..." : "🛒 買い物リストへ"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs text-destructive border-destructive/40"
+                  onClick={() => bulkDeleteFridge.mutate({ ids: Array.from(fridgeSelectedIds) })}
+                  disabled={bulkDeleteFridge.isPending}
+                >
+                  {bulkDeleteFridge.isPending ? "削除中..." : "削除"}
+                </Button>
+              </div>
+            )}
+
             {fridgeLoading ? (
               <div className="text-center py-8 text-muted-foreground text-sm">読み込み中...</div>
             ) : fridgeItems && fridgeItems.length > 0 ? (
               <div className="space-y-2">
                 {fridgeItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                    <div>
+                  <div
+                    key={item.id}
+                    className={`flex items-center py-2 border-b border-border last:border-0 ${fridgeSelectMode ? "cursor-pointer" : ""}`}
+                    onClick={fridgeSelectMode ? () => toggleFridgeSelect(item.id) : undefined}
+                  >
+                    {fridgeSelectMode && (
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mr-3 transition-colors ${
+                        fridgeSelectedIds.has(item.id) ? "bg-primary border-primary" : "border-border bg-background"
+                      }`}>
+                        {fridgeSelectedIds.has(item.id) && <span className="text-primary-foreground text-xs">✓</span>}
+                      </div>
+                    )}
+                    <div className="flex-1">
                       <span className="text-sm font-medium">{item.name}</span>
                       {item.quantity && (
                         <span className="text-xs text-muted-foreground ml-2">{item.quantity}</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      {item.expiryDate && (
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(item.expiryDate) < new Date() ? "⚠️ 期限切れ" : `〜${new Date(item.expiryDate).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}`}
-                        </span>
-                      )}
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-base font-bold"
-                          onClick={() => handleFridgeMinus(item)}
-                          disabled={adjustFridgeQty.isPending || deleteFridgeItem.isPending}
-                        >
-                          −
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-base font-bold"
-                          onClick={() => adjustFridgeQty.mutate({ id: item.id, delta: 1 })}
-                          disabled={adjustFridgeQty.isPending}
-                        >
-                          +
-                        </Button>
+                    {!fridgeSelectMode && (
+                      <div className="flex items-center gap-2">
+                        {item.expiryDate && (
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(item.expiryDate) < new Date() ? "⚠️ 期限切れ" : `〜${new Date(item.expiryDate).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}`}
+                          </span>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-base font-bold"
+                            onClick={() => handleFridgeMinus(item)}
+                            disabled={adjustFridgeQty.isPending || deleteFridgeItem.isPending}
+                          >
+                            −
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-base font-bold"
+                            onClick={() => adjustFridgeQty.mutate({ id: item.id, delta: 1 })}
+                            disabled={adjustFridgeQty.isPending}
+                          >
+                            +
+                          </Button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -345,36 +463,72 @@ export default function Dashboard() {
         {/* ── 買い物リストタブ ── */}
         {activeTab === "shopping" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">🛒 今日の買い物リスト</h2>
-              <div className="flex items-center gap-2">
-                {shoppingList && shoppingList.filter(i => i.isChecked).length > 0 && (
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => moveCheckedToFridge.mutate()}
-                      disabled={moveCheckedToFridge.isPending}
-                      className="text-xs text-primary hover:text-primary hover:bg-primary/10 h-7 px-2"
-                    >
-                      {moveCheckedToFridge.isPending ? "移行中..." : "🧄 冷蔵庫へ"}
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold flex-1">🛒 今日の買い物リスト</h2>
+              {!shoppingSelectMode ? (
+                <>
+                  {shoppingList && shoppingList.filter(i => i.isChecked).length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => moveCheckedToFridge.mutate()}
+                        disabled={moveCheckedToFridge.isPending}
+                        className="text-xs text-primary hover:text-primary hover:bg-primary/10 h-7 px-2"
+                      >
+                        {moveCheckedToFridge.isPending ? "移行中..." : "🧄 冷蔵庫へ"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteChecked.mutate()}
+                        disabled={deleteChecked.isPending}
+                        className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2"
+                      >
+                        {deleteChecked.isPending ? "削除中..." : "削除"}
+                      </Button>
+                    </div>
+                  )}
+                  <Link href="/shopping">
+                    <Button variant="ghost" size="sm" className="text-xs">すべて見る →</Button>
+                  </Link>
+                  {shoppingList && shoppingList.length > 0 && (
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => { setShoppingSelectMode(true); setShoppingSelectedIds(new Set()); }}>
+                      選択
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteChecked.mutate()}
-                      disabled={deleteChecked.isPending}
-                      className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2"
-                    >
-                      {deleteChecked.isPending ? "削除中..." : "削除"}
-                    </Button>
-                  </div>
-                )}
-                <Link href="/shopping">
-                  <Button variant="ghost" size="sm" className="text-xs">すべて見る →</Button>
-                </Link>
-              </div>
+                  )}
+                </>
+              ) : (
+                <Button size="sm" variant="ghost" className="text-xs text-muted-foreground" onClick={() => { setShoppingSelectMode(false); setShoppingSelectedIds(new Set()); }}>
+                  キャンセル
+                </Button>
+              )}
             </div>
+
+            {/* 選択モード時のアクションバー */}
+            {shoppingSelectMode && shoppingSelectedIds.size > 0 && (
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                <span className="text-xs text-muted-foreground flex-1">{shoppingSelectedIds.size}件選択中</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs text-primary border-primary/40"
+                  onClick={() => bulkMoveShoppingToFridge.mutate({ ids: Array.from(shoppingSelectedIds) })}
+                  disabled={bulkMoveShoppingToFridge.isPending}
+                >
+                  {bulkMoveShoppingToFridge.isPending ? "移動中..." : "🧄 冷蔵庫へ"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs text-destructive border-destructive/40"
+                  onClick={() => bulkDeleteShopping.mutate({ ids: Array.from(shoppingSelectedIds) })}
+                  disabled={bulkDeleteShopping.isPending}
+                >
+                  {bulkDeleteShopping.isPending ? "削除中..." : "削除"}
+                </Button>
+              </div>
+            )}
 
             {/* 献立生成後の買い物候補選択UI */}
             {showShoppingSelector && shoppingCandidates.length > 0 && (
@@ -418,12 +572,26 @@ export default function Dashboard() {
                   <div
                     key={item.id}
                     className="flex items-center gap-3 cursor-pointer py-2.5 border-b border-border last:border-0"
-                    onClick={() => toggleItem.mutate({ id: item.id, isChecked: !item.isChecked })}
+                    onClick={() => {
+                      if (shoppingSelectMode) {
+                        toggleShoppingSelect(item.id);
+                      } else {
+                        toggleItem.mutate({ id: item.id, isChecked: !item.isChecked });
+                      }
+                    }}
                   >
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${item.isChecked ? "bg-primary border-primary" : "border-border"}`}>
-                      {item.isChecked && <span className="text-primary-foreground text-xs">✓</span>}
-                    </div>
-                    <span className={`text-sm flex-1 ${item.isChecked ? "line-through text-muted-foreground" : ""}`}>{item.name}</span>
+                    {shoppingSelectMode ? (
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                        shoppingSelectedIds.has(item.id) ? "bg-primary border-primary" : "border-border bg-background"
+                      }`}>
+                        {shoppingSelectedIds.has(item.id) && <span className="text-primary-foreground text-xs">✓</span>}
+                      </div>
+                    ) : (
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${item.isChecked ? "bg-primary border-primary" : "border-border"}`}>
+                        {item.isChecked && <span className="text-primary-foreground text-xs">✓</span>}
+                      </div>
+                    )}
+                    <span className={`text-sm flex-1 ${!shoppingSelectMode && item.isChecked ? "line-through text-muted-foreground" : ""}`}>{item.name}</span>
                     {item.quantity && <span className="text-xs text-muted-foreground">{item.quantity}</span>}
                   </div>
                 ))}

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { addFridgeItem, deleteFridgeItem, getFridgeItems, getDb } from "../db";
+import { addFridgeItem, deleteFridgeItem, getFridgeItems, getDb, bulkDeleteFridgeItems, bulkMoveFridgeToShopping } from "../db";
 import { fridgeItems } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -72,6 +72,22 @@ export const fridgeRouter = router({
     .mutation(async ({ ctx, input }) => {
       await deleteFridgeItem(input.id, ctx.user.id);
       return { success: true };
+    }),
+
+  // 複数食材を一括削除
+  bulkDelete: protectedProcedure
+    .input(z.object({ ids: z.array(z.number()).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      await bulkDeleteFridgeItems(input.ids, ctx.user.id);
+      return { success: true, deletedCount: input.ids.length };
+    }),
+
+  // 複数食材を買い物リストへ移動
+  bulkMoveToShopping: protectedProcedure
+    .input(z.object({ ids: z.array(z.number()).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const movedCount = await bulkMoveFridgeToShopping(input.ids, ctx.user.id);
+      return { success: true, movedCount };
     }),
 
   // 数量増減（＋1または−1、数量が0になったら削除）

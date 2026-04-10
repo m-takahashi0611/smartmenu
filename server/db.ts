@@ -1,4 +1,4 @@
-import { and, eq, desc, gte, sql } from "drizzle-orm";
+import { and, eq, desc, gte, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -245,6 +245,26 @@ export async function deleteFridgeItem(id: number, userId: number) {
   await db.delete(fridgeItems).where(and(eq(fridgeItems.id, id), eq(fridgeItems.userId, userId)));
 }
 
+export async function bulkDeleteFridgeItems(ids: number[], userId: number) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return;
+  await db.delete(fridgeItems).where(and(inArray(fridgeItems.id, ids), eq(fridgeItems.userId, userId)));
+}
+
+export async function bulkMoveFridgeToShopping(ids: number[], userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db || ids.length === 0) return 0;
+  const items = await db.select().from(fridgeItems).where(and(inArray(fridgeItems.id, ids), eq(fridgeItems.userId, userId)));
+  const today = new Date().toISOString().split('T')[0];
+  let moved = 0;
+  for (const item of items) {
+    await db.insert(shoppingListItems).values({ userId, name: item.name, quantity: item.quantity ?? null, listDate: new Date(today + 'T00:00:00') });
+    await db.delete(fridgeItems).where(and(eq(fridgeItems.id, item.id), eq(fridgeItems.userId, userId)));
+    moved++;
+  }
+  return moved;
+}
+
 // ─── Stores ───────────────────────────────────────────────────────────────────
 
 export async function getStores(userId: number) {
@@ -359,6 +379,25 @@ export async function deleteShoppingItem(id: number, userId: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(shoppingListItems).where(and(eq(shoppingListItems.id, id), eq(shoppingListItems.userId, userId)));
+}
+
+export async function bulkDeleteShoppingItems(ids: number[], userId: number) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return;
+  await db.delete(shoppingListItems).where(and(inArray(shoppingListItems.id, ids), eq(shoppingListItems.userId, userId)));
+}
+
+export async function bulkMoveShoppingToFridge(ids: number[], userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db || ids.length === 0) return 0;
+  const items = await db.select().from(shoppingListItems).where(and(inArray(shoppingListItems.id, ids), eq(shoppingListItems.userId, userId)));
+  let moved = 0;
+  for (const item of items) {
+    await db.insert(fridgeItems).values({ userId, name: item.name, quantity: item.quantity ?? null });
+    await db.delete(shoppingListItems).where(and(eq(shoppingListItems.id, item.id), eq(shoppingListItems.userId, userId)));
+    moved++;
+  }
+  return moved;
 }
 
 export async function deleteCheckedShoppingItems(userId: number) {

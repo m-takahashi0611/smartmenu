@@ -9,6 +9,8 @@ import {
   toggleShoppingItem,
   moveShoppingItemToFridge,
   moveCheckedShoppingItemsToFridge,
+  bulkDeleteShoppingItems,
+  bulkMoveShoppingToFridge,
 } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -102,5 +104,21 @@ export const shoppingRouter = router({
     .mutation(async ({ ctx }) => {
       const count = await moveCheckedShoppingItemsToFridge(ctx.user.id);
       return { success: true, movedCount: count };
+    }),
+
+  // 複数アイテムを一括削除
+  bulkDelete: protectedProcedure
+    .input(z.object({ ids: z.array(z.number()).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      await bulkDeleteShoppingItems(input.ids, ctx.user.id);
+      return { success: true, deletedCount: input.ids.length };
+    }),
+
+  // 複数アイテムを冷蔵庫へ移動
+  bulkMoveToFridge: protectedProcedure
+    .input(z.object({ ids: z.array(z.number()).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const movedCount = await bulkMoveShoppingToFridge(input.ids, ctx.user.id);
+      return { success: true, movedCount };
     }),
 });
