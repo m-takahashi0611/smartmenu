@@ -893,6 +893,7 @@ async function handleFridgeRegistration(
       pendingChoices = {
         '1': 'breakfast',
         '今日の朝食・昼食': 'breakfast',
+        '朝食・昼食': 'breakfast',
         '朝食': 'breakfast',
         '朝': 'breakfast',
         '昼食': 'lunch',
@@ -920,10 +921,13 @@ async function handleFridgeRegistration(
         '今日': 'dinner',
         '夕飯': 'dinner',
         '夕食': 'dinner',
+        '今夜の夕飯だけ': 'dinner',
         '2': 'dinner_and_tomorrow_breakfast',
         '明日も': 'dinner_and_tomorrow_breakfast',
         'まとめて': 'dinner_and_tomorrow_breakfast',
         '両方': 'dinner_and_tomorrow_breakfast',
+        '今夜＋明日の朝食まで': 'dinner_and_tomorrow_breakfast',
+        '今夜の夕飯＋明日の朝食': 'dinner_and_tomorrow_breakfast',
       };
     } else {
       // 深夜（22時以降）：明日の朝食か夕飯までまとめてか
@@ -939,11 +943,14 @@ async function handleFridgeRegistration(
         '1': 'tomorrow_breakfast',
         '朝食': 'tomorrow_breakfast',
         '朝': 'tomorrow_breakfast',
+        '明日の朝食': 'tomorrow_breakfast',
         '2': 'tomorrow_dinner',
         '夕飯': 'tomorrow_dinner',
         '夕食': 'tomorrow_dinner',
         '全部': 'tomorrow_dinner',
         'まとめて': 'tomorrow_dinner',
+        '明日の夕飯まで': 'tomorrow_dinner',
+        '明日まとめて': 'tomorrow_dinner',
       };
     }
 
@@ -2645,6 +2652,8 @@ ${itemList}
         pendingChoices = {
           "1": "breakfast",
           "朝食": "breakfast",
+          "今日の朝食・昼食": "breakfast",
+          "朝食・昼食": "breakfast",
           "昼食": "lunch",
           "ランチ": "lunch",
           "2": "dinner",
@@ -2652,6 +2661,7 @@ ${itemList}
           "夕食": "dinner",
           "晩ごはん": "dinner",
           "ディナー": "dinner",
+          "今夜の夕飯": "dinner",
         };
       } else if (currentHourJST >= 15 && currentHourJST < 22) {
         // 夕方〜夜：今晩か明日分まとめてか
@@ -2662,10 +2672,12 @@ ${itemList}
           "今日": "dinner",
           "夕飯": "dinner",
           "夕食": "dinner",
+          "今夜の夕飯だけ": "dinner",
           "2": "dinner_and_tomorrow_breakfast",
           "明日も": "dinner_and_tomorrow_breakfast",
           "まとめて": "dinner_and_tomorrow_breakfast",
           "両方": "dinner_and_tomorrow_breakfast",
+          "今夜＋明日の朝食まで": "dinner_and_tomorrow_breakfast",
         };
       } else {
         // 夜（22時〜）：明日の朝食か夕飯まで考えるか
@@ -2674,11 +2686,14 @@ ${itemList}
           "1": "tomorrow_breakfast",
           "朝食": "tomorrow_breakfast",
           "朝": "tomorrow_breakfast",
+          "明日の朝食": "tomorrow_breakfast",
           "2": "tomorrow_dinner",
           "夕飯": "tomorrow_dinner",
           "夕食": "tomorrow_dinner",
           "全部": "tomorrow_dinner",
           "まとめて": "tomorrow_dinner",
+          "明日の夕飯まで": "tomorrow_dinner",
+          "明日まとめて": "tomorrow_dinner",
         };
       }
 
@@ -2689,7 +2704,22 @@ ${itemList}
         askedAt: Date.now(),
       });
 
-      await replyAndSave(replyToken, [{ type: "text", text: questionText }]);
+      // クイックリプライアイテムを時間帯に合わせて生成
+      const qrItemsAfterShopping = currentHourJST >= 5 && currentHourJST < 15
+        ? [
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 朝食・昼食', text: '今日の朝食・昼食' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕飯', text: '今夜の夕飯' } },
+          ]
+        : currentHourJST >= 15 && currentHourJST < 22
+        ? [
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜だけ', text: '今夜の夕飯だけ' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日朝食も', text: '今夜＋明日の朝食まで' } },
+          ]
+        : [
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 明日まとめて', text: '明日の夕飯まで' } },
+          ];
+      await replyAndSave(replyToken, [{ type: "text", text: questionText, quickReply: { items: qrItemsAfterShopping } }]);
       return;
     }
 
