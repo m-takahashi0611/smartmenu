@@ -521,7 +521,7 @@ export async function checkLineUserProcessing(lineUserId: string): Promise<{ isP
   if (!row || !row.isProcessing) return { isProcessing: false, isTimedOut: false };
   const now = Date.now();
   const startedAt = row.processingStartedAt ? row.processingStartedAt.getTime() : 0;
-  const isTimedOut = (now - startedAt) > 60 * 1000; // 60秒タイムアウト
+  const isTimedOut = (now - startedAt) > 30 * 1000; // 30秒タイムアウト
   return { isProcessing: true, isTimedOut };
 }
 

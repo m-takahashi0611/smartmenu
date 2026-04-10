@@ -2405,23 +2405,25 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
     // テキストメッセージのみ処理中フラグをチェック（画像・音声・位置情報はフラグ対象外）
     if (event.message?.type === "text" && !_skipHistory) {
       const incomingText = (event.message.text ?? "").normalize('NFC').replace(/[\u0000-\u001F\u007F\u3000\u00a0\ufeff\u200b-\u200f\u2028\u2029]/g, '').trim();
-      const { isProcessing, isTimedOut } = await checkLineUserProcessing(lineUserId);
-      if (isProcessing) {
-        if (isTimedOut) {
-          // 60秒タイムアウト：フラグを強制リセットしてエラー通知
-          await setLineUserProcessing(lineUserId, false);
-          await replyAndSave(replyToken, [{
-            type: "text",
-            text: "内部エラーが発生しました。もう一度お送りください。",
-          }]);
-          return;
+      // 冷蔵庫・買い物リスト確認などの単純クエリは処理中フラグをチェックしない（高速処理のため不要）
+      const isSimpleQuery = /冷蔵庫の中身|買い物リストを教えて|買い物リスト.*見せて/.test(incomingText);
+      if (!isSimpleQuery) {
+        const { isProcessing, isTimedOut } = await checkLineUserProcessing(lineUserId);
+        if (isProcessing) {
+          if (isTimedOut) {
+            // 30秒タイムアウト：フラグを強制リセットして処理を続行
+            await setLineUserProcessing(lineUserId, false);
+            console.log(`[LINE] Processing flag timed out for ${lineUserId}, resetting and continuing`);
+            // タイムアウト時は続行（エラーを返さない）
+          } else {
+            // 処理中の場合：待機案内してスキップ
+            await replyAndSave(replyToken, [{
+              type: "text",
+              text: "ただいま回答作成中なので少々お待ちください⏳",
+            }]);
+            return;
+          }
         }
-        // 処理中の場合：待機案内してスキップ
-        await replyAndSave(replyToken, [{
-          type: "text",
-          text: "ただいま回答作成中なので少々お待ちください⏳ 完了後に改めてお送りください",
-        }]);
-        return;
       }
     }
 
