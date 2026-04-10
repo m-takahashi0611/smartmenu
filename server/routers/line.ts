@@ -2419,7 +2419,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
             // 処理中の場合：待機案内してスキップ
             await replyAndSave(replyToken, [{
               type: "text",
-              text: "ただいま回答作成中なので少々お待ちください⏳",
+              text: "処理中です。しばらくすると自動で返信します⏳\n1分待っても返答がなかったら、申し訳ありませんが再度指示を送ってください",
             }]);
             return;
           }
