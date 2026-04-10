@@ -430,19 +430,6 @@ export async function updateLineUserLocation(
     .where(eq(lineUsers.lineUserId, lineUserId));
 }// ─── 会話状態管理（pendingAction） ───────────────────────────────────────────────
 
-// リッチメニュー切り替えが必要なpendingActionの型一覧
-// これらのpendingActionがセットされたときに数字メニューに切り替わる
-const NUMBER_MENU_PENDING_TYPES = new Set([
-  'menu_type_selection',          // 長事タイプ選択（朝食・昂食・夕食）
-  'menu_option_selection',        // 献立候補選択（1・2・3番）
-  'menu_option_selection_dual',   // 夕食＋朝食同時提案時の選択
-  'menu_option_confirm',          // 献立選択後の確認（1:はい 2:レシピ 3:キャンセル）
-  'voice_ingredient_action',      // 音声入力後の3择（冷蔵庫・買い物・献立）
-  'used_ingredient_action',       // 使った食材の確認
-  'bought_item_action',           // 買った商品の確認
-  'shopping_hearing',             // 買い物ヒアリング（行く・行かない）
-]);
-
 export async function setLineUserPendingAction(lineUserId: string, action: object | null) {
   const db = await getDb();
   if (!db) return;
@@ -450,26 +437,6 @@ export async function setLineUserPendingAction(lineUserId: string, action: objec
     .update(lineUsers)
     .set({ pendingAction: action, updatedAt: new Date() })
     .where(eq(lineUsers.lineUserId, lineUserId));
-
-  // リッチメニュー切り替え（非同期で実行，エラーは無視）
-  // switchToNumberMenu内でDBからIDを読み込むため、キャッシュチェックは不要
-  try {
-    const { switchToNumberMenu, switchToNormalMenu } = await import('./routers/richMenu');
-    if (action !== null && typeof action === 'object' && 'type' in action) {
-      const actionType = (action as any).type as string;
-      if (NUMBER_MENU_PENDING_TYPES.has(actionType)) {
-        switchToNumberMenu(lineUserId).catch((e) => {
-          console.warn('[RichMenu] switchToNumberMenu失敗:', e?.message);
-        });
-      }
-    } else if (action === null) {
-      switchToNormalMenu(lineUserId).catch((e) => {
-        console.warn('[RichMenu] switchToNormalMenu失敗:', e?.message);
-      });
-    }
-  } catch (e) {
-    console.warn('[RichMenu] richMenuモジュール読み込み失敗:', (e as any)?.message);
-  }
 }export async function getLineUserPendingAction(lineUserId: string): Promise<any | null> {
   const db = await getDb();
   if (!db) return null;

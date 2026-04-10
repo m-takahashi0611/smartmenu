@@ -29,7 +29,6 @@ import { publicProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { getWeatherInfo, formatWeatherForPrompt } from "../weather";
 import { transcribeAudio } from "../_core/voiceTranscription";
-import { switchToNumberMenu, switchToNormalMenu } from "./richMenu";
 
 // ─── LINE API helper ──────────────────────────────────────────────────────────
 
