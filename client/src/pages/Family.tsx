@@ -181,7 +181,7 @@ export default function Family() {
             <DialogTrigger asChild>
               <Button size="sm" className="bg-primary text-primary-foreground">+ メンバー追加</Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[80vh] overflow-y-auto">
+            <DialogContent className="max-h-[80vh] overflow-y-auto" showCloseButton={false}>
               <DialogHeader>
                 <DialogTitle>家族メンバーを追加</DialogTitle>
                 <button

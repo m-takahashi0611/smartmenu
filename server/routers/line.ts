@@ -660,12 +660,11 @@ async function classifyUserIntent(text: string): Promise<IntentResult> {
 - other: 上記に当てはまらない
 
 重要：「買い物リストに追加」「買い物リストへ追加」「買い物リストに入れて」などの表現があれば必ず shopping_add に分類する。bought_itemと混同しないこと。
-
 itemsは食材名・商品名のリスト（複数可）。
 【重要】食材が複数ある場合は全件漏れなくitemsに含めること。省略・要約は絶対禁止。
-食材名が連続して書かれている場合（例：「ナス3本牛乳バター」「もやしきゅうりほうれんそう」）は食材ごとに分割してitemsに入れること。
-改行・スペース・読点・句点・「と」「や」などの区切り文字で分割し、数量は無視して食材名のみを抽出すること。
-quantityは数量（「2個」「半分」など）、なければnull。
+【B10対応】食材名が連続して書かれている場合（例：「ナス3本牛乳バター」「もやしきゅうりほうれんそう」「じゃがいも人参玉ねぎ」）は食材ごとに必ず分割してitemsに入れること。
+改行・スペース・読点・句点・「と」「や」「あと」などの区切り文字で分割し、数量は無視して食材名のみを抽出すること。
+【B9対応】quantityは数量を単位付きで抽出すること（例：「300g」「2本」「半分」「1袋」）。単位なし数字のみの場合はnullとすること。複数食材がある場合はquantityはnull。。
 themeは気分・テーマの内容（「和食」「さっぱり系」など）、なければnull。
 memberNameは家族メンバー名（「子供」「夫」など）、なければnull。
 preferenceは好み内容（「人参嫌い」「ピーマン食べられない」など）、なければnull。`,
@@ -761,17 +760,21 @@ async function handleIntentAction(
           const added: string[] = [];
           // 食材が1つで数量がある場合はその数量を使う
           const itemQty = items.length === 1 && quantity ? quantity : null;
+          // B6: 全冷蔵庫データを一括取得してfindMatchingFridgeItemで表記ゆれ対応マージ
+          const allFridgeRows = await db.select().from(fridgeItemsTable).where(eq(fridgeItemsTable.userId, userId));
           for (const itemName of items) {
             if (!itemName.trim()) continue;
-            const existing = await db.select().from(fridgeItemsTable).where(eq(fridgeItemsTable.userId, userId)).then(rows => rows.find(r => r.name === itemName.trim()));
+            const normalizedName = await resolveProductName(itemName.trim());
+            const existing = findMatchingFridgeItem(allFridgeRows, normalizedName);
             if (existing) {
+              // 既存あり：数量があれば更新、なければupdatedAtのみ更新（重複登録しない）
               const updateData: { updatedAt: Date; quantity?: string } = { updatedAt: new Date() };
               if (itemQty) updateData.quantity = itemQty;
               await db.update(fridgeItemsTable).set(updateData).where(eq(fridgeItemsTable.id, existing.id));
             } else {
-              await db.insert(fridgeItemsTable).values({ userId, name: itemName.trim(), quantity: itemQty, category: 'other' });
+              await db.insert(fridgeItemsTable).values({ userId, name: normalizedName, quantity: itemQty, category: 'other' });
             }
-            added.push(itemQty ? `${itemName.trim()}（${itemQty}）` : itemName.trim());
+            added.push(itemQty ? `${normalizedName}（${itemQty}）` : normalizedName);
           }
           await replyLineMessage(replyToken, [{ type: 'text', text: `✅ 冷蔵庫に「${added.join('、')}」を登録しました！` }], lineUserId);
         } else {
@@ -1892,7 +1895,8 @@ ${dinnerResult.message}`;
 
     // 数量が入力された場合（単位付き「300g」「2枚」なども正しく処理）
     // まず単位付きの数量表現を検出（g, ml, kg, L, 枚, 本, 個, 袋, パック, 缶, 切れ, 匹, 尾, 頭, 羽, 束, 房, 玉, 串, 瓶, 箱, 丁, 合, カップ）
-    const unitMatch = text.trim().match(/^([0-9０-９]+(?:[.,][0-9０-９]+)?)\s*(g|ml|kg|L|l|cc|枚|本|個|袋|パック|缶|切れ|匹|尾|頭|羽|束|房|玉|串|瓶|箱|丁|合|カップ|グラム|キロ|リットル|ミリ|ミリリットル)$/);
+    // B9修正: 単位付き数量表現をより幅広く検出（「300g」「2枚」など）
+    const unitMatch = text.trim().match(/^([0-9０-９]+(?:[.,][0-9０-９]+)?)\s*(g|ml|kg|L|l|cc|枚|本|個|袋|パック|缶|切れ|魚|尾|頭|羽|束|房|玉|串|瓶|筱|丁|合|カップ|グラム|キロ|リットル|ミリ|ミリリットル)$/);
     if (unitMatch) {
       // 単位付きの場合はそのまま文字列として保存
       const quantityStr = unitMatch[1] + unitMatch[2];
@@ -1930,14 +1934,17 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // 曖昧な数量表現（「半分くらい」「少し」「適量」「残り少」など）をそのまま保存
+    // F7修正: 曘昧な数量表現をより幅広く受け付ける（「半分くらい」「少し」「適量」「1本」など）
     const vagueQuantityPatterns = [
-      /^(半分|上半分|下半分|半分くらい|半分ほど|半分以上|半分以下)$/,
-      /^(少し|少々|少しだけ|少しだけある|少し残ってる|少しある|少しのこる)$/,
-      /^(適量|適当|適当量|少量|少量だけ|少量ある)$/,
-      /^(残り少|残りわずか|残り少し|残りくらい|もう少し|あと少し)$/,
-      /^(たくさん|いっぱい|まあまあある|そこそこある|まあまあ|そこそこ)$/,
-      /^(新品|ひとつある|まだある|あります|あるよ)$/,
+      /^(半分|上半分|下半分|半分くらい|半分ほど|半分以上|半分以下|半分まで|半分残ってる)$/,
+      /^(少し|少々|少しだけ|少しだけある|少し残ってる|少しある|少しのこる|少しだけ残ってる)$/,
+      /^(適量|適当|適当量|少量|少量だけ|少量ある|少しだけある)$/,
+      /^(残り少|残りわずか|残り少し|残りくらい|もう少し|あと少し|あとわずか|残り少々)$/,
+      /^(たくさん|いっぱい|まあまあある|そこそこある|まあまあ|そこそこ|たくさんある|いっぱいある)$/,
+      /^(新品|ひとつある|まだある|あります|あるよ|ある|まだあるよ|まだあるから)$/,
+      /^([1-9１-９]本|一本|二本|三本|四本|五本|六本|七本|八本|九本|十本)$/,
+      /^([1-9１-９]枚|一枚|二枚|三枚|四枚|五枚)$/,
+      /^([1-9１-９]袋|一袋|二袋|三袋)$/,
     ];
     const trimmedText = text.trim();
     const isVagueQty = vagueQuantityPatterns.some(p => p.test(trimmedText));
