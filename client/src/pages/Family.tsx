@@ -177,13 +177,20 @@ export default function Family() {
             </Link>
             <h1 className="font-bold text-lg">👨‍👩‍👧 家族構成管理</h1>
           </div>
-          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <Dialog open={addOpen} onOpenChange={(open) => { if (open) setAddOpen(true); }}>
             <DialogTrigger asChild>
               <Button size="sm" className="bg-primary text-primary-foreground">+ メンバー追加</Button>
             </DialogTrigger>
             <DialogContent className="max-h-[80vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>家族メンバーを追加</DialogTitle>
+                <button
+                  onClick={() => setAddOpen(false)}
+                  className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <span className="text-lg leading-none">&times;</span>
+                  <span className="sr-only">閉じる</span>
+                </button>
               </DialogHeader>
               <div className="space-y-4 pt-2">
                 <div>
