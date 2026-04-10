@@ -19,6 +19,8 @@ import {
   deleteFridgeItem,
   getProductNameCache,
   upsertProductNameCache,
+  checkLineUserProcessing,
+  setLineUserProcessing,
 } from "../db";
 import { lineUsers, fridgeItems as fridgeItemsTable, shoppingListItems } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
@@ -1110,6 +1112,12 @@ ${dinnerResult.message}`;
         await replyLineMessage(replyToken, [{
           type: 'text',
           text: `夕食${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
+          quickReply: { items: [
+            { type: 'action', action: { type: 'message', label: '📖 レシピを表示', text: '1' } },
+            { type: 'action', action: { type: 'message', label: '🔄 選び直す', text: '2' } },
+            { type: 'action', action: { type: 'message', label: '✅ 終了', text: '3' } },
+            { type: 'action', action: { type: 'message', label: '🎲 やり直し', text: 'その他' } },
+          ] },
         }], lineUserId);
         return true;
       }
@@ -1133,6 +1141,12 @@ ${dinnerResult.message}`;
         await replyLineMessage(replyToken, [{
           type: 'text',
           text: `朝食${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
+          quickReply: { items: [
+            { type: 'action', action: { type: 'message', label: '📖 レシピを表示', text: '1' } },
+            { type: 'action', action: { type: 'message', label: '🔄 選び直す', text: '2' } },
+            { type: 'action', action: { type: 'message', label: '✅ 終了', text: '3' } },
+            { type: 'action', action: { type: 'message', label: '🎲 やり直し', text: 'その他' } },
+          ] },
         }], lineUserId);
         return true;
       }
@@ -1309,6 +1323,12 @@ ${dinnerResult.message}`;
         await replyLineMessage(replyToken, [{
           type: 'text',
           text: `${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
+          quickReply: { items: [
+            { type: 'action', action: { type: 'message', label: '📖 レシピを表示', text: '1' } },
+            { type: 'action', action: { type: 'message', label: '🔄 選び直す', text: '2' } },
+            { type: 'action', action: { type: 'message', label: '✅ 終了', text: '3' } },
+            { type: 'action', action: { type: 'message', label: '🎲 やり直し', text: 'その他' } },
+          ] },
         }], lineUserId);
         return true;
       } else {
@@ -1329,7 +1349,14 @@ ${dinnerResult.message}`;
 
     // それ以外 → 候補を再表示して待機続行（通常処理に流さない）
     const optionLinesB2 = options.map((o, i) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
-    await replyLineMessage(replyToken, [{ type: 'text', text: `番号（1〜${options.length}）で選んでください😊\n\n${optionLinesB2}\n\nキャンセルの場合は「キャンセル」と送ってください。` }], lineUserId);
+    const quickReplyItemsB2 = [
+      ...options.slice(0, 3).map((o, i) => ({
+        type: 'action' as const,
+        action: { type: 'message' as const, label: `${i+1}. ${o.name.slice(0, 18)}`, text: `${i+1}` },
+      })),
+      { type: 'action' as const, action: { type: 'message' as const, label: 'キャンセル', text: 'キャンセル' } },
+    ];
+    await replyLineMessage(replyToken, [{ type: 'text', text: `番号（1〜${options.length}）で選んでください😊\n\n${optionLinesB2}\n\nキャンセルの場合は「キャンセル」と送ってください。`, quickReply: { items: quickReplyItemsB2 } }], lineUserId);
     return true;
   }
 
@@ -2276,10 +2303,34 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
         .set({ isActive: false, updatedAt: new Date() })
         .where(eq(lineUsers.lineUserId, lineUserId));
     }
-  } else if (type === "message") {
+   } else if (type === "message") {
     const lineUser = await getLineUserByLineId(lineUserId);
     const userId = lineUser?.userId ?? null;
     const displayName = lineUser?.displayName ?? "ゲスト";
+
+    // ─── 処理中フラグチェック（重複メッセージ防止） ────────────────────────────────────────────
+    // テキストメッセージのみ処理中フラグをチェック（画像・音声・位置情報はフラグ対象外）
+    if (event.message?.type === "text" && !_skipHistory) {
+      const incomingText = (event.message.text ?? "").normalize('NFC').replace(/[\u0000-\u001F\u007F\u3000\u00a0\ufeff\u200b-\u200f\u2028\u2029]/g, '').trim();
+      const { isProcessing, isTimedOut } = await checkLineUserProcessing(lineUserId);
+      if (isProcessing) {
+        if (isTimedOut) {
+          // 60秒タイムアウト：フラグを強制リセットしてエラー通知
+          await setLineUserProcessing(lineUserId, false);
+          await replyAndSave(replyToken, [{
+            type: "text",
+            text: "内部エラーが発生しました。もう一度お送りください。",
+          }]);
+          return;
+        }
+        // 処理中の場合：待機案内してスキップ
+        await replyAndSave(replyToken, [{
+          type: "text",
+          text: "ただいま回答作成中なので少々お待ちください⏳ 完了後に改めてお送りください",
+        }]);
+        return;
+      }
+    }
 
     // ─── 位置情報メッセージの処理 ────────────────────────────────────────────
     if (event.message?.type === "location") {
@@ -2443,24 +2494,28 @@ ${itemList}
       await addConversationMessage({ lineUserId, role: 'user', content: text }).catch(() => {});
     }
 
-    // ─── 初回メッセージ時：家族未登録チェック ──────────────────────────────────────────────
+    // ─── 処理開始フラグをセット ──────────────────────────────────────────────────────────
+    // 再帰呼び出し（疑似イベント）時はスキップ
+    if (!_skipHistory) {
+      await setLineUserProcessing(lineUserId, true);
+    }
+    try {
+    // ─── 家族未登録チェック（献立・冷蔵庫メッセージ時は毎回案内） ──────────────────────────────────────────────
     // userId がある（ログイン済み）が家族情報が未登録の場合、登録を促す
-    // ただし pendingAction 中・位置情報・特定コマンドは除く
+    // 献立・冷蔵庫関連メッセージ時は毎回冒頭に案内を追加（処理は続行）
+    let familyGuidePrefix = "";
     if (userId) {
       const familyProfile = await getFamilyProfile(userId);
       const familyMembers = familyProfile ? await getFamilyMembers(familyProfile.id) : [];
       const hasFamilySetup = familyProfile && familyMembers.length > 0;
-      // createdAt と updatedAt がほぼ同じ（5分以内）なら初回メッセージとみなす
-      const isFirstMessage = lineUser && (lineUser.updatedAt.getTime() - lineUser.createdAt.getTime()) < 5 * 60 * 1000;
-      if (!hasFamilySetup && isFirstMessage) {
-        // 初回メッセージ時のみ家族登録を促す
-        await replyAndSave(replyToken, [
-          {
-            type: "text",
-            text: `${displayName}さん、はじめまして！\n\nAIが献立を提案するために、まず家族情報を登録しましょう👨‍👩‍👧\n\n家族の人数・アレルギー・買い物回数などを登録すると、より精度の高い献立を提案できます！\n\n📝 ダッシュボードで登録\nhttps://www.kondatebiyori.com/family\n\n登録後に「献立」と送ってください😊`,
-          },
-        ]);
-        return;
+      if (!hasFamilySetup) {
+        const isMenuRequest = /献立|今日何(作|つく)ろ|ご飯(何|なに)(作|つく)/.test(text);
+        const isFridgeRequest = /冷蔵庫/.test(text);
+        if (isMenuRequest) {
+          familyGuidePrefix = `💡 家族構成をダッシュボードから登録すると、より精度の高い献立をご提案できます！\n👉 https://www.kondatebiyori.com/family\n\n`;
+        } else if (isFridgeRequest) {
+          familyGuidePrefix = `💡 ダッシュボードから冷蔵庫の中身を登録すると、在庫を活かした献立を自動で提案できます！\n👉 https://www.kondatebiyori.com/fridge\n\n`;
+        }
       }
     }
 
@@ -2518,8 +2573,11 @@ ${itemList}
           hourJST: currentHourJST,
           askedAt: Date.now(),
         });
-        const hearingText = `献立を考える前に少し聞かせてください😊\n\n${shopDayText}、買い物に行く予定はありますか？\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります\n\n番号で教えてください`;
-        await replyAndSave(replyToken, [{ type: 'text', text: hearingText }]);
+        const hearingText = `${familyGuidePrefix}献立を考える前に少し聞かせてください😊\n\n${shopDayText}、買い物に行く予定はありますか？\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります\n\n番号で教えてください`;
+        await replyAndSave(replyToken, [{ type: 'text', text: hearingText, quickReply: { items: [
+          { type: 'action', action: { type: 'message', label: '🛒 はい、行く予定', text: '1' } },
+          { type: 'action', action: { type: 'message', label: '🏠 今ある食材で', text: '2' } },
+        ] } }]);
         return;
       }
 
@@ -2614,7 +2672,7 @@ https://www.kondatebiyori.com`,
         const itemList = items.map((f) => `・${f.name}${f.quantity ? "（" + f.quantity + "）" : ""}`).join("\n");
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `❄️ 現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください`,
+          text: `${familyGuidePrefix}❄️ 現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください`,
         }]);
       }
       return;
@@ -2907,7 +2965,7 @@ https://www.kondatebiyori.com`,
         const itemList = items.map((f) => `・${f.name}${f.quantity ? "（" + f.quantity + "）" : ""}`).join("\n");
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `❄️ 現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください`,
+          text: `${familyGuidePrefix}❄️ 現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください`,
         }]);
       }
       return;
@@ -3000,6 +3058,12 @@ https://www.kondatebiyori.com`,
       const fallbackMsg = "「献立」と送ると今日の献立を提案します";
       await replyAndSave(replyToken, [{ type: "text", text: fallbackMsg }]);
       await addConversationMessage({ lineUserId, role: 'assistant', content: fallbackMsg }).catch(() => {});
+    }
+    } finally {
+      // 処理完了後にフラグをリセット（再帰呼び出しの場合はスキップ）
+      if (!_skipHistory) {
+        await setLineUserProcessing(lineUserId, false).catch(() => {});
+      }
     }
   }
 }

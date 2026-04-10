@@ -481,6 +481,43 @@ export async function setLineUserPendingAction(lineUserId: string, action: objec
   return rows[0]?.pendingAction ?? null;
 }
 
+// ─── 処理中フラグ管理 ───────────────────────────────────────────────────────────
+/**
+ * 処理開始時にisProcessing=trueをセット、完了時はfalseにリセット
+ */
+export async function setLineUserProcessing(lineUserId: string, processing: boolean): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(lineUsers)
+    .set({
+      isProcessing: processing,
+      processingStartedAt: processing ? new Date() : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(lineUsers.lineUserId, lineUserId));
+}
+
+/**
+ * 処理中フラグを確認する（60秒タイムアウトチェック含む）
+ * @returns { isProcessing: boolean, isTimedOut: boolean }
+ */
+export async function checkLineUserProcessing(lineUserId: string): Promise<{ isProcessing: boolean; isTimedOut: boolean }> {
+  const db = await getDb();
+  if (!db) return { isProcessing: false, isTimedOut: false };
+  const rows = await db
+    .select({ isProcessing: lineUsers.isProcessing, processingStartedAt: lineUsers.processingStartedAt })
+    .from(lineUsers)
+    .where(eq(lineUsers.lineUserId, lineUserId))
+    .limit(1);
+  const row = rows[0];
+  if (!row || !row.isProcessing) return { isProcessing: false, isTimedOut: false };
+  const now = Date.now();
+  const startedAt = row.processingStartedAt ? row.processingStartedAt.getTime() : 0;
+  const isTimedOut = (now - startedAt) > 60 * 1000; // 60秒タイムアウト
+  return { isProcessing: true, isTimedOut };
+}
+
 // ─── 買い物リスト → 冷蔵庫移行 ───────────────────────────────────────────────
 /**
  * 買い物リストのアイテムを冷蔵庫に移行して、リストから削除する

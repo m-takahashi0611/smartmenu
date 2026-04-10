@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// DB関数をモック
+// DB関数をモック（getDbも含む）
 vi.mock("./db", () => ({
+  getDb: vi.fn().mockResolvedValue(null),
   getMenuPlanByDate: vi.fn(),
   createMenuPlan: vi.fn(),
   insertMenuPlan: vi.fn(),
@@ -55,7 +56,7 @@ describe("generateMenuPlan", () => {
       id: 1,
       userId,
       planDate: today,
-      menuData: JSON.stringify({ breakfast: "納豆ご飯", lunch: "パスタ", dinner: "鶏の照り焼き" }),
+      menuData: JSON.stringify({ mealType: "dinner", breakfast: "納豆ご飯", lunch: "パスタ", dinner: "鶏の照り焼き" }),
       messageText: "今日の献立です",
       isDelivered: false,
       createdAt: new Date(),
@@ -66,6 +67,8 @@ describe("generateMenuPlan", () => {
       deliveredAt: null,
     };
     mockGetMenuPlanByDate.mockResolvedValueOnce(existingPlan);
+    mockGetFridgeItems.mockResolvedValueOnce([]);
+    mockGetRecentMenuPlans.mockResolvedValueOnce([]);
 
     const result = await generateMenuPlan(userId, today);
 
@@ -83,13 +86,12 @@ describe("generateMenuPlan", () => {
     mockGetRecentMenuPlans.mockResolvedValueOnce([]);
 
     const aiResponse = {
-      breakfast: "納豆ご飯",
-      lunch: "野菜炒め",
-      dinner: "鮭の塩焼き",
-      dinnerRecipe: "鮭に塩をふって焼く",
-      shoppingList: [{ name: "鮭", quantity: "2切れ" }],
-      tips: "鮭はしっかり焼いてください",
-      estimatedCost: 800,
+      options: [
+        { name: "納豆ご飯", mainIngredients: ["納豆", "ご飯"], usedFridgeItems: ["納豆"] },
+        { name: "野菜炒め", mainIngredients: ["キャベツ", "豚肉"], usedFridgeItems: ["キャベツ"] },
+        { name: "鮭の塩焼き", mainIngredients: ["鮭"], usedFridgeItems: [] },
+      ],
+      shoppingList: ["鮭（2切れ）"],
     };
 
     mockInvokeLLM.mockResolvedValueOnce({
@@ -114,17 +116,15 @@ describe("generateMenuPlan", () => {
       deliveredAt: null,
     });
 
-    mockInsertShoppingListItems.mockResolvedValueOnce([]);
-
     const result = await generateMenuPlan(userId, today);
 
     expect(result.menuPlanId).toBe(2);
     expect(mockInvokeLLM).toHaveBeenCalledOnce();
     expect(mockInsertMenuPlan).toHaveBeenCalledOnce();
-    expect(mockInsertShoppingListItems).toHaveBeenCalledOnce();
     expect(result.message).toContain("納豆ご飯");
     expect(result.message).toContain("野菜炒め");
     expect(result.message).toContain("鮭の塩焼き");
+    expect(result.message).toContain("今夜の夕食");
   });
 
   it("LLMがJSONを返せない場合はエラーをスローする", async () => {

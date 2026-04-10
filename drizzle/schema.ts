@@ -49,6 +49,9 @@ export const lineUsers = mysqlTable("line_users", {
   region: varchar("region", { length: 100 }), // 地域名（例: 東京都渋谷区）
   // 会話状態管理（多ターン会話フロー用）
   pendingAction: json("pendingAction"), // { type: 'fridge_add_qty', itemName: '玉ねぎ', existingQty: 3 } など
+  // 処理中フラグ（重複メッセージ防止）
+  isProcessing: boolean("isProcessing").default(false).notNull(),
+  processingStartedAt: timestamp("processingStartedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
