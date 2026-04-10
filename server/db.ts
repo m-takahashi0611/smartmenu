@@ -1,4 +1,4 @@
-import { and, eq, desc, gte } from "drizzle-orm";
+import { and, eq, desc, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -320,7 +320,8 @@ export async function getUserIsPremium(userId: number): Promise<boolean> {
 export async function getShoppingList(userId: number, listDate: string) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(shoppingListItems).where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.listDate, listDate as any)));
+  // listDateはDatetime型で保存されているため、DATE()関数で日付部分のみ比較する
+  return db.select().from(shoppingListItems).where(and(eq(shoppingListItems.userId, userId), sql`DATE(${shoppingListItems.listDate}) = ${listDate}`));
 }
 
 /**
@@ -335,9 +336,9 @@ export async function getShoppingListDates(userId: number, isPremium: boolean): 
   cutoff.setDate(cutoff.getDate() - (days - 1));
   const cutoffStr = cutoff.toISOString().split("T")[0];
   const rows = await db
-    .selectDistinct({ listDate: shoppingListItems.listDate })
+    .selectDistinct({ listDate: sql<string>`DATE(${shoppingListItems.listDate})` })
     .from(shoppingListItems)
-    .where(and(eq(shoppingListItems.userId, userId), gte(shoppingListItems.listDate, cutoffStr as any)))
+    .where(and(eq(shoppingListItems.userId, userId), sql`DATE(${shoppingListItems.listDate}) >= ${cutoffStr}`))
     .orderBy(desc(shoppingListItems.listDate));
   return rows.map((r) => String(r.listDate));
 }
