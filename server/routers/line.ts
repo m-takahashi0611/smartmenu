@@ -2585,23 +2585,18 @@ ${itemList}
     if (!_skipHistory) {
       await setLineUserProcessing(lineUserId, true);
     }
-    try {
-    // ─── 家族未登録チェック（献立・冷蔵庫メッセージ時は毎回案内） ──────────────────────────────────────────────
-    // userId がある（ログイン済み）が家族情報が未登録の場合、登録を促す
-    // 献立・冷蔵庫関連メッセージ時は毎回冒頭に案内を追加（処理は続行）
+
+    // ─── ダッシュボード未ログインチェック（献立・冷蔵庫メッセージ時は毎回案内）
+
+    // userId が null（ダッシュボード未ログイン）の場合、登録を促す案内を冒頭に追加（処理は続行）
     let familyGuidePrefix = "";
-    if (userId) {
-      const familyProfile = await getFamilyProfile(userId);
-      const familyMembers = familyProfile ? await getFamilyMembers(familyProfile.id) : [];
-      const hasFamilySetup = familyProfile && familyMembers.length > 0;
-      if (!hasFamilySetup) {
-        const isMenuRequest = /献立|今日何(作|つく)ろ|ご飯(何|なに)(作|つく)/.test(text);
-        const isFridgeRequest = /冷蔵庫/.test(text);
-        if (isMenuRequest) {
-          familyGuidePrefix = `💡 家族構成をダッシュボードから登録すると、より精度の高い献立をご提案できます！\n👉 https://www.kondatebiyori.com/family\n\n`;
-        } else if (isFridgeRequest) {
-          familyGuidePrefix = `💡 ダッシュボードから冷蔵庫の中身を登録すると、在庫を活かした献立を自動で提案できます！\n👉 https://www.kondatebiyori.com/fridge\n\n`;
-        }
+    if (!userId) {
+      const isMenuRequest = /献立|今日何(作|つく)ろ|ご飯(何|なに)(作|つく)/.test(text);
+      const isFridgeRequest = /冷蔵庫/.test(text);
+      if (isMenuRequest) {
+        familyGuidePrefix = `💡 ダッシュボードで家族構成を登録すると、より精度の高い献立をご提案できます！\n👉 https://www.kondatebiyori.com\n\n`;
+      } else if (isFridgeRequest) {
+        familyGuidePrefix = `💡 ダッシュボードで冷蔵庫の中身を登録すると、在庫を活かした献立を自動で提案できます！\n👉 https://www.kondatebiyori.com\n\n`;
       }
     }
 
@@ -3167,7 +3162,6 @@ https://www.kondatebiyori.com`,
       const fallbackMsg = "「献立」と送ると今日の献立を提案します";
       await replyAndSave(replyToken, [{ type: "text", text: fallbackMsg }]);
       await addConversationMessage({ lineUserId, role: 'assistant', content: fallbackMsg }).catch(() => {});
-    }
     } finally {
       // 処理完了後にフラグをリセット（再帰呼び出しの場合はスキップ）
       if (!_skipHistory) {
