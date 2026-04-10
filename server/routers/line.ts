@@ -867,8 +867,8 @@ async function handleFridgeRegistration(
     }
 
     // 買い物あり（1）または買い物なし（2）の判定
-    const willShop = /^[1１]$/.test(trimmed) || /はい|行く|あり/.test(trimmed);
-    const willNotShop = /^[2２]$/.test(trimmed) || /いいえ|行かない|ない/.test(trimmed);
+    const willShop = /^[1１]$/.test(trimmed) || /はい|行く|あり|予定です/.test(trimmed);
+    const willNotShop = /^[2２]$/.test(trimmed) || /いいえ|行かない|ない|今ある食材/.test(trimmed);
 
     if (!willShop && !willNotShop) {
       await replyLineMessage(replyToken, [{ type: 'text', text: `1または2の番号で教えてください😊\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります` }], lineUserId);
@@ -892,11 +892,13 @@ async function handleFridgeRegistration(
 番号か「朝食」「夕飯」などで教えてください😊`;
       pendingChoices = {
         '1': 'breakfast',
+        '今日の朝食・昼食': 'breakfast',
         '朝食': 'breakfast',
         '朝': 'breakfast',
         '昼食': 'lunch',
         'ランチ': 'lunch',
         '2': 'dinner',
+        '今夜の夕飯': 'dinner',
         '夕飯': 'dinner',
         '夕食': 'dinner',
         '今夜': 'dinner',
@@ -945,13 +947,28 @@ async function handleFridgeRegistration(
       };
     }
 
+    // クイックリプライアイテムを時間帯に合わせて生成
+    const qrItems = hourJST >= 5 && hourJST < 15
+      ? [
+          { type: 'action' as const, action: { type: 'message' as const, label: '🌅 朝食・昼食', text: '今日の朝食・昼食' } },
+          { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕飯', text: '今夜の夕飯' } },
+        ]
+      : hourJST >= 15 && hourJST < 22
+      ? [
+          { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜だけ', text: '今夜の夕飯だけ' } },
+          { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日朝食も', text: '今夜＋明日の朝食まで' } },
+        ]
+      : [
+          { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
+          { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 明日まとめて', text: '明日の夕飯まで' } },
+        ];
     await setLineUserPendingAction(lineUserId, {
       type: 'menu_type_selection',
       choices: pendingChoices,
       willShop,
       askedAt: Date.now(),
     });
-    await replyLineMessage(replyToken, [{ type: 'text', text: questionText }], lineUserId);
+    await replyLineMessage(replyToken, [{ type: 'text', text: questionText, quickReply: { items: qrItems } }], lineUserId);
     return true;
   }
 
@@ -1033,10 +1050,13 @@ ${dinnerResult.message}`;
         const mealType = selectedType as import('./menu').MealType;
         const targetDate = (selectedType === 'tomorrow_breakfast') ? tomorrow : today;
         const result = await generateMenuPlan(userId, targetDate, mealType, pendingWillShop);
-        await replyLineMessage(replyToken, [{ type: 'text', text: result.message }], lineUserId);
-
-        // 夕食・翔日朝食の場合は3案提示するのでmenu_option_selectionをセット
-        if (mealType === 'dinner' || mealType === 'tomorrow_breakfast') {
+        // 夕食・翌日朝食の場合は3案提示するのでクイックリプライを付ける
+        if ((mealType === 'dinner' || mealType === 'tomorrow_breakfast') && result.options && result.options.length > 0) {
+          const qrMenuItems = result.options.slice(0, 3).map((o, i) => ({
+            type: 'action' as const,
+            action: { type: 'message' as const, label: `${i + 1}. ${o.name.slice(0, 18)}`, text: o.name },
+          }));
+          await replyLineMessage(replyToken, [{ type: 'text', text: result.message + '\n\n👇 下のボタンから選んでね！', quickReply: { items: qrMenuItems } }], lineUserId);
           // DBからdinnerOptionsを取得してpendingActionに保存
           const savedPlan = await getMenuPlanByDate(userId, targetDate);
           if (savedPlan) {
@@ -1054,6 +1074,8 @@ ${dinnerResult.message}`;
               }
             } catch { /* ignore parse error */ }
           }
+        } else {
+          await replyLineMessage(replyToken, [{ type: 'text', text: result.message }], lineUserId);
         }
 
         await insertDeliveryLog({
@@ -1303,6 +1325,39 @@ ${dinnerResult.message}`;
       return true;
     }
 
+    // 料理名で直接選択した場合 → 番号マッチと同様に処理
+    const nameMatchIdx = options.findIndex(o => trimmed === o.name || trimmed.includes(o.name));
+    if (nameMatchIdx >= 0) {
+      const selected = options[nameMatchIdx];
+      await setLineUserPendingAction(lineUserId, {
+        type: 'menu_option_confirm',
+        selectedIndex: nameMatchIdx,
+        selectedName: selected.name,
+        options,
+        mealType,
+        targetDate,
+        menuPlanId,
+        askedAt: Date.now(),
+      });
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: `「${selected.name}」ですね！
+
+1️⃣ レシピを表示する
+2️⃣ 違う献立を選び直す
+3️⃣ 案内を終了する
+その他 → 献立をやり直す（新しく生成）
+
+👇 下のボタンから選んでね！`,
+        quickReply: { items: [
+          { type: 'action', action: { type: 'message', label: '📖 レシピを表示', text: 'レシピを見たい' } },
+          { type: 'action', action: { type: 'message', label: '🔄 選び直す', text: '選び直したい' } },
+          { type: 'action', action: { type: 'message', label: '✅ 終了', text: '案内を終了する' } },
+          { type: 'action', action: { type: 'message', label: '🎲 やり直し', text: 'その他' } },
+        ] },
+      }], lineUserId);
+      return true;
+    }
     // 「1」「2」「3」の番号入力 → 復唱確認
     const numMatch = trimmed.match(/^([1-3１-３])$/);
     if (numMatch) {
@@ -1324,9 +1379,9 @@ ${dinnerResult.message}`;
           type: 'text',
           text: `${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
           quickReply: { items: [
-            { type: 'action', action: { type: 'message', label: '📖 レシピを表示', text: '1' } },
-            { type: 'action', action: { type: 'message', label: '🔄 選び直す', text: '2' } },
-            { type: 'action', action: { type: 'message', label: '✅ 終了', text: '3' } },
+            { type: 'action', action: { type: 'message', label: '📖 レシピを表示', text: 'レシピを見たい' } },
+            { type: 'action', action: { type: 'message', label: '🔄 選び直す', text: '選び直したい' } },
+            { type: 'action', action: { type: 'message', label: '✅ 終了', text: '案内を終了する' } },
             { type: 'action', action: { type: 'message', label: '🎲 やり直し', text: 'その他' } },
           ] },
         }], lineUserId);
@@ -1394,15 +1449,15 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // 「3」→ 案内を終了して通常メニューに戻る
-    if (/^[3３]$/.test(trimmed)) {
+    // 「3」または「案内を終了する」→ 案内を終了して通常メニューに戻る
+    if (/^[3３]$/.test(trimmed) || trimmed === '案内を終了する') {
       await setLineUserPendingAction(lineUserId, null);
       await replyLineMessage(replyToken, [{ type: 'text', text: '案内を終了します😊またいつでも「献立」と送ってください！' }], lineUserId);
       return true;
     }
 
-    // 「2」→ 違う献立を選び直す（候補に戻る）
-    if (/^[2２]$/.test(trimmed)) {
+    // 「2」または「選び直したい」→ 違う献立を選び直す（候補に戻る）
+    if (/^[2２]$/.test(trimmed) || trimmed === '選び直したい') {
       const optionLines = options.map((o, i) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
       await setLineUserPendingAction(lineUserId, {
         type: 'menu_option_selection',
@@ -1416,7 +1471,7 @@ ${dinnerResult.message}`;
     }
 
     // 「1」またはテキスト系 → レシピを生成して返す
-    if (/^[1１]$/.test(trimmed) || /^(はい|yes|ok|おねがい|そうして|大丈夫|だいじょうぶ|レシピ|教えて|見せて|詳しく)/.test(trimmed)) {
+    if (/^[1１]$/.test(trimmed) || /^(はい|yes|ok|おねがい|そうして|大丈夫|だいじょうぶ|レシピ|教えて|見せて|詳しく|レシピを見たい)/.test(trimmed)) {
       try {
         const selected = options[selectedIndex];
         const ingredientList = selected.mainIngredients.join('・');
@@ -2575,8 +2630,8 @@ ${itemList}
         });
         const hearingText = `${familyGuidePrefix}献立を考える前に少し聞かせてください😊\n\n${shopDayText}、買い物に行く予定はありますか？\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります\n\n番号で教えてください`;
         await replyAndSave(replyToken, [{ type: 'text', text: hearingText, quickReply: { items: [
-          { type: 'action', action: { type: 'message', label: '🛒 はい、行く予定', text: '1' } },
-          { type: 'action', action: { type: 'message', label: '🏠 今ある食材で', text: '2' } },
+          { type: 'action', action: { type: 'message', label: '🛒 はい、行く予定', text: 'はい、行く予定です' } },
+          { type: 'action', action: { type: 'message', label: '🏠 今ある食材で', text: 'いいえ、今ある食材で作ります' } },
         ] } }]);
         return;
       }

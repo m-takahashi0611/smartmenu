@@ -47,7 +47,7 @@ export async function generateMenuPlan(
   willShop?: boolean,
   theme?: string,
   forceRegenerate?: boolean
-): Promise<{ message: string; menuPlanId?: number; shoppingList?: string[] }> {
+): Promise<{ message: string; menuPlanId?: number; shoppingList?: string[]; options?: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }> }> {
 
   // 時間帯を決定（引数がなければ現在時刻から判定）
   const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -410,6 +410,9 @@ ${fridgeNote}✨ ${menuData.name}
     message: messageText,
     menuPlanId: saved?.id,
     shoppingList: menuData.shoppingList ?? [],
+    options: (resolvedMealType === "dinner" || resolvedMealType === "tomorrow_breakfast")
+      ? (menuData.options as Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>)
+      : undefined,
   };
 }
 
