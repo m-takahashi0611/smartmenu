@@ -58,10 +58,11 @@ export const subscriptionRouter = router({
     const trialDaysLeft = Math.max(0, sub.trialDays - daysPassed);
     const isTrialActive = sub.status === "trial" && trialDaysLeft > 0;
 
-    // プレミアム判定：activeまたはトライアル期間中
+    // プレミアム判定：activeまたはトライアル期間中、またはcancelled（期末まで有効）
     const isPremium =
       sub.status === "active" ||
-      (sub.status === "trial" && isTrialActive);
+      (sub.status === "trial" && isTrialActive) ||
+      (sub.status === "cancelled" && sub.currentPeriodEnd != null && new Date(sub.currentPeriodEnd) > new Date());
 
     return {
       plan: sub.plan,
@@ -194,7 +195,7 @@ export const subscriptionRouter = router({
         // DBのステータスだけ更新して正常終了
         await db
           .update(subscriptions)
-          .set({ cancelledAt: new Date() })
+          .set({ cancelledAt: new Date(), status: "cancelled" })
           .where(eq(subscriptions.userId, userId));
         return { success: true, alreadyCancelled: true };
       }
@@ -204,10 +205,10 @@ export const subscriptionRouter = router({
       });
     }
 
-    // DBのステータスを更新
+    // DBのステータスを更新（cancelledに変更してUIが即時切り替わるようにする）
     await db
       .update(subscriptions)
-      .set({ cancelledAt: new Date() })
+      .set({ cancelledAt: new Date(), status: "cancelled" })
       .where(eq(subscriptions.userId, userId));
 
     return { success: true };
