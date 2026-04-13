@@ -30,6 +30,7 @@ import { publicProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { getWeatherInfo, formatWeatherForPrompt } from "../weather";
 import { transcribeAudio } from "../_core/voiceTranscription";
+import { switchToPremiumMenu, switchToNormalMenu } from "./richMenu";
 
 // ─── LINE API helper ──────────────────────────────────────────────────────────
 
@@ -2357,7 +2358,19 @@ ${dinnerResult.message}`;
   return false;
 }
 
-// ─── Webhook event handler ────────────────────────────────────────────────────
+// ─── 「今日だけ特別」テーマの説明文生成 ───────────────────────────────────────────
+function getSpecialThemeDesc(theme: string): string {
+  const themeMap: Record<string, string> = {
+    'おもてなし': 'おもてなし・ホームパーティー。見映えがよく品数多め、手間をかけた特別感のある献立を提案してください。',
+    '記念日': '記念日。お祝いにふさわしい特別感のある献立を提案してください。',
+    'チートデー': 'チートデー（がんばった日のご行美）。カロリー制限なしで、家族の好物や食べたいものを優先した献立を提案してください。過去の会話から家族の好物を最大限活かしてください。',
+    '季節の行事': '季節の行事・イベント（お正月・花見・夏祭り・クリスマスなど）。季節感のある特別な献立を提案してください。',
+    '体調回復': '体調回復・疲れ気味。消化によく、栄養補給になるやさしい献立を提案してください。',
+  };
+  return themeMap[theme] ?? `${theme}。このテーマにふさわしい特別感のある献立を提案してください。`;
+}
+
+// ─── Webhook event handler ────────────────────────────────────────────
 
 export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
   const { type, source, replyToken } = event;
@@ -3037,6 +3050,92 @@ https://www.kondatebiyori.com`,
           },
         }]);
       }
+      return;
+    }
+
+    // ─── リッチメニュー「今日だけ特別」ボタン（課金ユーザー専用）────────────────────────────────
+    if (normalizedText === "今日だけ特別" || text.includes("今日だけ特別")) {
+      if (!userId) {
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはダッシュボードからログインしてください\nhttps://www.kondatebiyori.com` }]);
+        return;
+      }
+      const isPremium = await getUserIsPremium(userId);
+      if (!isPremium) {
+        await replyAndSave(replyToken, [{
+          type: "text",
+          text: "⭐ 「今日だけ特別」はプレミアム会員限定の機能です\n\nダッシュボードからプレミアムプランにアップグレードすると、特別な日の献立提案が使えるようになります！\nhttps://www.kondatebiyori.com/dashboard",
+        }]);
+        return;
+      }
+      await replyAndSave(replyToken, [{
+        type: "text",
+        text: "✨ 今日はどんな特別な日ですか？\n\n下から選ぶか、自由に入力してください😊",
+        quickReply: {
+          items: [
+            { type: "action", action: { type: "message", label: "🥂 おもてなし", text: "今日だけ特別：おもてなし" } },
+            { type: "action", action: { type: "message", label: "🎂 記念日", text: "今日だけ特別：記念日" } },
+            { type: "action", action: { type: "message", label: "🍰 チートデー", text: "今日だけ特別：チートデー" } },
+            { type: "action", action: { type: "message", label: "🎌 季節の行事", text: "今日だけ特別：季節の行事" } },
+            { type: "action", action: { type: "message", label: "🏥 体調回復", text: "今日だけ特別：体調回復" } },
+          ],
+        },
+      }]);
+      return;
+    }
+
+    // ─── 「今日だけ特別：〇〇」テーマ選択後の処理 ──────────────────────────────────────────
+    const specialTodayMatch = text.match(/^今日だけ特別[：::]?(.+)$/);
+    if (specialTodayMatch && userId) {
+      const specialTheme = specialTodayMatch[1].trim();
+      // 「記念日」の場合は誰の記念日か確認する
+      if (specialTheme.includes("記念日")) {
+        await setLineUserPendingAction(lineUserId, { type: 'special_today_anniversary', theme: specialTheme });
+        await replyAndSave(replyToken, [{
+          type: "text",
+          text: "🎂 素敵な記念日ですね！\n\n誰の記念日ですか？",
+          quickReply: {
+            items: [
+              { type: "action", action: { type: "message", label: "👶 子どもの誕生日", text: "子どもの誕生日" } },
+              { type: "action", action: { type: "message", label: "💑 パートナーの誕生日", text: "パートナーの誕生日" } },
+              { type: "action", action: { type: "message", label: "🎉 自分の誕生日", text: "自分の誕生日" } },
+              { type: "action", action: { type: "message", label: "💍 結婚記念日", text: "結婚記念日" } },
+              { type: "action", action: { type: "message", label: "🎊 その他の記念日", text: "その他の記念日" } },
+            ],
+          },
+        }]);
+        return;
+      }
+      // 記念日以外はすぐに献立生成
+      const nowJSTSpecial = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const todaySpecial = nowJSTSpecial.toISOString().split('T')[0];
+      const specialThemeDesc = getSpecialThemeDesc(specialTheme);
+      const menuPlan = await generateMenuPlan(userId, todaySpecial, 'dinner', undefined, specialThemeDesc, true);
+      await replyAndSave(replyToken, [{ type: "text", text: menuPlan.message }]);
+      return;
+    }
+
+    // ─── 「今日だけ特別：記念日」→ 誰の記念日か回答後の処理 ─────────────────────────────────
+    {
+      const pendingAnniversary = await getLineUserPendingAction(lineUserId);
+      if (pendingAnniversary?.type === 'special_today_anniversary' && userId) {
+        const anniversaryFor = text.trim();
+        const specialTheme = (pendingAnniversary as any).theme ?? '記念日';
+        await setLineUserPendingAction(lineUserId, null);
+        const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
+        const today = nowJST.toISOString().split('T')[0];
+        const specialThemeDesc = `${specialTheme}（${anniversaryFor}）。家族の好みや記録を最大限活かして、お祝いにふさわしい特別感のある献立を提案してください。`;
+        const menuPlan = await generateMenuPlan(userId, today, 'dinner', undefined, specialThemeDesc, true);
+        await replyAndSave(replyToken, [{ type: "text", text: menuPlan.message }]);
+        return;
+      }
+    }
+
+    // ─── リッチメニュー「家計簿」ボタン（課金ユーザー専用・開発中）──────────────────────────
+    if (normalizedText === "家計簿" || text.includes("家計簿を見る") || text.includes("家計簿を開く")) {
+      await replyAndSave(replyToken, [{
+        type: "text",
+        text: "📒 家計簿機能は現在開発中です🔧\n\nもうしばらくお待ちください！\nリリース時にはお知らせします😊",
+      }]);
       return;
     }
 

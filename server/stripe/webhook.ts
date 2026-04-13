@@ -3,8 +3,9 @@ import Stripe from "stripe";
 import { getStripe } from "./client";
 import { ENV } from "../_core/env";
 import { getDb } from "../db";
-import { subscriptions } from "../../drizzle/schema";
+import { subscriptions, lineUsers } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { switchToPremiumMenu, switchToNormalMenu } from "../routers/richMenu";
 
 /**
  * Stripe API 2025-03-31.basil では current_period_end は
@@ -149,6 +150,20 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session):
   }
 
   console.log(`[Stripe Webhook] User ${userId} upgraded to premium. Period end: ${currentPeriodEnd.toISOString()}`);
+
+  // LINEリッチメニューを課金メニューに切り替え
+  try {
+    const lineUser = await db.select({ lineUserId: lineUsers.lineUserId })
+      .from(lineUsers)
+      .where(eq(lineUsers.userId, userId))
+      .limit(1);
+    if (lineUser.length > 0 && lineUser[0].lineUserId) {
+      await switchToPremiumMenu(lineUser[0].lineUserId);
+      console.log(`[Stripe Webhook] 課金メニューに切り替え完了: userId=${userId}, lineUserId=${lineUser[0].lineUserId}`);
+    }
+  } catch (e) {
+    console.error("[Stripe Webhook] リッチメニュー切り替え失敗:", e);
+  }
 }
 
 /**
@@ -200,6 +215,26 @@ async function handleSubscriptionDeleted(stripeSubscription: Stripe.Subscription
       cancelledAt: new Date(),
     })
     .where(eq(subscriptions.stripeSubscriptionId, stripeSubscription.id));
+
+  // LINEリッチメニューを通常メニューに戻す
+  try {
+    const [deletedSub] = await db.select({ userId: subscriptions.userId })
+      .from(subscriptions)
+      .where(eq(subscriptions.stripeSubscriptionId, stripeSubscription.id))
+      .limit(1);
+    if (deletedSub?.userId) {
+      const lineUser = await db.select({ lineUserId: lineUsers.lineUserId })
+        .from(lineUsers)
+        .where(eq(lineUsers.userId, deletedSub.userId))
+        .limit(1);
+      if (lineUser.length > 0 && lineUser[0].lineUserId) {
+        await switchToNormalMenu(lineUser[0].lineUserId);
+        console.log(`[Stripe Webhook] 通常メニューに戻し完了: userId=${deletedSub.userId}`);
+      }
+    }
+  } catch (e) {
+    console.error("[Stripe Webhook] リッチメニュー戻し失敗:", e);
+  }
 
   console.log(`[Stripe Webhook] Subscription deleted: ${stripeSubscription.id}`);
 }

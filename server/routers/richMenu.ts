@@ -129,7 +129,7 @@ async function uploadRichMenuImage(richMenuId: string, imageBuffer: Buffer, cont
   });
 }
 
-// ─── リッチメニュー定義 ───────────────────────────────────────────────────────
+// // ─── リッチメニュー定義 ───────────────────────────────────────────────
 
 /** 通常メニュー（機能ショートカット4ボタン） */
 function buildNormalRichMenuBody() {
@@ -179,9 +179,138 @@ function buildNormalRichMenuBody() {
   };
 }
 
-// 後方互換のためエイリアスを残す
+// 後方互换のためエイリアスを残す
 function buildRichMenuBody() {
   return buildNormalRichMenuBody();
+}
+
+/** 課金ユーザー向ゑ6コマメニュー（今日の献立・冷蔵庫・ダッシュボード・買い物リスト・今日だけ特別・家計簿） */
+function buildPremiumRichMenuBody(){
+  return {
+    size: { width: 2500, height: 1686 },
+    selected: true,
+    name: "献立日和 プレミアムメニュー",
+    chatBarText: "メニューを開く",
+    areas: [
+      // 今日の献立（左上）
+      {
+        bounds: { x: 0, y: 0, width: 833, height: 843 },
+        action: { type: "message", label: "今日の献立", text: "今日の献立" },
+      },
+      // 冷蔵庫管理（中上）
+      {
+        bounds: { x: 833, y: 0, width: 834, height: 843 },
+        action: { type: "message", label: "冷蔵庫管理", text: "冷蔵庫の中身を教えて" },
+      },
+      // ダッシュボードへ（右上）
+      {
+        bounds: { x: 1667, y: 0, width: 833, height: 843 },
+        action: { type: "uri", label: "ダッシュボードへ", uri: "https://liff.line.me/2009630713-AotlJytF" },
+      },
+      // 買い物リスト（左下）
+      {
+        bounds: { x: 0, y: 843, width: 833, height: 843 },
+        action: { type: "message", label: "買い物リスト", text: "買い物リストを教えて" },
+      },
+      // 今日だけ特別（中下）
+      {
+        bounds: { x: 833, y: 843, width: 834, height: 843 },
+        action: { type: "message", label: "今日だけ特別", text: "今日だけ特別" },
+      },
+      // 家計簿（右下）
+      {
+        bounds: { x: 1667, y: 843, width: 833, height: 843 },
+        action: { type: "message", label: "家計簿", text: "家計簿" },
+      },
+    ],
+  };
+}
+
+// ─── 課金メニューIDのキャッシュ（メモリ + DB永続化） ────────────────────────────────────
+const DB_KEY_PREMIUM_MENU = "premium_rich_menu_id";
+let cachedPremiumMenuId: string | null = null;
+
+export function getCachedPremiumMenuId(): string | null {
+  return cachedPremiumMenuId;
+}
+
+export function setCachedPremiumMenuId(id: string | null) {
+  cachedPremiumMenuId = id;
+}
+
+/** サーバー起動時にDBから課金メニューIDを復元する */
+export async function loadPremiumMenuIdFromDb(): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    const rows = await db
+      .select({ value: systemSettings.value })
+      .from(systemSettings)
+      .where(eq(systemSettings.key, DB_KEY_PREMIUM_MENU))
+      .limit(1);
+    if (rows.length > 0 && rows[0].value) {
+      cachedPremiumMenuId = rows[0].value;
+      console.log("[RichMenu] DBから課金メニューID復元:", cachedPremiumMenuId);
+    }
+  } catch (e) {
+    console.error("[RichMenu] DBからの課金メニューID読み込み失敗:", e);
+  }
+}
+
+async function savePremiumMenuIdToDb(id: string): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db
+      .insert(systemSettings)
+      .values({ key: DB_KEY_PREMIUM_MENU, value: id })
+      .onDuplicateKeyUpdate({ set: { value: id } });
+  } catch (e) {
+    console.error("[RichMenu] DBへの課金メニューID保存失敗:", e);
+  }
+}
+
+/** 課金ユーザー向〔6コマリッチメニューを作成してIDを返す */
+export async function createPremiumRichMenu(imageUrl?: string): Promise<string> {
+  console.log("[RichMenu] createPremiumRichMenu 開始");
+  const createRes = await lineApiRequest("POST", "/v2/bot/richmenu", buildPremiumRichMenuBody());
+  if (createRes.status !== 200) {
+    throw new Error(`課金メニュー作成失敗: ${JSON.stringify(createRes.data)}`);
+  }
+  const richMenuId: string = createRes.data.richMenuId;
+
+  // 画像をアップロード（URLから取得）
+  const imgUrl = imageUrl ?? "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/rich_menu_dashboard_2500x1686_42be9ca0.jpg";
+  const imageBuffer = await fetchImageBuffer(imgUrl);
+  const contentType = imgUrl.endsWith(".jpg") || imgUrl.endsWith(".jpeg") ? "image/jpeg" : "image/png";
+  await uploadRichMenuImage(richMenuId, imageBuffer, contentType);
+
+  setCachedPremiumMenuId(richMenuId);
+  await savePremiumMenuIdToDb(richMenuId);
+
+  console.log("[RichMenu] 課金メニュー作成完了:", richMenuId);
+  return richMenuId;
+}
+
+/**
+ * 特定ユーザーに課金メニューを表示する
+ * 課金サブスク等のタイミングで呼び出す
+ */
+export async function switchToPremiumMenu(lineUserId: string): Promise<void> {
+  if (!cachedPremiumMenuId) {
+    await loadPremiumMenuIdFromDb();
+  }
+  const menuId = getCachedPremiumMenuId();
+  if (!menuId) {
+    console.warn("[RichMenu] 課金メニューIDが未設定。ダッシュボードから登録してください。");
+    return;
+  }
+  try {
+    await lineApiRequest("POST", `/v2/bot/user/${lineUserId}/richmenu/${menuId}`);
+    console.log("[RichMenu] 課金メニューに切り替え:", lineUserId);
+  } catch (e) {
+    console.error("[RichMenu] 課金メニュー切り替え失敗:", e);
+  }
 }
 
 /** 数字選択メニュー（pendingAction中に表示: １・２・３・その他） */
@@ -364,9 +493,12 @@ export const richMenuRouter = router({
     if (!cachedNumberMenuId) {
       await loadNumberMenuIdFromDb();
     }
+    if (!cachedPremiumMenuId) {
+      await loadPremiumMenuIdFromDb();
+    }
     const menus = await listRichMenus();
     const defaultId = await getDefaultRichMenu();
-    return { menus, defaultId, cachedNumberMenuId: getCachedNumberMenuId() };
+    return { menus, defaultId, cachedNumberMenuId: getCachedNumberMenuId(), cachedPremiumMenuId: getCachedPremiumMenuId() };
   }),
 
   // 通常リッチメニューを作成してデフォルト設定
@@ -441,6 +573,44 @@ export const richMenuRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
       }
       await lineApiRequest("POST", `/v2/bot/user/all/richmenu/${input.richMenuId}`);
+      return { success: true };
+    }),
+
+  // 課金ユーザー向け6コマメニューを作成
+  createPremiumMenu: protectedProcedure
+    .input(z.object({ imageUrl: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
+      }
+      try {
+        const richMenuId = await createPremiumRichMenu(input.imageUrl);
+        return { richMenuId, message: `課金メニューを作成しました（ID: ${richMenuId}）` };
+      } catch (e: any) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `エラー: ${e?.message ?? String(e)}` });
+      }
+    }),
+
+  // 課金メニューIDを手動でキャッシュに設定
+  setPremiumMenuId: protectedProcedure
+    .input(z.object({ richMenuId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
+      }
+      setCachedPremiumMenuId(input.richMenuId);
+      await savePremiumMenuIdToDb(input.richMenuId);
+      return { success: true, richMenuId: input.richMenuId };
+    }),
+
+  // 特定ユーザーに課金メニューを適用
+  applyPremiumMenuToUser: protectedProcedure
+    .input(z.object({ lineUserId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
+      }
+      await switchToPremiumMenu(input.lineUserId);
       return { success: true };
     }),
 });

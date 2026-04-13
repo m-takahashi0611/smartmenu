@@ -7,7 +7,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleLineWebhookEvent, verifyLineSignature } from "../routers/line";
-import { loadNumberMenuIdFromDb } from "../routers/richMenu";
+import { loadNumberMenuIdFromDb, loadPremiumMenuIdFromDb } from "../routers/richMenu";
 import { handleStripeWebhook } from "../stripe/webhook";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -35,6 +35,7 @@ async function startServer() {
 
   // サーバー起動時にDBから数字メニューIDを復元
   loadNumberMenuIdFromDb().catch((e) => console.warn('[RichMenu] 起動時ID読み込み失敗:', e?.message));
+  loadPremiumMenuIdFromDb().catch((e) => console.warn('[RichMenu] 課金メニューID読み込み失敗:', e?.message));
 
   // デバッグ用バージョン確認エンドポイント
   app.get("/api/debug/version", (req, res) => {
