@@ -219,7 +219,21 @@ function BroadcastMessageTab({ lineUsers }: { lineUsers: any[] | undefined }) {
                 rows={8}
                 className="mt-1 font-mono text-sm"
               />
-              <p className="text-xs text-muted-foreground mt-1">{formContent.length}文字</p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-muted-foreground">{formContent.length}文字</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">プレースホルダー:</span>
+                  <button
+                    type="button"
+                    className="text-xs bg-muted hover:bg-muted/80 border border-border rounded px-2 py-0.5 font-mono cursor-pointer"
+                    onClick={() => setFormContent(prev => prev + "{{name}}")}
+                    title="カーソル位置に{{name}}を挿入"
+                  >
+                    {"{{name}}"}
+                  </button>
+                  <span className="text-xs text-muted-foreground">→ LINE表示名に自動置換</span>
+                </div>
+              </div>
             </div>
             <div className="flex gap-2">
               <Button

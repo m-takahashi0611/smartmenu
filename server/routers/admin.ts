@@ -207,11 +207,22 @@ export const adminRouter = router({
       const msg = await getBroadcastMessage(input.id);
       if (!msg) throw new TRPCError({ code: "NOT_FOUND", message: "メッセージが見つかりません" });
 
+      // lineUserId → displayName のマッピングを一括取得
+      const db = await getDb();
+      const { inArray: inArrayOp } = await import("drizzle-orm");
+      const userRows = db ? await db.select({
+        lineUserId: lineUsers.lineUserId,
+        displayName: lineUsers.displayName,
+      }).from(lineUsers).where(inArrayOp(lineUsers.lineUserId, input.lineUserIds)) : [];
+      const nameMap = new Map(userRows.map(r => [r.lineUserId, r.displayName ?? "お客様"]));
+
       let success = 0;
       let failed = 0;
       for (const lineUserId of input.lineUserIds) {
         try {
-          await sendLineMessage(lineUserId, [{ type: "text", text: msg.content }]);
+          const displayName = nameMap.get(lineUserId) ?? "お客様";
+          const text = msg.content.replace(/\{\{name\}\}/g, displayName);
+          await sendLineMessage(lineUserId, [{ type: "text", text }]);
           success++;
         } catch (err) {
           console.error(`[sendBroadcastMessage] Failed for ${lineUserId}:`, err);
