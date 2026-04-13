@@ -52,6 +52,9 @@ export const lineUsers = mysqlTable("line_users", {
   // 処理中フラグ（重複メッセージ防止）
   isProcessing: boolean("isProcessing").default(false).notNull(),
   processingStartedAt: timestamp("processingStartedAt"),
+  // ブロックフラグ（管理者によるブロック）
+  isBlocked: boolean("isBlocked").default(false).notNull(),
+  blockedAt: timestamp("blockedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

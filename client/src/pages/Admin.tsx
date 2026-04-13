@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { Loader2, LogOut, MessageSquare, X } from "lucide-react";
+import { Loader2, LogOut, MessageSquare, X, Ban, CheckCircle, Send } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -183,6 +183,8 @@ export default function Admin() {
     onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
   });
 
+  const utils = trpc.useUtils();
+
   const broadcast = trpc.admin.broadcastMenus.useMutation({
     onSuccess: (result) => {
       toast.success(`配信完了`, {
@@ -190,6 +192,22 @@ export default function Admin() {
       });
     },
     onError: (err) => toast.error("配信に失敗しました", { description: err.message }),
+  });
+
+  const blockUser = trpc.admin.blockUser.useMutation({
+    onSuccess: () => {
+      toast.success("ユーザーをブロックしました");
+      utils.admin.listLineUsers.invalidate();
+    },
+    onError: (err) => toast.error("ブロックに失敗しました", { description: err.message }),
+  });
+
+  const unblockUser = trpc.admin.unblockUser.useMutation({
+    onSuccess: () => {
+      toast.success("ブロックを解除しました");
+      utils.admin.listLineUsers.invalidate();
+    },
+    onError: (err) => toast.error("ブロック解除に失敗しました", { description: err.message }),
   });
 
   const clearConversationHistory = trpc.admin.clearConversationHistory.useMutation({
@@ -362,7 +380,8 @@ export default function Admin() {
         {/* ユーザー一覧 */}
         {activeTab === "users" && (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            {/* 集計カード */}
+            <div className="grid grid-cols-2 gap-3 mb-4 sm:grid-cols-4">
               <Card>
                 <CardContent className="p-4 text-center">
                   <p className="text-3xl font-bold text-primary">{users?.length ?? 0}</p>
@@ -375,14 +394,47 @@ export default function Admin() {
                   <p className="text-sm text-muted-foreground">LINEアクティブ</p>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="border-green-200">
                 <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-primary">
-                    {users?.filter((u) => u.role === "admin").length ?? 0}
+                  <p className="text-3xl font-bold text-green-600">
+                    {lineUsers?.filter((lu) => lu.subscriptionStatus === "active").length ?? 0}
                   </p>
-                  <p className="text-sm text-muted-foreground">管理者数</p>
+                  <p className="text-sm text-muted-foreground">課金中</p>
                 </CardContent>
               </Card>
+              <Card className="border-gray-200">
+                <CardContent className="p-4 text-center">
+                  <p className="text-3xl font-bold text-gray-500">
+                    {lineUsers?.filter((lu) => lu.subscriptionStatus !== "active").length ?? 0}
+                  </p>
+                  <p className="text-sm text-muted-foreground">無課金</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* 配信実行ボタン */}
+            <div className="flex items-center gap-3 mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <Send className="h-4 w-4 text-green-700 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-green-800">今日の献立を一括配信</p>
+                <p className="text-xs text-green-600">アクティブな全LINEユーザー（{lineUsers?.filter(lu => !lu.isBlocked).length ?? 0}名）に送信</p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (confirm(`${lineUsers?.filter(lu => !lu.isBlocked).length ?? 0}名に今日の献立を配信しますか？`)) {
+                    broadcast.mutate({});
+                  }
+                }}
+                disabled={broadcast.isPending || (lineUsers?.length ?? 0) === 0}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {broadcast.isPending ? (
+                  <><Loader2 className="h-3 w-3 animate-spin mr-1" />配信中...</>
+                ) : (
+                  "配信実行"
+                )}
+              </Button>
             </div>
 
             <Card>
@@ -476,15 +528,15 @@ export default function Admin() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>LINE名</TableHead>
-                        <TableHead>LINE User ID</TableHead>
+                        <TableHead>プラン</TableHead>
                         <TableHead>配信時間</TableHead>
                         <TableHead>地域</TableHead>
-                        <TableHead>トーク履歴</TableHead>
+                        <TableHead>操作</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {lineUsers.map((lu) => (
-                        <TableRow key={lu.id}>
+                        <TableRow key={lu.id} className={lu.isBlocked ? "opacity-50 bg-red-50" : ""}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
                               {lu.pictureUrl && (
@@ -494,11 +546,22 @@ export default function Admin() {
                                   className="w-7 h-7 rounded-full object-cover flex-shrink-0"
                                 />
                               )}
-                              <span>{lu.displayName ?? "-"}</span>
+                              <div>
+                                <span>{lu.displayName ?? "-"}</span>
+                                {lu.isBlocked && (
+                                  <span className="ml-1 text-xs text-red-500 font-medium">🚫 ブロック中</span>
+                                )}
+                              </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground font-mono">
-                            {lu.lineUserId.slice(0, 16)}...
+                          <TableCell>
+                            {lu.subscriptionStatus === "active" ? (
+                              <Badge className="bg-green-100 text-green-800 border-green-300 text-xs">💳 課金中</Badge>
+                            ) : lu.subscriptionStatus === "cancelled" ? (
+                              <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">解約済</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">無課金</Badge>
+                            )}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {String(lu.deliveryHour).padStart(2, "0")}:{String(lu.deliveryMinute).padStart(2, "0")}
@@ -507,20 +570,53 @@ export default function Admin() {
                             {lu.region ?? "-"}
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-xs gap-1"
-                              onClick={() =>
-                                setConversationModal({
-                                  lineUserId: lu.lineUserId,
-                                  displayName: lu.displayName ?? "ユーザー",
-                                })
-                              }
-                            >
-                              <MessageSquare className="h-3 w-3" />
-                              履歴を見る
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs gap-1"
+                                onClick={() =>
+                                  setConversationModal({
+                                    lineUserId: lu.lineUserId,
+                                    displayName: lu.displayName ?? "ユーザー",
+                                  })
+                                }
+                              >
+                                <MessageSquare className="h-3 w-3" />
+                                履歴
+                              </Button>
+                              {lu.isBlocked ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs gap-1 text-green-600 border-green-300 hover:bg-green-50"
+                                  onClick={() => {
+                                    if (confirm(`${lu.displayName ?? lu.lineUserId} のブロックを解除しますか？`)) {
+                                      unblockUser.mutate({ lineUserId: lu.lineUserId });
+                                    }
+                                  }}
+                                  disabled={unblockUser.isPending}
+                                >
+                                  <CheckCircle className="h-3 w-3" />
+                                  解除
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs gap-1 text-red-500 border-red-300 hover:bg-red-50"
+                                  onClick={() => {
+                                    if (confirm(`${lu.displayName ?? lu.lineUserId} をブロックしますか？\nブロック中はLINEメッセージが送信されなくなります。`)) {
+                                      blockUser.mutate({ lineUserId: lu.lineUserId });
+                                    }
+                                  }}
+                                  disabled={blockUser.isPending}
+                                >
+                                  <Ban className="h-3 w-3" />
+                                  ブロック
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

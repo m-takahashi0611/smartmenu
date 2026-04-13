@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAllActiveLineUsers, getAllUsers, getDeliveryLogs, getDb } from "../db";
-import { lineConversationHistory, fridgeItems, shoppingListItems, menuPlans, lineUsers } from "../../drizzle/schema";
+import { lineConversationHistory, fridgeItems, shoppingListItems, menuPlans, lineUsers, subscriptions } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { broadcastMenus } from "../batch/deliverMenus";
@@ -49,10 +49,61 @@ export const adminRouter = router({
     return getAllUsers();
   }),
 
-  // アクティブなLINEユーザー一覧
+  // アクティブなLINEユーザー一覧（課金情報付き）
   listLineUsers: adminProcedure.query(async () => {
-    return getAllActiveLineUsers();
+    const db = await getDb();
+    if (!db) return [];
+    // line_users と subscriptions を LEFT JOIN して課金情報を付与
+    const rows = await db
+      .select({
+        id: lineUsers.id,
+        userId: lineUsers.userId,
+        lineUserId: lineUsers.lineUserId,
+        displayName: lineUsers.displayName,
+        pictureUrl: lineUsers.pictureUrl,
+        deliveryHour: lineUsers.deliveryHour,
+        deliveryMinute: lineUsers.deliveryMinute,
+        isActive: lineUsers.isActive,
+        isBlocked: lineUsers.isBlocked,
+        blockedAt: lineUsers.blockedAt,
+        region: lineUsers.region,
+        createdAt: lineUsers.createdAt,
+        // 課金情報
+        subscriptionPlan: subscriptions.plan,
+        subscriptionStatus: subscriptions.status,
+        currentPeriodEnd: subscriptions.currentPeriodEnd,
+      })
+      .from(lineUsers)
+      .leftJoin(subscriptions, eq(lineUsers.userId, subscriptions.userId))
+      .where(eq(lineUsers.isActive, true));
+    return rows;
   }),
+
+  // ユーザーブロック
+  blockUser: adminProcedure
+    .input(z.object({ lineUserId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      await db
+        .update(lineUsers)
+        .set({ isBlocked: true, blockedAt: new Date(), updatedAt: new Date() })
+        .where(eq(lineUsers.lineUserId, input.lineUserId));
+      return { success: true };
+    }),
+
+  // ユーザーブロック解除
+  unblockUser: adminProcedure
+    .input(z.object({ lineUserId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      await db
+        .update(lineUsers)
+        .set({ isBlocked: false, blockedAt: null, updatedAt: new Date() })
+        .where(eq(lineUsers.lineUserId, input.lineUserId));
+      return { success: true };
+    }),
 
   // 配信ログ一覧
   listDeliveryLogs: adminProcedure

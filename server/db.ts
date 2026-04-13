@@ -165,7 +165,7 @@ export async function getLineUserByUserId(userId: number) {
 export async function getAllActiveLineUsers() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(lineUsers).where(eq(lineUsers.isActive, true));
+  return db.select().from(lineUsers).where(and(eq(lineUsers.isActive, true), eq(lineUsers.isBlocked, false)));
 }
 
 export async function updateLineUserDeliveryTime(userId: number, hour: number, minute: number) {

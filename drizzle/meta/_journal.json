@@ -113,6 +113,13 @@
       "when": 1776050222325,
       "tag": "0015_shiny_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1776060975871,
+      "tag": "0016_first_justice",
+      "breakpoints": true
     }
   ]
 }

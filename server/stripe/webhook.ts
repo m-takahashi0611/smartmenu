@@ -206,6 +206,12 @@ async function handleSubscriptionDeleted(stripeSubscription: Stripe.Subscription
   const db = await getDb();
   if (!db) return;
 
+  // 先にuserIdを取得（DB更新前に取得しないとstripeSubscriptionIdがnullになって検索できなくなる）
+  const [targetSub] = await db.select({ userId: subscriptions.userId })
+    .from(subscriptions)
+    .where(eq(subscriptions.stripeSubscriptionId, stripeSubscription.id))
+    .limit(1);
+
   await db
     .update(subscriptions)
     .set({
@@ -218,18 +224,14 @@ async function handleSubscriptionDeleted(stripeSubscription: Stripe.Subscription
 
   // LINEリッチメニューを通常メニューに戻す
   try {
-    const [deletedSub] = await db.select({ userId: subscriptions.userId })
-      .from(subscriptions)
-      .where(eq(subscriptions.stripeSubscriptionId, stripeSubscription.id))
-      .limit(1);
-    if (deletedSub?.userId) {
+    if (targetSub?.userId) {
       const lineUser = await db.select({ lineUserId: lineUsers.lineUserId })
         .from(lineUsers)
-        .where(eq(lineUsers.userId, deletedSub.userId))
+        .where(eq(lineUsers.userId, targetSub.userId))
         .limit(1);
       if (lineUser.length > 0 && lineUser[0].lineUserId) {
         await switchToNormalMenu(lineUser[0].lineUserId);
-        console.log(`[Stripe Webhook] 通常メニューに戻し完了: userId=${deletedSub.userId}`);
+        console.log(`[Stripe Webhook] 通常メニューに戻し完了: userId=${targetSub.userId}`);
       }
     }
   } catch (e) {
