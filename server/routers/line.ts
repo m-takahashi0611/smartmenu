@@ -1086,10 +1086,13 @@ ${dinnerResult.message}`;
         const result = await generateMenuPlan(userId, targetDate, mealType, pendingWillShop);
         // 夕食・翌日朝食の場合は3案提示するのでクイックリプライを付ける
         if ((mealType === 'dinner' || mealType === 'tomorrow_breakfast') && result.options && result.options.length > 0) {
-          const qrMenuItems = result.options.slice(0, 3).map((o, i) => ({
-            type: 'action' as const,
-            action: { type: 'message' as const, label: `${i + 1}. ${o.name.slice(0, 18)}`, text: o.name },
-          }));
+          const qrMenuItems = [
+            ...result.options.slice(0, 3).map((o, i) => ({
+              type: 'action' as const,
+              action: { type: 'message' as const, label: `${i + 1}. ${o.name.slice(0, 18)}`, text: o.name },
+            })),
+            { type: 'action' as const, action: { type: 'message' as const, label: '🎲 献立をやり直す', text: '献立をやり直す' } },
+          ];
           await replyLineMessage(replyToken, [{ type: 'text', text: result.message + '\n\n👇 下のボタンから選んでね！', quickReply: { items: qrMenuItems } }], lineUserId);
           // DBからdinnerOptionsを取得してpendingActionに保存
           const savedPlan = await getMenuPlanByDate(userId, targetDate);
@@ -1167,11 +1170,12 @@ ${dinnerResult.message}`;
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
-          text: `夕食${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
+          text: `夕食${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`,
           quickReply: { items: [
             { type: 'action', action: { type: 'message', label: '📖 レシピを見たい', text: 'レシピを見たい' } },
-            { type: 'action', action: { type: 'message', label: '🔄 選び直したい', text: '選び直したい' } },
-            { type: 'action', action: { type: 'message', label: '✅ 終了する', text: '案内を終了する' } },
+            { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
+            { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
+            { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
           ] },
         }], lineUserId);
         return true;
@@ -1195,11 +1199,12 @@ ${dinnerResult.message}`;
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
-          text: `朝食${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
+          text: `朝食${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`,
           quickReply: { items: [
             { type: 'action', action: { type: 'message', label: '📖 レシピを見たい', text: 'レシピを見たい' } },
-            { type: 'action', action: { type: 'message', label: '🔄 選び直したい', text: '選び直したい' } },
-            { type: 'action', action: { type: 'message', label: '✅ 終了する', text: '案内を終了する' } },
+            { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
+            { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
+            { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
           ] },
         }], lineUserId);
         return true;
@@ -1250,11 +1255,12 @@ ${dinnerResult.message}`;
           });
           await replyLineMessage(replyToken, [{
             type: 'text',
-            text: `夕食${ambiguousNum}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
+            text: `夕食${ambiguousNum}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`,
             quickReply: { items: [
               { type: 'action', action: { type: 'message', label: '📖 レシピを見たい', text: 'レシピを見たい' } },
-              { type: 'action', action: { type: 'message', label: '🔄 選び直したい', text: '選び直したい' } },
-              { type: 'action', action: { type: 'message', label: '✅ 終了する', text: '案内を終了する' } },
+              { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
+              { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
+              { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
             ] },
           }], lineUserId);
           return true;
@@ -1276,11 +1282,12 @@ ${dinnerResult.message}`;
           });
           await replyLineMessage(replyToken, [{
             type: 'text',
-            text: `朝食${ambiguousNum}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
+            text: `朝食${ambiguousNum}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`,
             quickReply: { items: [
               { type: 'action', action: { type: 'message', label: '📖 レシピを見たい', text: 'レシピを見たい' } },
-              { type: 'action', action: { type: 'message', label: '🔄 選び直したい', text: '選び直したい' } },
-              { type: 'action', action: { type: 'message', label: '✅ 終了する', text: '案内を終了する' } },
+              { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
+              { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
+              { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
             ] },
           }], lineUserId);
           return true;
@@ -1346,7 +1353,7 @@ ${dinnerResult.message}`;
     }
 
     // 「その他」ボタン → regenerateCountをチェックしてループ防止＋テーマ収集
-    if (/^(その他|やり直し|やりなおし|別の|ほかの|other)$/i.test(trimmed)) {
+    if (/^(その他|やり直し|やりなおし|献立をやり直す|別の|ほかの|other)$/i.test(trimmed)) {
       const regenerateCount = (pending as any).regenerateCount ?? 0;
       if (regenerateCount >= 3) {
         // 3回以上やり直しでループ強制終了
@@ -1388,14 +1395,14 @@ ${dinnerResult.message}`;
 1️⃣ レシピを表示する
 2️⃣ 違う献立を選び直す
 3️⃣ 案内を終了する
-その他 → 献立をやり直す（新しく生成）
+4️⃣ 献立をやり直す（新しく生成）
 
 👇 下のボタンから選んでね！`,
         quickReply: { items: [
           { type: 'action', action: { type: 'message', label: '📖 レシピを表示', text: 'レシピを見たい' } },
-          { type: 'action', action: { type: 'message', label: '🔄 選び直す', text: '選び直したい' } },
-          { type: 'action', action: { type: 'message', label: '✅ 終了', text: '案内を終了する' } },
-          { type: 'action', action: { type: 'message', label: '🎲 やり直し', text: 'その他' } },
+          { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
+          { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
+          { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
         ] },
       }], lineUserId);
       return true;
@@ -1419,12 +1426,12 @@ ${dinnerResult.message}`;
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
-          text: `${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`,
+          text: `${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`,
           quickReply: { items: [
             { type: 'action', action: { type: 'message', label: '📖 レシピを表示', text: 'レシピを見たい' } },
-            { type: 'action', action: { type: 'message', label: '🔄 選び直す', text: '選び直したい' } },
-            { type: 'action', action: { type: 'message', label: '✅ 終了', text: '案内を終了する' } },
-            { type: 'action', action: { type: 'message', label: '🎲 やり直し', text: 'その他' } },
+            { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
+            { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
+            { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
           ] },
         }], lineUserId);
         return true;
@@ -1472,7 +1479,7 @@ ${dinnerResult.message}`;
     const trimmed = text.trim();
 
     // 「その他」→ regenerateCountを引き継いでテーマ収集へ
-    if (/^(その他|やり直し|やりなおし|別の|ほかの|other)$/i.test(trimmed)) {
+    if (/^(その他|やり直し|やりなおし|献立をやり直す|別の|ほかの|other)$/i.test(trimmed)) {
       const regenerateCount = (pending as any).regenerateCount ?? 0;
       if (regenerateCount >= 3) {
         await setLineUserPendingAction(lineUserId, null);
@@ -1575,11 +1582,11 @@ ${dinnerResult.message}`;
     }
 
     // それ以外 → 案内を再表示
-    await replyLineMessage(replyToken, [{ type: 'text', text: `1か2か3で選んでください😊\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\nその他 → 献立をやり直す（新しく生成）`, quickReply: { items: [
+    await replyLineMessage(replyToken, [{ type: 'text', text: `1か2か3で選んでください😊\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`, quickReply: { items: [
       { type: 'action', action: { type: 'message', label: '📖 レシピを見たい', text: 'レシピを見たい' } },
-      { type: 'action', action: { type: 'message', label: '🔄 選び直したい', text: '選び直したい' } },
-      { type: 'action', action: { type: 'message', label: '✅ 終了する', text: '案内を終了する' } },
-      { type: 'action', action: { type: 'message', label: '🎲 やり直す', text: 'やり直す' } },
+      { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
+      { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
+      { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
     ] } }], lineUserId);
     return true;
   }

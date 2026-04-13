@@ -70,7 +70,7 @@ describe("generateMenuPlan", () => {
     mockGetFridgeItems.mockResolvedValueOnce([]);
     mockGetRecentMenuPlans.mockResolvedValueOnce([]);
 
-    const result = await generateMenuPlan(userId, today);
+    const result = await generateMenuPlan(userId, today, 'dinner');
 
     expect(result.menuPlanId).toBe(1);
     expect(result.message).toBe("今日の献立です");
@@ -116,7 +116,7 @@ describe("generateMenuPlan", () => {
       deliveredAt: null,
     });
 
-    const result = await generateMenuPlan(userId, today);
+    const result = await generateMenuPlan(userId, today, 'dinner');
 
     expect(result.menuPlanId).toBe(2);
     expect(mockInvokeLLM).toHaveBeenCalledOnce();
