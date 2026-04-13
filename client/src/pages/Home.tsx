@@ -263,7 +263,7 @@ export default function Home() {
           <div>
             <div className="space-y-4">
               <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_chara_v2-67CVHzzsUKLqKBHGHokDi9.png"
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/new_welcome_A_chara-SSjPP6my5BdSozY9MjgQCA.png"
                 alt="はじめましょう！"
                 className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
               />
@@ -273,12 +273,12 @@ export default function Home() {
                 className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
               />
               <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_02_fridge_0bf930c0.png"
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/new_welcome_02_fridge-d3bkgkRcZQTBCDuaN6bSye.png"
                 alt="冷蔵庫の食材を登録する"
                 className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
               />
               <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_03_commands_v3_4a4e56c1.png"
+                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/new_welcome_03_commands-By9oD4t2reaRVJFbjRnUSq.png"
                 alt="AIに伝えるコツ"
                 className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
               />
