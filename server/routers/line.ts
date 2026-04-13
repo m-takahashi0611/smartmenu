@@ -2432,6 +2432,11 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
     const lineUser = await getLineUserByLineId(lineUserId);
     const userId = lineUser?.userId ?? null;
     const displayName = lineUser?.displayName ?? "ゲスト";
+    // ─── processingフラグを確実にリセットするためのラッパー ──────────────────────
+    // 以降の処理はすべてこのtry/finallyブロック内で行い、どのreturnパスでもフラグをリセットする
+    let _processingStarted = false;
+    const _originalSetProcessing = setLineUserProcessing;
+    try {
 
     // ─── 処理中フラグチェック（重複メッセージ防止） ────────────────────────────────────────────
     // テキストメッセージのみ処理中フラグをチェック（画像・音声・位置情報はフラグ対象外）
@@ -2658,7 +2663,10 @@ ${itemList}
         const intentResult = await classifyUserIntent(text);
         if (intentResult.intent !== 'other') {
           const handled = await handleIntentAction(intentResult, text, lineUserId, userId, replyToken);
-          if (handled) return;
+          if (handled) {
+            if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
+            return;
+          }
         }
       }
     }
@@ -2670,7 +2678,10 @@ ${itemList}
       if (pendingBeforeKeyword) {
         // pendingAction処理へ委譲
         const handled = await handleFridgeRegistration(text, userId ?? 0, lineUserId, replyToken);
-        if (handled) return;
+        if (handled) {
+          if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
+          return;
+        }
       }
       if (!userId) {
         await replyAndSave(replyToken, [
@@ -3079,7 +3090,10 @@ https://www.kondatebiyori.com`,
     // ─── 冷蔵庫登録・確認コマンド ─────────────────────────────────────────────────────
     if (userId) {
       const handled = await handleFridgeRegistration(text, userId, lineUserId, replyToken);
-      if (handled) return;
+      if (handled) {
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
+        return;
+      }
     }
 
     // ─── 最終フォールバック：冷蔵庫・買い物リストクエリのキャッチ ──────────────────────
@@ -3205,6 +3219,14 @@ https://www.kondatebiyori.com`,
       await addConversationMessage({ lineUserId, role: 'assistant', content: fallbackMsg }).catch(() => {});
     } finally {
       // 処理完了後にフラグをリセット（再帰呼び出しの場合はスキップ）
+      if (!_skipHistory) {
+        await setLineUserProcessing(lineUserId, false).catch(() => {});
+      }
+    }
+    } catch (_outerErr) {
+      console.error('[LINE] Unhandled error in message handler:', _outerErr);
+    } finally {
+      // 外側のtry/finally: どのreturnパスでもprocessingフラグを確実にリセット
       if (!_skipHistory) {
         await setLineUserProcessing(lineUserId, false).catch(() => {});
       }
