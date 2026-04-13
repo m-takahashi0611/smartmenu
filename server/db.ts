@@ -24,6 +24,9 @@ import {
   productNameCache,
   type InsertProductNameCache,
   subscriptions,
+  userBaseThemes,
+  type UserBaseTheme,
+  type InsertUserBaseTheme,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -586,5 +589,28 @@ export async function upsertProductNameCache(data: InsertProductNameCache) {
   if (!db) return;
   await db.insert(productNameCache).values(data).onDuplicateKeyUpdate({
     set: { normalizedName: data.normalizedName, category: data.category, resolvedBy: data.resolvedBy },
+  });
+}
+
+// ─── ベーステーマ設定 ────────────────────────────────────────────────────────────
+
+export async function getUserBaseTheme(userId: number): Promise<UserBaseTheme | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(userBaseThemes).where(eq(userBaseThemes.userId, userId)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function upsertUserBaseTheme(data: InsertUserBaseTheme): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(userBaseThemes).values(data).onDuplicateKeyUpdate({
+    set: {
+      healthTheme: data.healthTheme ?? null,
+      lifestageTheme: data.lifestageTheme ?? null,
+      economyTheme: data.economyTheme ?? null,
+      styleTheme: data.styleTheme ?? null,
+      updatedAt: new Date(),
+    },
   });
 }

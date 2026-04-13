@@ -803,7 +803,7 @@ async function handleIntentAction(
       }
       const resolvedDisplay = resolvedItems.join('、') || text;
       await setLineUserPendingAction(lineUserId, { type: 'voice_ingredient_action', transcribedText: text, ingredients: resolvedItems });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${resolvedDisplay}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n番号で教えてください😊`, quickReply: { items: [
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${resolvedDisplay}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '🍱 冷蔵庫に追加', text: '1' } },
         { type: 'action', action: { type: 'message', label: '🛒 買い物リストに', text: '2' } },
         { type: 'action', action: { type: 'message', label: '🍽️ 献立を提案', text: '3' } },
@@ -812,7 +812,7 @@ async function handleIntentAction(
     }
     case 'used_ingredient': {
       await setLineUserPendingAction(lineUserId, { type: 'used_ingredient_action', items, text });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」を使ったんですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫から削除\n2️⃣ 数量を減らす\n3️⃣ そのまま（何もしない）\n\n番号で教えてください😊`, quickReply: { items: [
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」を使ったんですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫から削除\n2️⃣ 数量を減らす\n3️⃣ そのまま（何もしない）\n\n`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '🗑️ 冷蔵庫から削除', text: '1' } },
         { type: 'action', action: { type: 'message', label: '➖ 数量を減らす', text: '2' } },
         { type: 'action', action: { type: 'message', label: '✅ そのまま', text: '3' } },
@@ -821,7 +821,7 @@ async function handleIntentAction(
     }
     case 'bought_item': {
       await setLineUserPendingAction(lineUserId, { type: 'bought_item_action', items, text });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」を買ってきたんですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストから削除\n3️⃣ 両方（冷蔵庫追加＋リスト削除）\n\n番号で教えてください😊`, quickReply: { items: [
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}」を買ってきたんですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストから削除\n3️⃣ 両方（冷蔵庫追加＋リスト削除）\n\n`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '🍱 冷蔵庫に追加', text: '1' } },
         { type: 'action', action: { type: 'message', label: '🗑️ リストから削除', text: '2' } },
         { type: 'action', action: { type: 'message', label: '✨ 両方実行', text: '3' } },
@@ -841,7 +841,7 @@ async function handleIntentAction(
     case 'mood_theme': {
       const themeText = theme || itemDisplay;
       await setLineUserPendingAction(lineUserId, { type: 'mood_theme_action', theme: themeText, text });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${themeText}」の気分ですね！\n\nどうしますか？\n\n1️⃣ 今日の献立テーマに設定して提案\n2️⃣ キャンセル\n\n番号で教えてください😊`, quickReply: { items: [
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${themeText}」の気分ですね！\n\nどうしますか？\n\n1️⃣ 今日の献立テーマに設定して提案\n2️⃣ キャンセル\n\n`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '🍽️ テーマに設定して提案', text: '1' } },
         { type: 'action', action: { type: 'message', label: '❌ キャンセル', text: '2' } },
       ] } }], lineUserId);
@@ -851,7 +851,7 @@ async function handleIntentAction(
       const member = memberName || '家族';
       const pref = preference || text;
       await setLineUserPendingAction(lineUserId, { type: 'family_preference_action', memberName: member, preference: pref, items, text });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${member}が${pref}」ですね！\n\nどうしますか？\n\n1️⃣ 好み・嫌いとして登録\n2️⃣ キャンセル\n\n番号で教えてください😊`, quickReply: { items: [
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${member}が${pref}」ですね！\n\nどうしますか？\n\n1️⃣ 好み・嫌いとして登録\n2️⃣ キャンセル\n\n`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '✅ 好み・嫌いを登録', text: '1' } },
         { type: 'action', action: { type: 'message', label: '❌ キャンセル', text: '2' } },
       ] } }], lineUserId);
@@ -860,7 +860,7 @@ async function handleIntentAction(
     case 'quantity_update': {
       const qty = quantity || '不明';
       await setLineUserPendingAction(lineUserId, { type: 'quantity_update_action', items, quantity: qty, text });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}が${qty}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫の数量を更新\n2️⃣ 在庫確認（現在の冷蔵庫を表示）\n3️⃣ キャンセル\n\n番号で教えてください😊`, quickReply: { items: [
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}が${qty}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫の数量を更新\n2️⃣ 在庫確認（現在の冷蔵庫を表示）\n3️⃣ キャンセル\n\n`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '✏️ 数量を更新', text: '1' } },
         { type: 'action', action: { type: 'message', label: '🔍 在庫確認', text: '2' } },
         { type: 'action', action: { type: 'message', label: '❌ キャンセル', text: '3' } },
@@ -896,7 +896,7 @@ async function handleFridgeRegistration(
     const willNotShop = /^[2２]$/.test(trimmed) || /いいえ|行かない|ない|今ある食材/.test(trimmed);
 
     if (!willShop && !willNotShop) {
-      await replyLineMessage(replyToken, [{ type: 'text', text: `1または2の番号で教えてください😊\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります`, quickReply: { items: [
+      await replyLineMessage(replyToken, [{ type: 'text', text: `1または2の\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '🛒 はい、行く予定', text: 'はい、行く予定です' } },
         { type: 'action', action: { type: 'message', label: '🏠 今ある食材で', text: 'いいえ、今ある食材で作ります' } },
       ] } }], lineUserId);
@@ -940,9 +940,7 @@ async function handleFridgeRegistration(
 今夜の献立ですか？それとも明日分まで考えますか？
 
 1️⃣ 今夜の夕飯だけ
-2️⃣ 今夜＋明日の朝食まで
-
-番号で教えてください😊`;
+2️⃣ 今夜＋明日の朝食まで`;
       pendingChoices = {
         '1': 'dinner',
         '今夜': 'dinner',
@@ -964,9 +962,7 @@ async function handleFridgeRegistration(
 明日の献立を考えましょうか？
 
 1️⃣ 明日の朝食
-2️⃣ 明日の夕飯まで（朝・昼・夕）
-
-番号で教えてください😊`;
+2️⃣ 明日の夕飯まで（朝・昼・夕）`;
       pendingChoices = {
         '1': 'tomorrow_breakfast',
         '朝食': 'tomorrow_breakfast',
@@ -1489,7 +1485,7 @@ ${dinnerResult.message}`;
     // 「レシピ」「教えて」などのキーワード → 全候補を再表示
     if (/レシピ|教えて|見せて/.test(trimmed)) {
       const optionLines = options.map((o, i) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
-      await replyLineMessage(replyToken, [{ type: 'text', text: `どの献立のレシピを見ますか？\n\n${optionLines}\n\n番号で教えてください😊` }], lineUserId);
+      await replyLineMessage(replyToken, [{ type: 'text', text: `どの献立のレシピを見ますか？\n\n${optionLines}\n\n` }], lineUserId);
       return true;
     }
 
@@ -1760,7 +1756,7 @@ ${dinnerResult.message}`;
     const ingredientDisplay = ingredients.join('、');
     await replyLineMessage(replyToken, [{
       type: 'text',
-      text: `「${ingredientDisplay}」をどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n番号で教えてください😊`,
+      text: `「${ingredientDisplay}」をどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n`,
     }], lineUserId);
     return true;
   }
@@ -2766,7 +2762,7 @@ ${itemList}
           hourJST: currentHourJST,
           askedAt: Date.now(),
         });
-        const hearingText = `${familyGuidePrefix}献立を考える前に少し聞かせてください😊\n\n${shopDayText}、買い物に行く予定はありますか？\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります\n\n番号で教えてください`;
+        const hearingText = `${familyGuidePrefix}献立を考える前に少し聞かせてください😊\n\n${shopDayText}、買い物に行く予定はありますか？\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります\n\n`;
         await replyAndSave(replyToken, [{ type: 'text', text: hearingText, quickReply: { items: [
           { type: 'action', action: { type: 'message', label: '🛒 はい、行く予定', text: 'はい、行く予定です' } },
           { type: 'action', action: { type: 'message', label: '🏠 今ある食材で', text: 'いいえ、今ある食材で作ります' } },
@@ -2796,7 +2792,7 @@ ${itemList}
         };
       } else if (currentHourJST >= 15 && currentHourJST < 22) {
         // 夕方〜夜：今晩か明日分まとめてか
-        questionText = `今夜の献立ですか？それとも明日分まで考えますか？\n\n1️⃣ 今夜の夕飯だけ\n2️⃣ 今夜＋明日の朝食まで\n\n番号で教えてください😊`;
+        questionText = `今夜の献立ですか？それとも明日分まで考えますか？\n\n1️⃣ 今夜の夕飯だけ\n2️⃣ 今夜＋明日の朝食まで\n\n`;
         pendingChoices = {
           "1": "dinner",
           "今夜": "dinner",
@@ -2812,7 +2808,7 @@ ${itemList}
         };
       } else {
         // 夜（22時〜）：明日の朝食か夕飯まで考えるか
-        questionText = `明日の献立を考えましょうか？\n\n1️⃣ 明日の朝食\n2️⃣ 明日の夕飯まで（朝・昼・夕）\n\n番号で教えてください😊`;
+        questionText = `明日の献立を考えましょうか？\n\n1️⃣ 明日の朝食\n2️⃣ 明日の夕飯まで（朝・昼・夕）\n\n`;
         pendingChoices = {
           "1": "tomorrow_breakfast",
           "朝食": "tomorrow_breakfast",

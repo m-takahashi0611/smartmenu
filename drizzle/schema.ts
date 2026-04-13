@@ -331,3 +331,23 @@ export const bentoSettings = mysqlTable("bento_settings", {
 });
 export type BentoSetting = typeof bentoSettings.$inferSelect;
 export type InsertBentoSetting = typeof bentoSettings.$inferInsert;
+
+/**
+ * ベーステーマ設定テーブル
+ * ユーザーが設定した日常の献立方針（課金ユーザー限定）
+ * カテゴリ内は排他選択、カテゴリをまたいだ複数選択は可能
+ * 例: healthTheme="diet" + styleTheme="quick" = ダイエット＋時短
+ */
+export const userBaseThemes = mysqlTable("user_base_themes", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  // 各カテゴリから最大1つ選択（nullは未選択）
+  healthTheme: varchar("healthTheme", { length: 50 }),     // diet/muscle/low_salt/low_sugar/gut
+  lifestageTheme: varchar("lifestageTheme", { length: 50 }), // baby_food/toddler/exam/senior
+  economyTheme: varchar("economyTheme", { length: 50 }),   // budget/month_end/batch_cook
+  styleTheme: varchar("styleTheme", { length: 50 }),       // quick/elaborate/bento_style/entertaining/special
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type UserBaseTheme = typeof userBaseThemes.$inferSelect;
+export type InsertUserBaseTheme = typeof userBaseThemes.$inferInsert;

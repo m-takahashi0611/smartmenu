@@ -17,6 +17,8 @@ vi.mock("./db", () => ({
   markMenuPlanDelivered: vi.fn(),
   insertDeliveryLog: vi.fn(),
   getLineUserByUserId: vi.fn(),
+  getUserIsPremium: vi.fn().mockResolvedValue(false),
+  getUserBaseTheme: vi.fn().mockResolvedValue(null),
 }));
 
 // LLM呼び出しをモック

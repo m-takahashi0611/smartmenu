@@ -62,15 +62,77 @@ const THEME_CATEGORIES = [
     ],
   },
 ];
+// カテゴリIDからテーマキーを取得するヘルパー
+function getCategoryForItem(itemId: string): string | null {
+  for (const cat of THEME_CATEGORIES) {
+    if (cat.items.some((i) => i.id === itemId)) return cat.id;
+  }
+  return null;
+}
+
 export default function MenuTheme() {
   const [openCategories, setOpenCategories] = useState<string[]>([]);
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  // カテゴリ別に1つだけ選択（同カテゴリ排他）
+  const [selectedByCategory, setSelectedByCategory] = useState<Record<string, string | null>>({
+    health: null,
+    lifestage: null,
+    economy: null,
+    style: null,
+  });
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const { data: planData, isLoading: planLoading } = trpc.subscription.getMyPlan.useQuery();
+  const { data: planData } = trpc.subscription.getMyPlan.useQuery();
   const IS_PREMIUM = planData?.isPremium ?? false;
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [, navigate] = useLocation();
+
+  // DBからベーステーマを取得して初期化
+  const { data: savedTheme } = trpc.menuTheme.get.useQuery(undefined, {
+    enabled: IS_PREMIUM,
+  });
+  // savedThemeが取得できたら初期値にセット（一度だけ）
+  const [initialized, setInitialized] = useState(false);
+  if (savedTheme && !initialized) {
+    setSelectedByCategory({
+      health: savedTheme.healthTheme ?? null,
+      lifestage: savedTheme.lifestageTheme ?? null,
+      economy: savedTheme.economyTheme ?? null,
+      style: savedTheme.styleTheme ?? null,
+    });
+    setInitialized(true);
+  }
+
+  // 家族構成データを取得してライフステージテーマを自動推薦
+  const { data: familyData } = trpc.family.getProfile.useQuery(undefined, {
+    enabled: IS_PREMIUM,
+  });
+  // 家族構成からライフステージテーマを推薦
+  const recommendedLifestage = (() => {
+    if (!familyData?.members?.length) return null;
+    const ageGroups = familyData.members.map((m: { ageGroup: string }) => m.ageGroup);
+    if (ageGroups.includes("baby")) return "baby_food";
+    if (ageGroups.includes("child")) return "toddler";
+    if (ageGroups.includes("teen")) return "exam";
+    if (ageGroups.includes("senior")) return "senior";
+    return null;
+  })();
+  const recommendedLabel = (() => {
+    if (!recommendedLifestage) return null;
+    const cat = THEME_CATEGORIES.find((c) => c.id === "lifestage");
+    return cat?.items.find((i) => i.id === recommendedLifestage)?.label ?? null;
+  })();
+
+  const saveMutation = trpc.menuTheme.save.useMutation({
+    onSuccess: () => {
+      setSaved(true);
+      setSaveError(null);
+      setTimeout(() => setSaved(false), 2500);
+    },
+    onError: (err) => {
+      setSaveError(err.message);
+    },
+  });
 
   const toggleCategory = (id: string) => {
     setOpenCategories((prev) =>
@@ -78,22 +140,31 @@ export default function MenuTheme() {
     );
   };
 
-  const toggleItem = (id: string) => {
+  const toggleItem = (itemId: string) => {
     if (!IS_PREMIUM) {
-      // 無料期間終了後は課金確認ダイアログを表示
       setShowUpgradeDialog(true);
       return;
     }
-    setSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
+    const catId = getCategoryForItem(itemId);
+    if (!catId) return;
+    setSelectedByCategory((prev) => ({
+      ...prev,
+      // 同じアイテムをクリックしたら選択解除、別アイテムなら排他選択
+      [catId]: prev[catId] === itemId ? null : itemId,
+    }));
     setSaved(false);
   };
 
+  // 選択中アイテムの配列（表示用）
+  const selectedItems = Object.values(selectedByCategory).filter(Boolean) as string[];
+
   const handleSave = () => {
-    // TODO: trpc.menuTheme.save.useMutation() に差し替え
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    saveMutation.mutate({
+      healthTheme: selectedByCategory.health,
+      lifestageTheme: selectedByCategory.lifestage,
+      economyTheme: selectedByCategory.economy,
+      styleTheme: selectedByCategory.style,
+    });
   };
 
   return (
@@ -148,12 +219,41 @@ export default function MenuTheme() {
           const selectedInCategory = category.items.filter((i) =>
             selectedItems.includes(i.id)
           ).length;
+          // ライフステージカテゴリの場合、家族構成からの推薦を表示
+          const showRecommendation =
+            IS_PREMIUM &&
+            category.id === "lifestage" &&
+            recommendedLifestage !== null &&
+            selectedByCategory.lifestage !== recommendedLifestage;
 
           return (
             <Card
               key={category.id}
               className={!IS_PREMIUM ? "opacity-75" : ""}
             >
+              {/* 家族構成からの推薦バナー */}
+              {showRecommendation && (
+                <div className="mx-4 mt-3 mb-0 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm">👨‍👩‍👧</span>
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      家族構成から「{recommendedLabel}」を推薦
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7 px-2 border-blue-300 text-blue-700 hover:bg-blue-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedByCategory((prev) => ({ ...prev, lifestage: recommendedLifestage }));
+                      setSaved(false);
+                    }}
+                  >
+                    適用する
+                  </Button>
+                </div>
+              )}
               {/* 中項目ヘッダー（タップで展開） */}
               <button
                 className="w-full text-left"
@@ -191,7 +291,7 @@ export default function MenuTheme() {
                 <CardContent className="pt-0 pb-3 px-4">
                   <div className="space-y-2 border-t border-border/30 pt-3">
                     {category.items.map((item) => {
-                      const isSelected = selectedItems.includes(item.id);
+                      const isSelected = selectedByCategory[category.id] === item.id;
                       return (
                         <button
                           key={item.id}
@@ -205,14 +305,15 @@ export default function MenuTheme() {
                           onClick={() => toggleItem(item.id)}
                           disabled={!IS_PREMIUM}
                         >
+                          {/* ラジオボタン風UI（同カテゴリ内は1つだけ選択） */}
                           <div
-                            className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
                               isSelected
                                 ? "bg-primary border-primary"
                                 : "border-muted-foreground/40"
                             }`}
                           >
-                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                            {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className={`text-sm font-medium ${!IS_PREMIUM ? "text-muted-foreground" : ""}`}>
@@ -235,19 +336,26 @@ export default function MenuTheme() {
 
         {/* 保存ボタン（プレミアムユーザーのみ） */}
         {IS_PREMIUM && (
-          <Button
-            className="w-full"
-            onClick={handleSave}
-            disabled={saved}
-          >
-            {saved ? (
-              <span className="flex items-center gap-2">
-                <Check className="w-4 h-4" /> 保存しました
-              </span>
-            ) : (
-              "テーマ設定を保存する"
+          <>
+            <Button
+              className="w-full"
+              onClick={handleSave}
+              disabled={saved || saveMutation.isPending}
+            >
+              {saved ? (
+                <span className="flex items-center gap-2">
+                  <Check className="w-4 h-4" /> 保存しました
+                </span>
+              ) : saveMutation.isPending ? (
+                "保存中..."
+              ) : (
+                "テーマ設定を保存する"
+              )}
+            </Button>
+            {saveError && (
+              <p className="text-xs text-destructive text-center">{saveError}</p>
             )}
-          </Button>
+          </>
         )}
 
         {/* 選択中テーマのサマリー（プレミアムユーザー） */}

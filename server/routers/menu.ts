@@ -7,6 +7,8 @@ import {
   getMenuPlanByDate,
   getRecentMenuPlans,
   getStores,
+  getUserBaseTheme,
+  getUserIsPremium,
   insertDeliveryLog,
   insertMenuPlan,
   insertShoppingListItems,
@@ -54,6 +56,12 @@ export async function generateMenuPlan(
   const currentHour = nowJST.getUTCHours();
   const resolvedMealType: MealType = mealType ?? getMealTypeByHour(currentHour);
   const mealLabel = getMealLabel(resolvedMealType);
+
+  // 課金状態とベーステーマを取得
+  const [isPremium, baseTheme] = await Promise.all([
+    getUserIsPremium(userId),
+    getUserBaseTheme(userId),
+  ]);
 
   // 既存の献立があればそれを返す（同じ日・同じ食事タイプ）—forceRegenerate時はスキップ
   if (!forceRegenerate) {
@@ -110,6 +118,46 @@ export async function generateMenuPlan(
   const weather = await getWeatherInfo(35.68, 139.69, planDate);
   const weatherDesc = formatWeatherForPrompt(weather);
 
+  // ベーステーマの説明（課金ユーザーのみ有効）
+  const baseThemeDesc = isPremium && baseTheme ? (() => {
+    const parts: string[] = [];
+    const healthMap: Record<string, string> = {
+      diet: 'ダイエット重視（低カロリー・脂質控えめ）',
+      muscle: '筋トレ・高タンパク重視',
+      low_salt: '塩分控えめ',
+      low_sugar: '糖質制限',
+      gut: '腸活・発酵食品重視',
+    };
+    const lifestageMap: Record<string, string> = {
+      baby_food: '離乳食対応（乳幼児がいる）',
+      toddler: '幼児食対応',
+      exam: '受験生応援（集中力・栄養バランス重視）',
+      senior: 'シニア向け（やわらかく消化しやすい）',
+    };
+    const economyMap: Record<string, string> = {
+      budget: '節約重視（コスパ優先）',
+      month_end: '月末節約モード（特に安い食材で）',
+      batch_cook: '作り置き対応（まとめて調理できる）',
+    };
+    const styleMap: Record<string, string> = {
+      quick: '時短料理（30分以内）',
+      elaborate: '本格・こだわり料理',
+      bento_style: 'お弁当対応',
+      entertaining: 'おもてなし・ゲスト向け',
+      special: '記念日・特別な日',
+    };
+    if (baseTheme.healthTheme && healthMap[baseTheme.healthTheme]) parts.push(healthMap[baseTheme.healthTheme]);
+    if (baseTheme.lifestageTheme && lifestageMap[baseTheme.lifestageTheme]) parts.push(lifestageMap[baseTheme.lifestageTheme]);
+    if (baseTheme.economyTheme && economyMap[baseTheme.economyTheme]) parts.push(economyMap[baseTheme.economyTheme]);
+    if (baseTheme.styleTheme && styleMap[baseTheme.styleTheme]) parts.push(styleMap[baseTheme.styleTheme]);
+    return parts.length > 0 ? parts.join('、') : null;
+  })() : null;
+
+  // 課金ユーザー向けプロンプト強化フラグ
+  const premiumPromptExtra = isPremium
+    ? '\n【プレミアム機能】栄養バランス（タンパク質・野菜・炭水化物）を考慮し、より詳細で質の高い提案を行うこと。'
+    : '';
+
   // 買い物・自炊プロフィール
   const shoppingFreq = familyProfile?.shoppingFrequency ?? 2;
   const cookingFreq = familyProfile?.cookingFrequency ?? 5;
@@ -161,7 +209,7 @@ export async function generateMenuPlan(
     const targetMeal = resolvedMealType === "dinner" ? "夕食" : "明日の朝食";
 
     systemPrompt = `あなたは日本の主婦向け献立提案AIアシスタントです。
-冷蔵庫の食材を活かした${targetMeal}を3案提案してください。
+冷蔵庫の食材を活かした${targetMeal}を3案提案してください。${premiumPromptExtra}
 
 【重要ルール】
 1. アレルギー食材は絶対に使用しないこと
@@ -185,7 +233,8 @@ export async function generateMenuPlan(
 【家族構成】${familyDesc}
 【買い物・自炊プロフィール】${shoppingProfileDesc}
 ${shoppingAvailabilityDesc ? `【買い物予定】${shoppingAvailabilityDesc}\n` : ""}
-${theme ? `【今日のテーマ・気分】${theme}→このテーマに合った料理を優先して提案すること\n` : ""}
+${baseThemeDesc ? `【ベーステーマ（日常の方針・常時適用）】${baseThemeDesc}→この方針を全ての案に反映すること\n` : ""}
+${theme ? `【今日のテーマ・気分（今回のみ優先）】${theme}→ベーステーマより優先してこのテーマに合った料理を提案すること\n` : ""}
 ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyList}\n` : ""}【冷蔵庫の食材】${fridgeDesc}
 【最近の献立（重複を避けて）】${recentDesc}
 
@@ -225,7 +274,7 @@ ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyLis
     const targetMeal = resolvedMealType === "breakfast" ? "朝食" : "昼食";
 
     systemPrompt = `あなたは日本の主婦向け献立提案AIアシスタントです。
-冷蔵庫の食材を活かした${targetMeal}を1案提案してください。
+冷蔵庫の食材を活かした${targetMeal}を1案提案してください。${premiumPromptExtra}
 
 【重要ルール】
 1. アレルギー食材は絶対に使用しないこと
@@ -245,7 +294,8 @@ ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyLis
 【家族構成】${familyDesc}
 【買い物・自炊プロフィール】${shoppingProfileDesc}
 ${shoppingAvailabilityDesc ? `【買い物予定】${shoppingAvailabilityDesc}\n` : ""}
-${theme ? `【今日のテーマ・気分】${theme}→このテーマに合った料理を優先して提案すること\n` : ""}
+${baseThemeDesc ? `【ベーステーマ（日常の方針・常時適用）】${baseThemeDesc}→この方針を反映すること\n` : ""}
+${theme ? `【今日のテーマ・気分（今回のみ優先）】${theme}→ベーステーマより優先してこのテーマに合った料理を提案すること\n` : ""}
 ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyList}\n` : ""}【冷蔵庫の食材】${fridgeDesc}
 
 冷蔵庫の食材を活かした${targetMeal}を1案提案してください。`;

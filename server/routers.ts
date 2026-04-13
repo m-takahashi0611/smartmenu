@@ -15,6 +15,7 @@ import { adminAuthRouter } from "./routers/adminAuth";
 import { subscriptionRouter } from "./routers/subscription";
 import { contactRouter } from "./routers/contact";
 import { bentoRouter } from "./routers/bento";
+import { menuThemeRouter } from "./routers/menuTheme";
 
 export const appRouter = router({
   system: systemRouter,
@@ -41,6 +42,7 @@ export const appRouter = router({
   subscription: subscriptionRouter,
   contact: contactRouter,
   bento: bentoRouter,
+  menuTheme: menuThemeRouter,
 });
 
 export type AppRouter = typeof appRouter;
