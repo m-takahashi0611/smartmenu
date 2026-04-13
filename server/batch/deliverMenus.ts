@@ -55,6 +55,58 @@ export async function broadcastMenus(date?: string) {
   return results;
 }
 
+/**
+ * 選択したLINEユーザーに個別配信
+ */
+export async function broadcastToSelected(lineUserIds: string[], date?: string) {
+  const today = date ?? new Date().toISOString().split("T")[0];
+  const { getDb } = await import("../db");
+  const { lineUsers } = await import("../../drizzle/schema");
+  const { inArray } = await import("drizzle-orm");
+
+  const db = await getDb();
+  if (!db) return { total: 0, success: 0, failed: 0, skipped: 0 };
+
+  const selectedUsers = await db
+    .select()
+    .from(lineUsers)
+    .where(inArray(lineUsers.lineUserId, lineUserIds));
+
+  const results = { total: selectedUsers.length, success: 0, failed: 0, skipped: 0 };
+
+  for (const lineUser of selectedUsers) {
+    if (!lineUser.userId || lineUser.isBlocked) {
+      results.skipped++;
+      continue;
+    }
+    try {
+      const { message, menuPlanId } = await generateMenuPlan(lineUser.userId, today);
+      await sendLineMessage(lineUser.lineUserId, [{ type: "text", text: message }]);
+      await insertDeliveryLog({
+        userId: lineUser.userId,
+        lineUserId: lineUser.lineUserId,
+        menuPlanId: menuPlanId ?? null,
+        status: "success",
+        deliveredAt: new Date(),
+      });
+      if (menuPlanId) await markMenuPlanDelivered(menuPlanId);
+      results.success++;
+    } catch (err) {
+      console.error(`[Batch] Failed to send menu to ${lineUser.lineUserId}:`, err);
+      await insertDeliveryLog({
+        userId: lineUser.userId!,
+        lineUserId: lineUser.lineUserId,
+        menuPlanId: null,
+        status: "failed",
+        errorMessage: String(err),
+        deliveredAt: new Date(),
+      });
+      results.failed++;
+    }
+  }
+  return results;
+}
+
 // スタンドアロン実行用（直接呼び出しはしない。Adminページまたは手動実行時のみ使用）
 // 実行方法: npx tsx server/batch/deliverMenus.ts
 // async function main() {

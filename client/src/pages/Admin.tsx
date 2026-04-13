@@ -5,12 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { Loader2, LogOut, MessageSquare, X, Ban, CheckCircle, Send } from "lucide-react";
+import { Loader2, LogOut, MessageSquare, X, Ban, CheckCircle, Send, Clock, Calendar } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 // ─── トーク履歴モーダル ────────────────────────────────────────────────────────
 function ConversationModal({
@@ -121,6 +123,14 @@ export default function Admin() {
 
   const [activeTab, setActiveTab] = useState<"users" | "logs" | "broadcast" | "richmenu" | "cleanup">("users");
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
+
+  // 配信設定モーダル
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [selectedLineUserIds, setSelectedLineUserIds] = useState<string[]>([]);
+  const [deliveryTiming, setDeliveryTiming] = useState<"now" | "scheduled">("now");
+  const [scheduledDate, setScheduledDate] = useState(""); // YYYY-MM-DD
+  const [scheduledTime, setScheduledTime] = useState("07:00"); // HH:MM
+  const [deliveryType, setDeliveryType] = useState<"once" | "recurring">("once");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -192,6 +202,25 @@ export default function Admin() {
       });
     },
     onError: (err) => toast.error("配信に失敗しました", { description: err.message }),
+  });
+
+  const broadcastToSelected = trpc.admin.broadcastToSelected.useMutation({
+    onSuccess: (result) => {
+      toast.success(`配信完了`, {
+        description: `成功: ${result.success}件、失敗: ${result.failed}件、スキップ: ${result.skipped}件`,
+      });
+      setShowDeliveryModal(false);
+      setSelectedLineUserIds([]);
+    },
+    onError: (err) => toast.error("配信に失敗しました", { description: err.message }),
+  });
+
+  const updateDeliveryTime = trpc.admin.updateDeliveryTime.useMutation({
+    onSuccess: () => {
+      toast.success("配信時間を更新しました");
+      utils.admin.listLineUsers.invalidate();
+    },
+    onError: (err) => toast.error("更新に失敗しました", { description: err.message }),
   });
 
   const blockUser = trpc.admin.blockUser.useMutation({
@@ -412,28 +441,35 @@ export default function Admin() {
               </Card>
             </div>
 
-            {/* 配信実行ボタン */}
+            {/* 配信実行バナー */}
             <div className="flex items-center gap-3 mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
               <Send className="h-4 w-4 text-green-700 flex-shrink-0" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-green-800">今日の献立を一括配信</p>
-                <p className="text-xs text-green-600">アクティブな全LINEユーザー（{lineUsers?.filter(lu => !lu.isBlocked).length ?? 0}名）に送信</p>
+                <p className="text-sm font-medium text-green-800">献立を配信</p>
+                <p className="text-xs text-green-600">
+                  {selectedLineUserIds.length > 0
+                    ? `${selectedLineUserIds.length}名を選択中`
+                    : `全LINEユーザー（${lineUsers?.filter(lu => !lu.isBlocked).length ?? 0}名）`}
+                </p>
               </div>
+              {selectedLineUserIds.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedLineUserIds([])}
+                  className="text-xs"
+                >
+                  選択解除
+                </Button>
+              )}
               <Button
                 size="sm"
-                onClick={() => {
-                  if (confirm(`${lineUsers?.filter(lu => !lu.isBlocked).length ?? 0}名に今日の献立を配信しますか？`)) {
-                    broadcast.mutate({});
-                  }
-                }}
-                disabled={broadcast.isPending || (lineUsers?.length ?? 0) === 0}
+                onClick={() => setShowDeliveryModal(true)}
+                disabled={(lineUsers?.length ?? 0) === 0}
                 className="bg-green-600 hover:bg-green-700 text-white"
               >
-                {broadcast.isPending ? (
-                  <><Loader2 className="h-3 w-3 animate-spin mr-1" />配信中...</>
-                ) : (
-                  "配信実行"
-                )}
+                <Calendar className="h-3 w-3 mr-1" />
+                配信設定
               </Button>
             </div>
 
@@ -518,7 +554,14 @@ export default function Admin() {
             {/* LINEユーザー一覧（LINE連携済みのみ） */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">LINEアクティブユーザー一覧</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">LINEアクティブユーザー一覧</CardTitle>
+                  {selectedLineUserIds.length > 0 && (
+                    <span className="text-xs text-green-700 font-medium bg-green-100 px-2 py-1 rounded">
+                      {selectedLineUserIds.length}名選択中
+                    </span>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {!lineUsers || lineUsers.length === 0 ? (
@@ -527,6 +570,18 @@ export default function Admin() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-8">
+                          <Checkbox
+                            checked={selectedLineUserIds.length === lineUsers.filter(lu => !lu.isBlocked).length && lineUsers.filter(lu => !lu.isBlocked).length > 0}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedLineUserIds(lineUsers.filter(lu => !lu.isBlocked).map(lu => lu.lineUserId));
+                              } else {
+                                setSelectedLineUserIds([]);
+                              }
+                            }}
+                          />
+                        </TableHead>
                         <TableHead>LINE名</TableHead>
                         <TableHead>プラン</TableHead>
                         <TableHead>配信時間</TableHead>
@@ -536,7 +591,23 @@ export default function Admin() {
                     </TableHeader>
                     <TableBody>
                       {lineUsers.map((lu) => (
-                        <TableRow key={lu.id} className={lu.isBlocked ? "opacity-50 bg-red-50" : ""}>
+                        <TableRow
+                          key={lu.id}
+                          className={`${lu.isBlocked ? "opacity-50 bg-red-50" : ""} ${selectedLineUserIds.includes(lu.lineUserId) ? "bg-green-50" : ""}`}
+                        >
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedLineUserIds.includes(lu.lineUserId)}
+                              disabled={lu.isBlocked ?? false}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedLineUserIds(prev => [...prev, lu.lineUserId]);
+                                } else {
+                                  setSelectedLineUserIds(prev => prev.filter(id => id !== lu.lineUserId));
+                                }
+                              }}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
                               {lu.pictureUrl && (
@@ -563,8 +634,11 @@ export default function Admin() {
                               <Badge variant="secondary" className="text-xs">無課金</Badge>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {String(lu.deliveryHour).padStart(2, "0")}:{String(lu.deliveryMinute).padStart(2, "0")}
+                          <TableCell>
+                            <div className="flex items-center gap-1 text-sm">
+                              <Clock className="h-3 w-3 text-muted-foreground" />
+                              <span className="font-mono">{String(lu.deliveryHour).padStart(2, "0")}:{String(lu.deliveryMinute).padStart(2, "0")}</span>
+                            </div>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {lu.region ?? "-"}
@@ -874,6 +948,165 @@ export default function Admin() {
           </div>
         )}
       </main>
+
+      {/* 配信設定モーダル */}
+      <Dialog open={showDeliveryModal} onOpenChange={setShowDeliveryModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>📤 配信設定</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            {/* 対象ユーザー */}
+            <div>
+              <Label className="text-sm font-medium">配信対象</Label>
+              <div className="mt-2 p-3 bg-muted/40 rounded-lg text-sm">
+                {selectedLineUserIds.length > 0 ? (
+                  <div>
+                    <p className="font-medium text-green-700">{selectedLineUserIds.length}名を選択中</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {lineUsers?.filter(lu => selectedLineUserIds.includes(lu.lineUserId)).map(lu => lu.displayName ?? lu.lineUserId).join("、")}
+                    </p>
+                    <button
+                      className="text-xs text-blue-600 underline mt-1"
+                      onClick={() => setSelectedLineUserIds([])}
+                    >
+                      全員に変更
+                    </button>
+                  </div>
+                ) : (
+                  <p>全LINEユーザー（{lineUsers?.filter(lu => !lu.isBlocked).length ?? 0}名）</p>
+                )}
+              </div>
+            </div>
+
+            {/* 配信タイミング */}
+            <div>
+              <Label className="text-sm font-medium">配信タイミング</Label>
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => setDeliveryTiming("now")}
+                  className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                    deliveryTiming === "now"
+                      ? "bg-green-600 text-white border-green-600"
+                      : "bg-background border-border hover:bg-muted"
+                  }`}
+                >
+                  ✅ 今すぐ送信
+                </button>
+                <button
+                  onClick={() => setDeliveryTiming("scheduled")}
+                  className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                    deliveryTiming === "scheduled"
+                      ? "bg-green-600 text-white border-green-600"
+                      : "bg-background border-border hover:bg-muted"
+                  }`}
+                >
+                  🗓️ 日時指定
+                </button>
+              </div>
+            </div>
+
+            {/* 日時指定入力 */}
+            {deliveryTiming === "scheduled" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">配信日</Label>
+                  <Input
+                    type="date"
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                    min={new Date().toISOString().split("T")[0]}
+                    className="mt-1 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">配信時刻</Label>
+                  <Input
+                    type="time"
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                    className="mt-1 text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 配信タイプ */}
+            <div>
+              <Label className="text-sm font-medium">配信タイプ</Label>
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => setDeliveryType("once")}
+                  className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                    deliveryType === "once"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-background border-border hover:bg-muted"
+                  }`}
+                >
+                  ▶️ 単発（1回のみ）
+                </button>
+                <button
+                  onClick={() => setDeliveryType("recurring")}
+                  className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                    deliveryType === "recurring"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-background border-border hover:bg-muted"
+                  }`}
+                >
+                  🔄 継続（毎日）
+                </button>
+              </div>
+              {deliveryType === "recurring" && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  指定時刻に毎日自動配信されます。各ユーザーの配信時間設定も指定時刻に変更されます。
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowDeliveryModal(false)}>
+              キャンセル
+            </Button>
+            <Button
+              onClick={() => {
+                const targetIds = selectedLineUserIds.length > 0
+                  ? selectedLineUserIds
+                  : (lineUsers?.filter(lu => !lu.isBlocked).map(lu => lu.lineUserId) ?? []);
+
+                if (targetIds.length === 0) {
+                  toast.error("配信対象ユーザーがいません");
+                  return;
+                }
+
+                if (deliveryType === "recurring" && deliveryTiming === "scheduled") {
+                  // 継続配信：各ユーザーの配信時間を変更してから即時配信
+                  const [h, m] = scheduledTime.split(":").map(Number);
+                  Promise.all(
+                    targetIds.map(id => updateDeliveryTime.mutateAsync({ lineUserId: id, hour: h, minute: m }))
+                  ).then(() => {
+                    toast.success(`配信時間を${scheduledTime}に変更しました`);
+                    setShowDeliveryModal(false);
+                  });
+                } else {
+                  // 単発配信（今すぐ or 日時指定）
+                  const date = deliveryTiming === "scheduled" && scheduledDate ? scheduledDate : undefined;
+                  broadcastToSelected.mutate({ lineUserIds: targetIds, date });
+                }
+              }}
+              disabled={broadcastToSelected.isPending || updateDeliveryTime.isPending}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {broadcastToSelected.isPending || updateDeliveryTime.isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-1" />処理中...</>
+              ) : (
+                deliveryType === "recurring" ? "配信時間を変更" : "配信実行"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

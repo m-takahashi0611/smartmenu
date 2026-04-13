@@ -4,7 +4,7 @@ import { getAllActiveLineUsers, getAllUsers, getDeliveryLogs, getDb } from "../d
 import { lineConversationHistory, fridgeItems, shoppingListItems, menuPlans, lineUsers, subscriptions } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
-import { broadcastMenus } from "../batch/deliverMenus";
+import { broadcastMenus, broadcastToSelected } from "../batch/deliverMenus";
 
 // 管理者専用プロシージャ
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -117,6 +117,33 @@ export const adminRouter = router({
     .input(z.object({ date: z.string().optional() }))
     .mutation(async ({ input }) => {
       return broadcastMenus(input.date);
+    }),
+
+  // 選択ユーザーへ個別配信
+  broadcastToSelected: adminProcedure
+    .input(z.object({
+      lineUserIds: z.array(z.string()).min(1),
+      date: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return broadcastToSelected(input.lineUserIds, input.date);
+    }),
+
+  // ユーザーの配信時間を管理者が変更
+  updateDeliveryTime: adminProcedure
+    .input(z.object({
+      lineUserId: z.string(),
+      hour: z.number().min(0).max(23),
+      minute: z.number().min(0).max(59),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
+      await db
+        .update(lineUsers)
+        .set({ deliveryHour: input.hour, deliveryMinute: input.minute, updatedAt: new Date() })
+        .where(eq(lineUsers.lineUserId, input.lineUserId));
+      return { success: true };
     }),
 
   // 会話履歴クリア（特定ユーザーまたは全ユーザー）
