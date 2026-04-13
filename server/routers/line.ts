@@ -21,6 +21,7 @@ import {
   upsertProductNameCache,
   checkLineUserProcessing,
   setLineUserProcessing,
+  getUserIsPremium,
 } from "../db";
 import { lineUsers, fridgeItems as fridgeItemsTable, shoppingListItems } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
@@ -1315,6 +1316,36 @@ ${dinnerResult.message}`;
     const trimmed = text.trim();
     const theme = trimmed === 'なし' || trimmed === 'なし。' ? undefined : trimmed;
 
+    // 課金限定テーマのチェック（無課金ユーザーが課金テーマを入力した場合は弾く）
+    const premiumThemeKeywords = /ダイエット|カロリー|節約|コスパ|お祝い|記念日|低カロリー|ヘルシー|糖質|痩せ|減量/;
+    if (theme && premiumThemeKeywords.test(theme)) {
+      const isPremium = userId ? await getUserIsPremium(userId) : false;
+      if (!isPremium) {
+        // pendingActionは維持してテーマを再度聞く
+        await setLineUserPendingAction(lineUserId, {
+          type: 'menu_theme_regen',
+          mealType,
+          targetDate,
+          menuPlanId,
+          regenerateCount,
+          askedAt: Date.now(),
+        });
+        await replyLineMessage(replyToken, [{
+          type: 'text',
+          text: `「${theme}」はプレミアム機能のテーマです✨\n\nhttps://kondatebiyori.com/plan からアップグレードすると利用できます！\n\n他のテーマを選んでください😊`,
+          quickReply: { items: [
+            { type: 'action', action: { type: 'message', label: '😌 さっぱり', text: 'さっぱり' } },
+            { type: 'action', action: { type: 'message', label: '🍖 こってり', text: 'こってり' } },
+            { type: 'action', action: { type: 'message', label: '🍱 和食', text: '和食' } },
+            { type: 'action', action: { type: 'message', label: '🍝 洋食', text: '洋食' } },
+            { type: 'action', action: { type: 'message', label: '🍜 麺類', text: '麺類' } },
+            { type: 'action', action: { type: 'message', label: '➡️ テーマなし', text: 'なし' } },
+          ] },
+        }], lineUserId);
+        return true;
+      }
+    }
+
     await setLineUserPendingAction(lineUserId, null);
     await sendLineMessage(lineUserId, [{ type: 'text', text: theme
       ? `「${theme}」のテーマで出し直しますね🍳\nちょっと待ってください...`
@@ -1370,7 +1401,18 @@ ${dinnerResult.message}`;
         regenerateCount: regenerateCount + 1,
         askedAt: Date.now(),
       });
-      await replyLineMessage(replyToken, [{ type: 'text', text: 'どんな気分ですか？テーマを教えてください😊\n\n例：「和食」「さっぱり系」「カレー」「節約」「子供向け」\n\nテーマなしで出し直す場合は「なし」と送ってください' }], lineUserId);
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: 'どんな気分ですか？テーマを選んでください😊\n\nボタン以外のテーマはそのままテキストで送ってもOKです！',
+        quickReply: { items: [
+          { type: 'action', action: { type: 'message', label: '😌 さっぱり', text: 'さっぱり' } },
+          { type: 'action', action: { type: 'message', label: '🍖 こってり', text: 'こってり' } },
+          { type: 'action', action: { type: 'message', label: '🍱 和食', text: '和食' } },
+          { type: 'action', action: { type: 'message', label: '🍝 洋食', text: '洋食' } },
+          { type: 'action', action: { type: 'message', label: '🍜 麺類', text: '麺類' } },
+          { type: 'action', action: { type: 'message', label: '➡️ テーマなし', text: 'なし' } },
+        ] },
+      }], lineUserId);
       return true;
     }
 
@@ -1494,7 +1536,18 @@ ${dinnerResult.message}`;
         regenerateCount: regenerateCount + 1,
         askedAt: Date.now(),
       });
-      await replyLineMessage(replyToken, [{ type: 'text', text: 'どんな気分ですか？テーマを教えてください😊\n\n例：「和食」「さっぱり系」「カレー」「節約」「子供向け」\n\nテーマなしで出し直す場合は「なし」と送ってください' }], lineUserId);
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: 'どんな気分ですか？テーマを選んでください😊\n\nボタン以外のテーマはそのままテキストで送ってもOKです！',
+        quickReply: { items: [
+          { type: 'action', action: { type: 'message', label: '😌 さっぱり', text: 'さっぱり' } },
+          { type: 'action', action: { type: 'message', label: '🍖 こってり', text: 'こってり' } },
+          { type: 'action', action: { type: 'message', label: '🍱 和食', text: '和食' } },
+          { type: 'action', action: { type: 'message', label: '🍝 洋食', text: '洋食' } },
+          { type: 'action', action: { type: 'message', label: '🍜 麺類', text: '麺類' } },
+          { type: 'action', action: { type: 'message', label: '➡️ テーマなし', text: 'なし' } },
+        ] },
+      }], lineUserId);
       return true;
     }
 
