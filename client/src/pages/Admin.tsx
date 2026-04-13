@@ -959,25 +959,51 @@ export default function Admin() {
           <div className="space-y-5 py-2">
             {/* 対象ユーザー */}
             <div>
-              <Label className="text-sm font-medium">配信対象</Label>
-              <div className="mt-2 p-3 bg-muted/40 rounded-lg text-sm">
-                {selectedLineUserIds.length > 0 ? (
-                  <div>
-                    <p className="font-medium text-green-700">{selectedLineUserIds.length}名を選択中</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {lineUsers?.filter(lu => selectedLineUserIds.includes(lu.lineUserId)).map(lu => lu.displayName ?? lu.lineUserId).join("、")}
-                    </p>
-                    <button
-                      className="text-xs text-blue-600 underline mt-1"
-                      onClick={() => setSelectedLineUserIds([])}
-                    >
-                      全員に変更
-                    </button>
-                  </div>
-                ) : (
-                  <p>全LINEユーザー（{lineUsers?.filter(lu => !lu.isBlocked).length ?? 0}名）</p>
-                )}
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-sm font-medium">配信対象</Label>
+                <button
+                  className="text-xs text-blue-600 underline"
+                  onClick={() => {
+                    const nonBlocked = lineUsers?.filter(lu => !lu.isBlocked).map(lu => lu.lineUserId) ?? [];
+                    setSelectedLineUserIds(selectedLineUserIds.length === nonBlocked.length ? [] : nonBlocked);
+                  }}
+                >
+                  {selectedLineUserIds.length === (lineUsers?.filter(lu => !lu.isBlocked).length ?? 0) ? "全選択解除" : "全員選択"}
+                </button>
               </div>
+              <div className="border rounded-lg overflow-hidden max-h-44 overflow-y-auto">
+                {lineUsers?.filter(lu => !lu.isBlocked).map(lu => (
+                  <label
+                    key={lu.lineUserId}
+                    className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50 border-b last:border-b-0 ${
+                      selectedLineUserIds.includes(lu.lineUserId) ? "bg-green-50" : ""
+                    }`}
+                  >
+                    <Checkbox
+                      checked={selectedLineUserIds.includes(lu.lineUserId)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedLineUserIds(prev => [...prev, lu.lineUserId]);
+                        } else {
+                          setSelectedLineUserIds(prev => prev.filter(id => id !== lu.lineUserId));
+                        }
+                      }}
+                    />
+                    {lu.pictureUrl && (
+                      <img src={lu.pictureUrl} alt="" className="w-6 h-6 rounded-full flex-shrink-0" />
+                    )}
+                    <span className="text-sm flex-1 min-w-0 truncate">{lu.displayName ?? lu.lineUserId}</span>
+                    <span className="text-xs text-muted-foreground flex-shrink-0">
+                      {String(lu.deliveryHour ?? 7).padStart(2, "0")}:{String(lu.deliveryMinute ?? 0).padStart(2, "0")}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {selectedLineUserIds.length === 0
+                  ? `全員（${lineUsers?.filter(lu => !lu.isBlocked).length ?? 0}名）に配信`
+                  : `${selectedLineUserIds.length}名を選択中`}
+              </p>
             </div>
 
             {/* 配信タイミング */}
