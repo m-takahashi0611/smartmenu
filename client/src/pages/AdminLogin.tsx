@@ -188,10 +188,12 @@ export default function AdminLogin() {
                   )}
                 </Button>
 
+              </form>
+
                 <Button
                   type="button"
                   variant="ghost"
-                  className="w-full text-amber-700"
+                  className="w-full text-amber-700 mt-2"
                   onClick={() => {
                     setStep("credentials");
                     setOtp("");
@@ -199,7 +201,6 @@ export default function AdminLogin() {
                 >
                   ← IDとパスワードの入力に戻る
                 </Button>
-              </form>
 
               <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
                 <p className="text-xs text-blue-700 text-center">

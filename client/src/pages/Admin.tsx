@@ -312,29 +312,27 @@ function BroadcastMessageTab({ lineUsers }: { lineUsers: any[] | undefined }) {
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
                       {msg.status !== "sent" && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs gap-1"
-                            onClick={() => handleEdit(msg)}
-                          >
-                            <Pencil className="h-3 w-3" />
-                            編集
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="text-xs gap-1 bg-green-600 hover:bg-green-700 text-white"
-                            onClick={() => {
-                              setSendModalMsgId(msg.id);
-                              setSelectedSendIds([]);
-                            }}
-                          >
-                            <Send className="h-3 w-3" />
-                            配信
-                          </Button>
-                        </>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs gap-1"
+                          onClick={() => handleEdit(msg)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                          編集
+                        </Button>
                       )}
+                      <Button
+                        size="sm"
+                        className="text-xs gap-1 bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => {
+                          setSendModalMsgId(msg.id);
+                          setSelectedSendIds([]);
+                        }}
+                      >
+                        <Send className="h-3 w-3" />
+                        配信
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
