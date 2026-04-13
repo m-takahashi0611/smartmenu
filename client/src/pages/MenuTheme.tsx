@@ -56,9 +56,7 @@ const THEME_CATEGORIES = [
     items: [
       { id: "quick", label: "時短・簡単", desc: "15分以内・工程少なめ" },
       { id: "elaborate", label: "本格・こだわり", desc: "手間をかけた丁寧な料理" },
-      { id: "bento_style", label: "お弁当対応", desc: "冷めても美味しい・彩り重視" },
-      { id: "entertaining", label: "おもてなし料理", desc: "来客・パーティー向け" },
-      { id: "special", label: "記念日・特別な日", desc: "少し豪華な献立" },
+
     ],
   },
 ];
@@ -73,12 +71,11 @@ function getCategoryForItem(itemId: string): string | null {
 export default function MenuTheme() {
   const [openCategories, setOpenCategories] = useState<string[]>([]);
   // カテゴリ別に1つだけ選択（同カテゴリ排他）
-  const [selectedByCategory, setSelectedByCategory] = useState<Record<string, string | null>>({
-    health: null,
-    lifestage: null,
-    economy: null,
-    style: null,
-  });
+  // health・lifestageは複数選択可（string[]）、economy・styleは1択（string|null）
+  const [selectedHealth, setSelectedHealth] = useState<string[]>([]);
+  const [selectedLifestage, setSelectedLifestage] = useState<string[]>([]);
+  const [selectedEconomy, setSelectedEconomy] = useState<string | null>(null);
+  const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -94,12 +91,10 @@ export default function MenuTheme() {
   // savedThemeが取得できたら初期値にセット（一度だけ）
   const [initialized, setInitialized] = useState(false);
   if (savedTheme && !initialized) {
-    setSelectedByCategory({
-      health: savedTheme.healthTheme ?? null,
-      lifestage: savedTheme.lifestageTheme ?? null,
-      economy: savedTheme.economyTheme ?? null,
-      style: savedTheme.styleTheme ?? null,
-    });
+    setSelectedHealth(savedTheme.healthThemes ?? []);
+    setSelectedLifestage(savedTheme.lifestageThemes ?? []);
+    setSelectedEconomy(savedTheme.economyTheme ?? null);
+    setSelectedStyle(savedTheme.styleTheme ?? null);
     setInitialized(true);
   }
 
@@ -147,23 +142,36 @@ export default function MenuTheme() {
     }
     const catId = getCategoryForItem(itemId);
     if (!catId) return;
-    setSelectedByCategory((prev) => ({
-      ...prev,
-      // 同じアイテムをクリックしたら選択解除、別アイテムなら排他選択
-      [catId]: prev[catId] === itemId ? null : itemId,
-    }));
+    if (catId === "health") {
+      setSelectedHealth((prev) =>
+        prev.includes(itemId) ? prev.filter((x) => x !== itemId) : [...prev, itemId]
+      );
+    } else if (catId === "lifestage") {
+      setSelectedLifestage((prev) =>
+        prev.includes(itemId) ? prev.filter((x) => x !== itemId) : [...prev, itemId]
+      );
+    } else if (catId === "economy") {
+      setSelectedEconomy((prev) => (prev === itemId ? null : itemId));
+    } else if (catId === "style") {
+      setSelectedStyle((prev) => (prev === itemId ? null : itemId));
+    }
     setSaved(false);
   };
 
-  // 選択中アイテムの配列（表示用）
-  const selectedItems = Object.values(selectedByCategory).filter(Boolean) as string[];
+  // 選択中アイテムの配列（表示用・バッジカウント用）
+  const selectedItems = [
+    ...selectedHealth,
+    ...selectedLifestage,
+    ...(selectedEconomy ? [selectedEconomy] : []),
+    ...(selectedStyle ? [selectedStyle] : []),
+  ];
 
   const handleSave = () => {
     saveMutation.mutate({
-      healthTheme: selectedByCategory.health,
-      lifestageTheme: selectedByCategory.lifestage,
-      economyTheme: selectedByCategory.economy,
-      styleTheme: selectedByCategory.style,
+      healthThemes: selectedHealth,
+      lifestageThemes: selectedLifestage,
+      economyTheme: selectedEconomy,
+      styleTheme: selectedStyle,
     });
   };
 
@@ -213,6 +221,17 @@ export default function MenuTheme() {
           </Card>
         )}
 
+        {/* 説明バナー（プレミアムユーザー向け） */}
+        {IS_PREMIUM && (
+          <div className="flex items-start gap-2 px-3 py-2.5 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+            <span className="text-sm mt-0.5">💡</span>
+            <p className="text-xs text-green-800 dark:text-green-300 leading-relaxed">
+              <span className="font-semibold">一度設定すれば毎回自動で反映されます。</span>
+              テーマを保存するだけで、AIが毎日の献立提案に自動で反映します。
+            </p>
+          </div>
+        )}
+
         {/* テーマカテゴリ一覧 */}
         {THEME_CATEGORIES.map((category) => {
           const isOpen = openCategories.includes(category.id);
@@ -224,7 +243,7 @@ export default function MenuTheme() {
             IS_PREMIUM &&
             category.id === "lifestage" &&
             recommendedLifestage !== null &&
-            selectedByCategory.lifestage !== recommendedLifestage;
+            !selectedLifestage.includes(recommendedLifestage);
 
           return (
             <Card
@@ -246,7 +265,9 @@ export default function MenuTheme() {
                     className="text-xs h-7 px-2 border-blue-300 text-blue-700 hover:bg-blue-100"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedByCategory((prev) => ({ ...prev, lifestage: recommendedLifestage }));
+                      setSelectedLifestage((prev) =>
+                        prev.includes(recommendedLifestage) ? prev : [...prev, recommendedLifestage]
+                      );
                       setSaved(false);
                     }}
                   >
@@ -291,7 +312,14 @@ export default function MenuTheme() {
                 <CardContent className="pt-0 pb-3 px-4">
                   <div className="space-y-2 border-t border-border/30 pt-3">
                     {category.items.map((item) => {
-                      const isSelected = selectedByCategory[category.id] === item.id;
+                      const isSelected =
+                        category.id === "health"
+                          ? selectedHealth.includes(item.id)
+                          : category.id === "lifestage"
+                          ? selectedLifestage.includes(item.id)
+                          : category.id === "economy"
+                          ? selectedEconomy === item.id
+                          : selectedStyle === item.id;
                       return (
                         <button
                           key={item.id}
@@ -305,15 +333,19 @@ export default function MenuTheme() {
                           onClick={() => toggleItem(item.id)}
                           disabled={!IS_PREMIUM}
                         >
-                          {/* ラジオボタン風UI（同カテゴリ内は1つだけ選択） */}
+                          {/* health/lifestageはチェックボックス風、economy/styleはラジオボタン風 */}
                           <div
-                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
+                            className={`w-5 h-5 ${category.id === "health" || category.id === "lifestage" ? "rounded-md" : "rounded-full"} border-2 flex items-center justify-center shrink-0 mt-0.5 ${
                               isSelected
                                 ? "bg-primary border-primary"
                                 : "border-muted-foreground/40"
                             }`}
                           >
-                            {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                            {isSelected && (
+                              category.id === "health" || category.id === "lifestage"
+                                ? <Check className="w-3 h-3 text-white" />
+                                : <div className="w-2 h-2 rounded-full bg-white" />
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className={`text-sm font-medium ${!IS_PREMIUM ? "text-muted-foreground" : ""}`}>

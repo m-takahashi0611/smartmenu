@@ -1388,7 +1388,7 @@ ${dinnerResult.message}`;
         await replyLineMessage(replyToken, [{ type: 'text', text: '何度も出し直しましたが、なかなか合うものがなくて申し訳ありません😓\n\n一度リセットします。「献立」と送ってもう一度最初から提案しましょうか？' }], lineUserId);
         return true;
       }
-      // テーマ収集ステップへ
+       // テーマ収集ステップへ
       await setLineUserPendingAction(lineUserId, {
         type: 'menu_theme_regen',
         mealType,
@@ -1405,7 +1405,7 @@ ${dinnerResult.message}`;
           { type: 'action', action: { type: 'message', label: '🍖 こってり', text: 'こってり' } },
           { type: 'action', action: { type: 'message', label: '🍱 和食', text: '和食' } },
           { type: 'action', action: { type: 'message', label: '🍝 洋食', text: '洋食' } },
-          { type: 'action', action: { type: 'message', label: '🍜 麺類', text: '麺類' } },
+          { type: 'action', action: { type: 'message', label: '🍜 麵類', text: '麵類' } },
           { type: 'action', action: { type: 'message', label: '➡️ テーマなし', text: 'なし' } },
         ] },
       }], lineUserId);
@@ -1540,14 +1540,14 @@ ${dinnerResult.message}`;
           { type: 'action', action: { type: 'message', label: '🍖 こってり', text: 'こってり' } },
           { type: 'action', action: { type: 'message', label: '🍱 和食', text: '和食' } },
           { type: 'action', action: { type: 'message', label: '🍝 洋食', text: '洋食' } },
-          { type: 'action', action: { type: 'message', label: '🍜 麺類', text: '麺類' } },
+          { type: 'action', action: { type: 'message', label: '🍜 麵類', text: '麵類' } },
           { type: 'action', action: { type: 'message', label: '➡️ テーマなし', text: 'なし' } },
         ] },
       }], lineUserId);
       return true;
     }
 
-    // 「3」または「案内を終了する」→ 案内を終了して通常メニューに戻る
+    // 　13」または「案内を終了する」→ 案内を終了して通常メニューに戻る
     if (/^[3３]$/.test(trimmed) || trimmed === '案内を終了する') {
       await setLineUserPendingAction(lineUserId, null);
       await replyLineMessage(replyToken, [{ type: 'text', text: '案内を終了します😊またいつでも「献立」と送ってください！' }], lineUserId);

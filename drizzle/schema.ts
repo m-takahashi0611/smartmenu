@@ -341,11 +341,14 @@ export type InsertBentoSetting = typeof bentoSettings.$inferInsert;
 export const userBaseThemes = mysqlTable("user_base_themes", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().unique(),
-  // 各カテゴリから最大1つ選択（nullは未選択）
-  healthTheme: varchar("healthTheme", { length: 50 }),     // diet/muscle/low_salt/low_sugar/gut
-  lifestageTheme: varchar("lifestageTheme", { length: 50 }), // baby_food/toddler/exam/senior
-  economyTheme: varchar("economyTheme", { length: 50 }),   // budget/month_end/batch_cook
-  styleTheme: varchar("styleTheme", { length: 50 }),       // quick/elaborate/bento_style/entertaining/special
+  // 健康・体型管理：複数選択可（カンマ区切り）diet/muscle/low_salt/low_sugar/gut
+  healthThemes: varchar("healthThemes", { length: 255 }),
+  // ライフステージ：複数選択可（カンマ区切り）baby_food/toddler/exam/senior
+  lifestageThemes: varchar("lifestageThemes", { length: 255 }),
+  // 経済・節約：1択 budget/month_end/batch_cook
+  economyTheme: varchar("economyTheme", { length: 50 }),
+  // 調理スタイル：1択 quick/elaborate/entertaining/special（お弁当対応は削除）
+  styleTheme: varchar("styleTheme", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

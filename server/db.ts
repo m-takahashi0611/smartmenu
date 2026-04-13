@@ -606,8 +606,8 @@ export async function upsertUserBaseTheme(data: InsertUserBaseTheme): Promise<vo
   if (!db) return;
   await db.insert(userBaseThemes).values(data).onDuplicateKeyUpdate({
     set: {
-      healthTheme: data.healthTheme ?? null,
-      lifestageTheme: data.lifestageTheme ?? null,
+      healthThemes: data.healthThemes ?? null,
+      lifestageThemes: data.lifestageThemes ?? null,
       economyTheme: data.economyTheme ?? null,
       styleTheme: data.styleTheme ?? null,
       updatedAt: new Date(),

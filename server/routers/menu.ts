@@ -142,12 +142,15 @@ export async function generateMenuPlan(
     const styleMap: Record<string, string> = {
       quick: '時短料理（30分以内）',
       elaborate: '本格・こだわり料理',
-      bento_style: 'お弁当対応',
-      entertaining: 'おもてなし・ゲスト向け',
-      special: '記念日・特別な日',
     };
-    if (baseTheme.healthTheme && healthMap[baseTheme.healthTheme]) parts.push(healthMap[baseTheme.healthTheme]);
-    if (baseTheme.lifestageTheme && lifestageMap[baseTheme.lifestageTheme]) parts.push(lifestageMap[baseTheme.lifestageTheme]);
+    // healthThemes: カンマ区切り複数選択
+    if (baseTheme.healthThemes) {
+      baseTheme.healthThemes.split(',').filter(Boolean).forEach(t => { if (healthMap[t]) parts.push(healthMap[t]); });
+    }
+    // lifestageThemes: カンマ区切り複数選択
+    if (baseTheme.lifestageThemes) {
+      baseTheme.lifestageThemes.split(',').filter(Boolean).forEach(t => { if (lifestageMap[t]) parts.push(lifestageMap[t]); });
+    }
     if (baseTheme.economyTheme && economyMap[baseTheme.economyTheme]) parts.push(economyMap[baseTheme.economyTheme]);
     if (baseTheme.styleTheme && styleMap[baseTheme.styleTheme]) parts.push(styleMap[baseTheme.styleTheme]);
     return parts.length > 0 ? parts.join('、') : null;

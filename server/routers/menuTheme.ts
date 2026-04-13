@@ -8,8 +8,10 @@ export const menuThemeRouter = router({
   get: protectedProcedure.query(async ({ ctx }) => {
     const theme = await getUserBaseTheme(ctx.user.id);
     return {
-      healthTheme: theme?.healthTheme ?? null,
-      lifestageTheme: theme?.lifestageTheme ?? null,
+      // 複数選択：カンマ区切り文字列 → 配列に変換
+      healthThemes: theme?.healthThemes ? theme.healthThemes.split(",").filter(Boolean) : [],
+      lifestageThemes: theme?.lifestageThemes ? theme.lifestageThemes.split(",").filter(Boolean) : [],
+      // 1択
       economyTheme: theme?.economyTheme ?? null,
       styleTheme: theme?.styleTheme ?? null,
     };
@@ -19,10 +21,10 @@ export const menuThemeRouter = router({
   save: protectedProcedure
     .input(
       z.object({
-        healthTheme: z.string().nullable().optional(),
-        lifestageTheme: z.string().nullable().optional(),
-        economyTheme: z.string().nullable().optional(),
-        styleTheme: z.string().nullable().optional(),
+        healthThemes: z.array(z.string()).optional(), // 複数選択
+        lifestageThemes: z.array(z.string()).optional(), // 複数選択
+        economyTheme: z.string().nullable().optional(), // 1択
+        styleTheme: z.string().nullable().optional(), // 1択
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -36,8 +38,9 @@ export const menuThemeRouter = router({
 
       await upsertUserBaseTheme({
         userId: ctx.user.id,
-        healthTheme: input.healthTheme ?? null,
-        lifestageTheme: input.lifestageTheme ?? null,
+        // 配列 → カンマ区切り文字列に変換して保存
+        healthThemes: input.healthThemes?.join(",") ?? null,
+        lifestageThemes: input.lifestageThemes?.join(",") ?? null,
         economyTheme: input.economyTheme ?? null,
         styleTheme: input.styleTheme ?? null,
       });
