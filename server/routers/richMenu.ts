@@ -184,7 +184,10 @@ function buildRichMenuBody() {
   return buildNormalRichMenuBody();
 }
 
-/** 課金ユーザー向ゑ6コマメニュー（今日の献立・冷蔵庫・ダッシュボード・買い物リスト・今日だけ特別・家計簿） */
+/** 課金ユーザー向け6コマメニュー
+ * 上段: 今日の献立・冷蔵庫管理・買い物リスト
+ * 下段: ダッシュボードへ・今日だけ特別・家計簿
+ */
 function buildPremiumRichMenuBody(){
   return {
     size: { width: 2500, height: 1686 },
@@ -202,15 +205,15 @@ function buildPremiumRichMenuBody(){
         bounds: { x: 833, y: 0, width: 834, height: 843 },
         action: { type: "message", label: "冷蔵庫管理", text: "冷蔵庫の中身を教えて" },
       },
-      // ダッシュボードへ（右上）
+      // 買い物リスト（右上）
       {
         bounds: { x: 1667, y: 0, width: 833, height: 843 },
-        action: { type: "uri", label: "ダッシュボードへ", uri: "https://liff.line.me/2009630713-AotlJytF" },
+        action: { type: "message", label: "買い物リスト", text: "買い物リストを教えて" },
       },
-      // 買い物リスト（左下）
+      // ダッシュボードへ（左下）
       {
         bounds: { x: 0, y: 843, width: 833, height: 843 },
-        action: { type: "message", label: "買い物リスト", text: "買い物リストを教えて" },
+        action: { type: "uri", label: "ダッシュボードへ", uri: "https://liff.line.me/2009630713-AotlJytF" },
       },
       // 今日だけ特別（中下）
       {
