@@ -2344,13 +2344,20 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
     // replyTokenは使い切ったのでsendLineMessage（push）で画像ガイドを送信
     // LINE push APIは1回5件まで制限があるため2回に分けて送信
     try {
-      // 1回目: 画像5枚（バナー・キャラ・3ステップ・冷蔵庫・AIコマンド）※LINE push APIは1回5件まで
+      // 0回目: 「はじめましょう！」テキスト＋キャラクター画像を別々に送信（被り防止）
       await sendLineMessage(lineUserId, [
         {
-          type: "image",
-          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_final_ok_6688562d.png",
-          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_final_ok_6688562d.png",
+          type: "text",
+          text: "🎉 はじめましょう！",
         },
+        {
+          type: "image",
+          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/%E3%81%8D%E3%82%83%E3%82%89_917c7e6f.jpg",
+          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/%E3%81%8D%E3%82%83%E3%82%89_917c7e6f.jpg",
+        },
+      ]);
+      // 1回目: 使い方画像（3ステップ・冷蔵庫・AIコマンド）
+      await sendLineMessage(lineUserId, [
         {
           type: "image",
           originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_B_steps_v2-9A8LjBpnEDhAuoDHCav52d.png",
