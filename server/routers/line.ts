@@ -2344,12 +2344,17 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
     // replyTokenは使い切ったのでsendLineMessage（push）で画像ガイドを送信
     // LINE push APIは1回5件まで制限があるため2回に分けて送信
     try {
-      // 1回目: 画像4枚（はじめましょう・3ステップ・冷蔵庫・AIコマンド）
+      // 1回目: 画像5枚（バナー・キャラ・3ステップ・冷蔵庫・AIコマンド）※LINE push APIは1回5件まで
       await sendLineMessage(lineUserId, [
         {
           type: "image",
-          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/new_welcome_A_chara-SSjPP6my5BdSozY9MjgQCA.png",
-          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/new_welcome_A_chara-SSjPP6my5BdSozY9MjgQCA.png",
+          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_banner_780e0480.png",
+          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_banner_780e0480.png",
+        },
+        {
+          type: "image",
+          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_chara_0ea9868d.png",
+          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_chara_0ea9868d.png",
         },
         {
           type: "image",
