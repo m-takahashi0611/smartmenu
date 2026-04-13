@@ -357,3 +357,21 @@ export const userBaseThemes = mysqlTable("user_base_themes", {
 });
 export type UserBaseTheme = typeof userBaseThemes.$inferSelect;
 export type InsertUserBaseTheme = typeof userBaseThemes.$inferInsert;
+
+/**
+ * 配信メッセージテーブル
+ * 管理者が作成した配信用メッセージを保存
+ */
+export const broadcastMessages = mysqlTable("broadcast_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 200 }).notNull(),
+  content: text("content").notNull(),
+  status: mysqlEnum("status", ["draft", "sent"]).default("draft").notNull(),
+  sentAt: timestamp("sentAt"),
+  sentCount: int("sentCount").default(0).notNull(),
+  createdBy: int("createdBy").notNull(), // admin userId
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BroadcastMessage = typeof broadcastMessages.$inferSelect;
+export type InsertBroadcastMessage = typeof broadcastMessages.$inferInsert;

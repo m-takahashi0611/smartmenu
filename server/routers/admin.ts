@@ -1,10 +1,15 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { getAllActiveLineUsers, getAllUsers, getDeliveryLogs, getDb } from "../db";
+import {
+  getAllActiveLineUsers, getAllUsers, getDeliveryLogs, getDb,
+  listBroadcastMessages, getBroadcastMessage, insertBroadcastMessage,
+  updateBroadcastMessage, deleteBroadcastMessage, markBroadcastMessageSent,
+} from "../db";
 import { lineConversationHistory, fridgeItems, shoppingListItems, menuPlans, lineUsers, subscriptions } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { broadcastMenus, broadcastToSelected } from "../batch/deliverMenus";
+import { sendLineMessage } from "./line";
 
 // 管理者専用プロシージャ
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -144,6 +149,78 @@ export const adminRouter = router({
         .set({ deliveryHour: input.hour, deliveryMinute: input.minute, updatedAt: new Date() })
         .where(eq(lineUsers.lineUserId, input.lineUserId));
       return { success: true };
+    }),
+
+  // ─── 配信メッセージ CRUD ───────────────────────────────────────────────────
+  // 配信メッセージ一覧取得
+  listBroadcastMessages: adminProcedure
+    .query(async () => {
+      return await listBroadcastMessages();
+    }),
+
+  // 配信メッセージ作成
+  createBroadcastMessage: adminProcedure
+    .input(z.object({
+      title: z.string().min(1).max(200),
+      content: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const id = await insertBroadcastMessage({
+        title: input.title,
+        content: input.content,
+        status: "draft",
+        createdBy: ctx.user.id,
+      });
+      return { id, success: true };
+    }),
+
+  // 配信メッセージ更新
+  updateBroadcastMessage: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      title: z.string().min(1).max(200),
+      content: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const msg = await getBroadcastMessage(input.id);
+      if (!msg) throw new TRPCError({ code: "NOT_FOUND", message: "メッセージが見つかりません" });
+      if (msg.status === "sent") throw new TRPCError({ code: "BAD_REQUEST", message: "送信済みメッセージは編集できません" });
+      await updateBroadcastMessage(input.id, { title: input.title, content: input.content });
+      return { success: true };
+    }),
+
+  // 配信メッセージ削除
+  deleteBroadcastMessage: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteBroadcastMessage(input.id);
+      return { success: true };
+    }),
+
+  // 配信メッセージを選択ユーザーへ送信
+  sendBroadcastMessage: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      lineUserIds: z.array(z.string()).min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const msg = await getBroadcastMessage(input.id);
+      if (!msg) throw new TRPCError({ code: "NOT_FOUND", message: "メッセージが見つかりません" });
+
+      let success = 0;
+      let failed = 0;
+      for (const lineUserId of input.lineUserIds) {
+        try {
+          await sendLineMessage(lineUserId, [{ type: "text", text: msg.content }]);
+          success++;
+        } catch (err) {
+          console.error(`[sendBroadcastMessage] Failed for ${lineUserId}:`, err);
+          failed++;
+        }
+      }
+
+      await markBroadcastMessageSent(input.id, success);
+      return { success, failed, total: input.lineUserIds.length };
     }),
 
   // 会話履歴クリア（特定ユーザーまたは全ユーザー）

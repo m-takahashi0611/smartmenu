@@ -27,6 +27,9 @@ import {
   userBaseThemes,
   type UserBaseTheme,
   type InsertUserBaseTheme,
+  broadcastMessages,
+  type BroadcastMessage,
+  type InsertBroadcastMessage,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -613,4 +616,53 @@ export async function upsertUserBaseTheme(data: InsertUserBaseTheme): Promise<vo
       updatedAt: new Date(),
     },
   });
+}
+
+// ─── 配信メッセージ ────────────────────────────────────────────────────────────
+
+export async function listBroadcastMessages(): Promise<BroadcastMessage[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(broadcastMessages).orderBy(broadcastMessages.createdAt);
+  return rows;
+}
+
+export async function getBroadcastMessage(id: number): Promise<BroadcastMessage | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(broadcastMessages).where(eq(broadcastMessages.id, id));
+  return rows[0] ?? null;
+}
+
+export async function insertBroadcastMessage(data: InsertBroadcastMessage): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(broadcastMessages).values(data);
+  return (result as any)[0].insertId as number;
+}
+
+export async function updateBroadcastMessage(
+  id: number,
+  data: Partial<Pick<BroadcastMessage, "title" | "content">>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(broadcastMessages).set({ ...data, updatedAt: new Date() }).where(eq(broadcastMessages.id, id));
+}
+
+export async function deleteBroadcastMessage(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(broadcastMessages).where(eq(broadcastMessages.id, id));
+}
+
+export async function markBroadcastMessageSent(id: number, sentCount: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(broadcastMessages).set({
+    status: "sent",
+    sentAt: new Date(),
+    sentCount,
+    updatedAt: new Date(),
+  }).where(eq(broadcastMessages.id, id));
 }
