@@ -2348,8 +2348,8 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
       await sendLineMessage(lineUserId, [
         {
           type: "image",
-          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_v2-4J6rHNwo7yqC88L8U4uiXM.png",
-          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_v2-4J6rHNwo7yqC88L8U4uiXM.png",
+          originalContentUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_definitive_3f19fa38.png",
+          previewImageUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_A_definitive_3f19fa38.png",
         },
         {
           type: "image",
