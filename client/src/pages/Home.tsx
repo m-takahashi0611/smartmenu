@@ -262,11 +262,16 @@ export default function Home() {
           {/* 使い方説明画像 */}
           <div>
             <div className="space-y-4">
-              <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/new_welcome_A_chara-SSjPP6my5BdSozY9MjgQCA.png"
-                alt="はじめましょう！"
-                className="w-full max-w-sm mx-auto block rounded-2xl shadow-md"
-              />
+              <div className="max-w-sm mx-auto">
+                <div className="bg-[#22613a] rounded-t-2xl py-4 px-6 text-center">
+                  <span className="text-white font-bold text-2xl">はじめましょう！</span>
+                </div>
+                <img
+                  src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/%E3%81%8D%E3%82%83%E3%82%89_917c7e6f.jpg"
+                  alt="キャラクター"
+                  className="w-full block rounded-b-2xl shadow-md"
+                />
+              </div>
               <img
                 src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_B_steps_v2-9A8LjBpnEDhAuoDHCav52d.png"
                 alt="まず3ステップで始めましょう！"
