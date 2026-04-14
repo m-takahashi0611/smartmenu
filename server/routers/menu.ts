@@ -131,6 +131,7 @@ export async function generateMenuPlan(
     const lifestageMap: Record<string, string> = {
       baby_food: '離乳食対応（乳幼児がいる）',
       toddler: '幼児食対応',
+      teen: 'ティーン（中高生）対応（成長期の高カロリー・高タンパク質・部活対応）',
       exam: '受験生応援（集中力・栄養バランス重視）',
       senior: 'シニア向け（やわらかく消化しやすい）',
     };
@@ -151,8 +152,15 @@ export async function generateMenuPlan(
     if (baseTheme.lifestageThemes) {
       baseTheme.lifestageThemes.split(',').filter(Boolean).forEach(t => { if (lifestageMap[t]) parts.push(lifestageMap[t]); });
     }
+    const dishCountMap: Record<string, string> = {
+      ichiju_issai: '一汁一菜構成（汁物＋主菜のシンプル構成）',
+      ichiju_nisai: '一汁二菜構成（汁物＋主菜＋副菜1品）',
+      ichiju_sansai: '一汁三菜構成（汁物＋主菜＋副菜2品）',
+      ichiju_yonsai: '一汁四菜以上の豪華な構成（汁物＋主菜＋副菜3品以上）',
+    };
     if (baseTheme.economyTheme && economyMap[baseTheme.economyTheme]) parts.push(economyMap[baseTheme.economyTheme]);
     if (baseTheme.styleTheme && styleMap[baseTheme.styleTheme]) parts.push(styleMap[baseTheme.styleTheme]);
+    if ((baseTheme as any).dishCountTheme && dishCountMap[(baseTheme as any).dishCountTheme]) parts.push(dishCountMap[(baseTheme as any).dishCountTheme]);
     return parts.length > 0 ? parts.join('、') : null;
   })() : null;
 
@@ -357,12 +365,6 @@ ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyLis
     const targetLabel = resolvedMealType === "dinner" ? "今夜の夕食" : "明日の朝食";
     const options = menuData.options as Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
 
-    // 冷蔵庫食材のまとめ（全案で使う食材）
-    const allFridgeUsed = Array.from(new Set(options.flatMap(o => o.usedFridgeItems))).filter(Boolean);
-    const fridgeNote = allFridgeUsed.length > 0
-      ? `冷蔵庫の${allFridgeUsed.join("・")}があるので…\n\n`
-      : "";
-
     const optionLines = options.map((o, i) => {
       const num = ["1️⃣", "2️⃣", "3️⃣"][i] ?? `${i + 1}.`;
       return `${num} ${o.name}`;
@@ -370,20 +372,17 @@ ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyLis
 
     messageText = `🍽️ ${targetLabel}、こんなのはどうですか？${weatherEmoji ? ` ${weatherEmoji}` : ""}
 
-${fridgeNote}${optionLines}
+${optionLines}
 
 レシピは「1のレシピ教えて」と送ってください🍳
 買い物リストはダッシュボードで確認できます`;
 
   } else {
     const targetLabel = resolvedMealType === "breakfast" ? "今日の朝食" : "今日の昼食";
-    const fridgeNote = menuData.usedFridgeItems?.length > 0
-      ? `冷蔵庫の${menuData.usedFridgeItems.join("・")}を使って…\n\n`
-      : "";
 
     messageText = `🍽️ ${targetLabel}のご提案${weatherEmoji ? ` ${weatherEmoji}` : ""}
 
-${fridgeNote}✨ ${menuData.name}
+✨ ${menuData.name}
 
 レシピは「レシピ教えて」と送ってください🍳
 買い物リストはダッシュボードで確認できます`;

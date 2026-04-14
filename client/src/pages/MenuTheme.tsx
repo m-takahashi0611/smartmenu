@@ -34,7 +34,8 @@ const THEME_CATEGORIES = [
     emoji: "👨‍👩‍👧",
     items: [
       { id: "baby_food", label: "離乳食対応", desc: "月齢別の柔らかさ・味付けに配慮" },
-      { id: "toddler", label: "幼児食対応", desc: "1〜6歳向け、食べやすい・好き嫌い対策" },
+      { id: "toddler", label: "幼児食対応", desc: "1～6歳向け、食べやすい・好き嫌い対策" },
+      { id: "teen", label: "ティーン（中高生）", desc: "成長期の高カロリー・高タンパク質・部活対応" },
       { id: "exam", label: "受験生応援", desc: "脳に良い食材・集中力UP・夜食対応" },
       { id: "senior", label: "シニア向け", desc: "柔らかめ・消化に良い・栄養密度高め" },
     ],
@@ -56,7 +57,17 @@ const THEME_CATEGORIES = [
     items: [
       { id: "quick", label: "時短・簡単", desc: "15分以内・工程少なめ" },
       { id: "elaborate", label: "本格・こだわり", desc: "手間をかけた丁寧な料理" },
-
+    ],
+  },
+  {
+    id: "dishCount",
+    label: "食卓イメージ（品数）",
+    emoji: "🍽️",
+    items: [
+      { id: "ichiju_issai", label: "一汁一菜（シンプル）", desc: "汁物＋主菜のシンプル構成" },
+      { id: "ichiju_nisai", label: "一汁二菜（標準）", desc: "汁物＋主菜＋副菜1品の標準的構成" },
+      { id: "ichiju_sansai", label: "一汁三菜（充実）", desc: "汁物＋主菜＋副菜2品の充実した構成" },
+      { id: "ichiju_yonsai", label: "一汁四菜（豪華）", desc: "汁物＋主菜＋副菜3品以上の豪華な構成" },
     ],
   },
 ];
@@ -76,6 +87,7 @@ export default function MenuTheme() {
   const [selectedLifestage, setSelectedLifestage] = useState<string[]>([]);
   const [selectedEconomy, setSelectedEconomy] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  const [selectedDishCount, setSelectedDishCount] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -95,6 +107,7 @@ export default function MenuTheme() {
     setSelectedLifestage(savedTheme.lifestageThemes ?? []);
     setSelectedEconomy(savedTheme.economyTheme ?? null);
     setSelectedStyle(savedTheme.styleTheme ?? null);
+    setSelectedDishCount((savedTheme as any).dishCountTheme ?? null);
     setInitialized(true);
   }
 
@@ -154,6 +167,8 @@ export default function MenuTheme() {
       setSelectedEconomy((prev) => (prev === itemId ? null : itemId));
     } else if (catId === "style") {
       setSelectedStyle((prev) => (prev === itemId ? null : itemId));
+    } else if (catId === "dishCount") {
+      setSelectedDishCount((prev) => (prev === itemId ? null : itemId));
     }
     setSaved(false);
   };
@@ -164,6 +179,7 @@ export default function MenuTheme() {
     ...selectedLifestage,
     ...(selectedEconomy ? [selectedEconomy] : []),
     ...(selectedStyle ? [selectedStyle] : []),
+    ...(selectedDishCount ? [selectedDishCount] : []),
   ];
 
   const handleSave = () => {
@@ -172,6 +188,7 @@ export default function MenuTheme() {
       lifestageThemes: selectedLifestage,
       economyTheme: selectedEconomy,
       styleTheme: selectedStyle,
+      dishCountTheme: selectedDishCount,
     });
   };
 

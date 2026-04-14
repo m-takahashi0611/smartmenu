@@ -257,6 +257,15 @@ export async function bulkDeleteFridgeItems(ids: number[], userId: number) {
   await db.delete(fridgeItems).where(and(inArray(fridgeItems.id, ids), eq(fridgeItems.userId, userId)));
 }
 
+export async function clearAllFridgeItems(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const existing = await db.select().from(fridgeItems).where(eq(fridgeItems.userId, userId));
+  if (existing.length === 0) return 0;
+  await db.delete(fridgeItems).where(eq(fridgeItems.userId, userId));
+  return existing.length;
+}
+
 export async function bulkMoveFridgeToShopping(ids: number[], userId: number): Promise<number> {
   const db = await getDb();
   if (!db || ids.length === 0) return 0;

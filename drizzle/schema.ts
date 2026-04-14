@@ -346,12 +346,14 @@ export const userBaseThemes = mysqlTable("user_base_themes", {
   userId: int("userId").notNull().unique(),
   // 健康・体型管理：複数選択可（カンマ区切り）diet/muscle/low_salt/low_sugar/gut
   healthThemes: varchar("healthThemes", { length: 255 }),
-  // ライフステージ：複数選択可（カンマ区切り）baby_food/toddler/exam/senior
+  // ライフステージ：複数選択可（カンマ区切り）baby_food/toddler/teen/exam/senior
   lifestageThemes: varchar("lifestageThemes", { length: 255 }),
   // 経済・節約：1択 budget/month_end/batch_cook
   economyTheme: varchar("economyTheme", { length: 50 }),
   // 調理スタイル：1択 quick/elaborate/entertaining/special（お弁当対応は削除）
   styleTheme: varchar("styleTheme", { length: 50 }),
+  // 食卓イメージ（品数）：1択 ichiju_issai/ichiju_nisai/ichiju_sansai/ichiju_yonsai
+  dishCountTheme: varchar("dishCountTheme", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

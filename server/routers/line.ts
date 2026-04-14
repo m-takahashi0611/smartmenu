@@ -22,6 +22,7 @@ import {
   checkLineUserProcessing,
   setLineUserProcessing,
   getUserIsPremium,
+  clearAllFridgeItems,
 } from "../db";
 import { lineUsers, fridgeItems as fridgeItemsTable, shoppingListItems } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
@@ -2361,7 +2362,7 @@ ${dinnerResult.message}`;
 // ─── 「今日だけ特別」テーマの説明文生成 ───────────────────────────────────────────
 function getSpecialThemeDesc(theme: string): string {
   const themeMap: Record<string, string> = {
-    'おもてなし': 'おもてなし・ホームパーティー。見映えがよく品数多め、手間をかけた特別感のある献立を提案してください。',
+    'おもてなし': 'おもてなし・ホームパーティー。ゲストを迎える特別感あふれる献立を提案してください。条件：「メインディッシュ（肉または魚料理）＋副菜2品以上＋スープまたは前菜」の構成で、テーブルを華やかに飾れる内容にしてください。平日の家族食と明らかに異なる、少し手間はかかるが訪客が喜ぶ料理を優先してください。過去の会話から家族の好物を最大限活かしてください。',
     '記念日': '記念日。お祝いにふさわしい特別感のある献立を提案してください。',
     'チートデー': 'チートデー（がんばった日のご行美）。カロリー制限なしで、家族の好物や食べたいものを優先した献立を提案してください。過去の会話から家族の好物を最大限活かしてください。',
     '季節の行事': '季節の行事・イベント（お正月・花見・夏祭り・クリスマスなど）。季節感のある特別な献立を提案してください。',
@@ -2903,7 +2904,102 @@ https://www.kondatebiyori.com`,
       return;
     }
 
-    // ─── 買い物リスト全部冷蔵庫へ移動 ──────────────────────────────────────────────────────
+    // ─── 冷蔵庫の一括上書き（「冷蔵庫を〇〇に書き換えて」「冷蔵庫を全部消して〇〇を入れて」）──────────────
+    // 例: 「冷蔵庫を豚肉・キャベツ・卵に書き換えて」「冷蔵庫を全消しして牛乳と卵を入れて」
+    const fridgeOverwriteMatch = text.match(/冷蔵庫(?:の中身)?(?:を全部消して|を全消しして|を全部削除して|を空にして|をリセットして)?(?:(.+?)(?:に書き換えて|に変えて|に入れ替えて|を入れて|を登録して|に更新して))/);
+    if (fridgeOverwriteMatch && userId) {
+      const newItemsText = fridgeOverwriteMatch[1]?.trim();
+      if (newItemsText) {
+        // LLMで食材リストを抽出
+        let newItems: Array<{ name: string; quantity: string | null }> = [];
+        try {
+          const splitResp = await invokeLLM({
+            messages: [
+              {
+                role: 'system',
+                content: `あなたは食材名抽出AIです。入力テキストから食材名と数量を抽出してJSON形式で返してください。
+{"items": [{"name": "豚肉", "quantity": "300g"}, {"name": "玉ねぎ", "quantity": null}]}`,
+              },
+              { role: 'user', content: newItemsText },
+            ],
+            response_format: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'ingredient_list',
+                strict: true,
+                schema: {
+                  type: 'object',
+                  properties: {
+                    items: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          name: { type: 'string' },
+                          quantity: { type: ['string', 'null'] },
+                        },
+                        required: ['name', 'quantity'],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ['items'],
+                  additionalProperties: false,
+                },
+              },
+            } as any,
+          });
+          const content = splitResp.choices[0]?.message?.content;
+          const contentStr = typeof content === 'string' ? content : JSON.stringify(content ?? {});
+          newItems = JSON.parse(contentStr).items ?? [];
+        } catch (err) {
+          console.error('[LINE] fridge overwrite LLM error:', err);
+        }
+        if (newItems.length > 0) {
+          // 既存の冷蔵庫を全削除
+          const deletedCount = await clearAllFridgeItems(userId);
+          // 新しい食材を登録
+          const db2 = await getDb();
+          if (db2) {
+            for (const item of newItems) {
+              await db2.insert(fridgeItemsTable).values({ userId, name: item.name, quantity: item.quantity ?? null, category: 'other' });
+            }
+          }
+          const addedNames = newItems.map(i => i.name).join('・');
+          await replyAndSave(replyToken, [{
+            type: 'text',
+            text: `🔄 冷蔵庫を書き換えました！
+
+❌ 削除：${deletedCount}件
+✅ 新しく登録：${addedNames}
+
+「冷蔵庫の中身を教えて」で確認できます`,
+          }]);
+          return;
+        }
+      }
+    }
+
+    // ─── 冷蔵庫を全部消す（食材なし）──────────────────────────────────────────────────────
+    if (/冷蔵庫(?:の中身)?(?:を全部消して|を全消しして|を全部削除して|を空にして|をリセットして)$/.test(text.trim())) {
+      if (!userId) {
+        await replyAndSave(replyToken, [{ type: 'text', text: `${displayName}さん、まずはダッシュボードからログインしてください
+https://www.kondatebiyori.com` }]);
+        return;
+      }
+      const deletedCount = await clearAllFridgeItems(userId);
+      await replyAndSave(replyToken, [{
+        type: 'text',
+        text: deletedCount > 0
+          ? `🗑️ 冷蔵庫の食材を全部削除しました（${deletedCount}件）
+
+新しく食材を登録するには「冷蔵庫に〇〇を追加」と送ってください`
+          : '冷蔵庫にはすでに食材が登録されていません',
+      }]);
+      return;
+    }
+
+        // ─── 買い物リスト全部冷蔵庫へ移動 ──────────────────────────────────────────────────────
     if (/買い物リストを全部冷蔵庫に移動して|買い物リストを冷蔵庫に移動して|買い物リスト.*全部.*冷蔵庫/.test(text)) {
       if (!userId) {
         await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはダッシュボードからログインしてください\nhttps://www.kondatebiyori.com` }]);
@@ -3054,7 +3150,8 @@ https://www.kondatebiyori.com`,
     }
 
     // ─── リッチメニュー「今日だけ特別」ボタン（課金ユーザー専用）────────────────────────────────
-    if (normalizedText === "今日だけ特別" || text.includes("今日だけ特別")) {
+    // ※「今日だけ特別：〇〇」（コロン付き）はこのifより前の specialTodayMatch で処理済み
+    if (normalizedText === "今日だけ特別") {
       if (!userId) {
         await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはダッシュボードからログインしてください\nhttps://www.kondatebiyori.com` }]);
         return;
@@ -3084,7 +3181,7 @@ https://www.kondatebiyori.com`,
     }
 
     // ─── 「今日だけ特別：〇〇」テーマ選択後の処理 ──────────────────────────────────────────
-    const specialTodayMatch = text.match(/^今日だけ特別[：::]?(.+)$/);
+    const specialTodayMatch = text.match(/^今日だけ特別[：::](.+)$/);
     if (specialTodayMatch && userId) {
       const specialTheme = specialTodayMatch[1].trim();
       // 「記念日」の場合は誰の記念日か確認する

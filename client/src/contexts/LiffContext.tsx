@@ -6,33 +6,37 @@
  * - User-Agent で "Line/" を検出しても isLiff=false（通常のOAuthログインを使用）
  *   → Android LINE内ブラウザでは liff.init() が失敗するケースがあるため
  * - liff.init() にタイムアウトを設けて必ず setIsLoggingIn(false) を呼ぶ
+ * - タイムアウト時はリトライボタンを表示（LINE再起動不要）
  */
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { trpc } from "@/lib/trpc";
 
 const LIFF_ID = import.meta.env.VITE_LIFF_ID as string;
-const LIFF_INIT_TIMEOUT_MS = 10000; // 10秒タイムアウト
+const LIFF_INIT_TIMEOUT_MS = 15000; // 15秒タイムアウト（10秒→15秒に延長）
+
+type LiffError = {
+  message: string;
+  canRetry: boolean;
+};
 
 type LiffContextType = {
   isLiff: boolean;
   isLoggingIn: boolean;
+  liffError: LiffError | null;
+  clearLiffError: () => void;
   loginWithLine: () => Promise<void>;
 };
 
 const LiffContext = createContext<LiffContextType>({
   isLiff: false,
   isLoggingIn: false,
+  liffError: null,
+  clearLiffError: () => {},
   loginWithLine: async () => {},
 });
 
 /**
  * LINEのLIFF URL経由またはLINE内ブラウザかどうかを判定する
- *
- * 【設計方針】
- * - liff.stateパラメータがある場合 → LIFF URL経由（isLiff=true）
- * - User-Agent に "Line/" が含まれる場合 → LINE内ブラウザ（isLiff=true）
- *   → liff.init()は使わず、LINEログインボタンのみ表示する
- *   → ボタンタップ時にliff.init()を実行する（タイムアウト付き）
  */
 function detectIsLiff(): boolean {
   const search = window.location.search;
@@ -77,6 +81,7 @@ export function LiffProvider({ children }: { children: ReactNode }) {
     return detectIsLiff();
   });
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [liffError, setLiffError] = useState<LiffError | null>(null);
 
   const utils = trpc.useUtils();
   const loginMutation = trpc.lineAuth.loginWithLine.useMutation({
@@ -87,9 +92,16 @@ export function LiffProvider({ children }: { children: ReactNode }) {
     onError: (err) => {
       console.error("[LIFF] Session creation failed:", err);
       setIsLoggingIn(false);
-      alert("ログインに失敗しました。もう一度お試しください。");
+      setLiffError({
+        message: "ログインに失敗しました。もう一度お試しください。",
+        canRetry: true,
+      });
     },
   });
+
+  const clearLiffError = useCallback(() => {
+    setLiffError(null);
+  }, []);
 
   const loginWithLine = useCallback(async () => {
     if (!LIFF_ID) {
@@ -98,6 +110,7 @@ export function LiffProvider({ children }: { children: ReactNode }) {
     }
 
     setIsLoggingIn(true);
+    setLiffError(null);
     console.log("[LIFF] Starting login flow...");
 
     try {
@@ -110,9 +123,6 @@ export function LiffProvider({ children }: { children: ReactNode }) {
 
       if (!liff.isLoggedIn()) {
         // 未ログイン → LINE認証画面へリダイレクト
-        // redirectUriはLINEデベロッパーコンソールに登録したエンドポイントURLのオリジンを使用
-        // window.location.hrefを使うと登録URLと不一致になり400エラーが発生するため
-        // エンドポイントURLはLINEデベロッパーコンソールに登録された値と完全一致させる必要がある
         const endpointOrigin = "https://www.kondatebiyori.com";
         const redirectUri = endpointOrigin + "/";
         console.log("[LIFF] Not logged in, redirecting to LINE login... redirectUri:", redirectUri);
@@ -140,7 +150,16 @@ export function LiffProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("[LIFF] Login flow failed:", err);
       setIsLoggingIn(false);
-      alert(`ログインエラー: ${err instanceof Error ? err.message : "不明なエラー"}`);
+
+      const errMsg = err instanceof Error ? err.message : "不明なエラー";
+      const isTimeout = errMsg.includes("timed out");
+
+      setLiffError({
+        message: isTimeout
+          ? "読み込みがタイムアウトしました。\n「再読み込みする」ボタンをタップしてください。"
+          : `ログインエラーが発生しました。\nもう一度お試しください。`,
+        canRetry: true,
+      });
     }
   }, [loginMutation]);
 
@@ -148,6 +167,8 @@ export function LiffProvider({ children }: { children: ReactNode }) {
     <LiffContext.Provider value={{
       isLiff,
       isLoggingIn: isLoggingIn || loginMutation.isPending,
+      liffError,
+      clearLiffError,
       loginWithLine,
     }}>
       {children}

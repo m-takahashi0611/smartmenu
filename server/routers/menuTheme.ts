@@ -14,6 +14,7 @@ export const menuThemeRouter = router({
       // 1択
       economyTheme: theme?.economyTheme ?? null,
       styleTheme: theme?.styleTheme ?? null,
+      dishCountTheme: theme?.dishCountTheme ?? null,
     };
   }),
 
@@ -25,6 +26,7 @@ export const menuThemeRouter = router({
         lifestageThemes: z.array(z.string()).optional(), // 複数選択
         economyTheme: z.string().nullable().optional(), // 1択
         styleTheme: z.string().nullable().optional(), // 1択
+        dishCountTheme: z.string().nullable().optional(), // 1択
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -43,6 +45,7 @@ export const menuThemeRouter = router({
         lifestageThemes: input.lifestageThemes?.join(",") ?? null,
         economyTheme: input.economyTheme ?? null,
         styleTheme: input.styleTheme ?? null,
+        dishCountTheme: input.dishCountTheme ?? null,
       });
 
       return { success: true };

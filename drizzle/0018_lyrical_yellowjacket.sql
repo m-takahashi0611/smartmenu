@@ -1,0 +1,1 @@
+ALTER TABLE `user_base_themes` ADD `dishCountTheme` varchar(50);

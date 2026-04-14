@@ -67,7 +67,7 @@ const stepsAll = [
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
-  const { isLiff, isLoggingIn, loginWithLine } = useLiffContext();
+  const { isLiff, isLoggingIn, liffError, clearLiffError, loginWithLine } = useLiffContext();
 
   // デバッグ用ログ
   useEffect(() => {
@@ -92,47 +92,67 @@ export default function Home() {
   const LineLoginButton = ({ size = "lg" }: { size?: "sm" | "lg" }) => {
     const isLoggedIn = !!user;
     return (
-      <button
-        type="button"
-        onTouchEnd={(e) => {
-          if (isLoggedIn || isLoggingIn) return;
-          e.preventDefault();
-          e.stopPropagation();
-          console.log("[Home] LINE login button touchEnd");
-          loginWithLine();
-        }}
-        onClick={(e) => {
-          if (isLoggedIn || isLoggingIn) return;
-          e.preventDefault();
-          e.stopPropagation();
-          console.log("[Home] LINE login button clicked");
-          loginWithLine();
-        }}
-        disabled={isLoggingIn || isLoggedIn}
-        style={{
-          backgroundColor: (isLoggingIn || isLoggedIn) ? '#ccc' : '#06C755',
-          color: (isLoggingIn || isLoggedIn) ? '#888' : 'white',
-          fontWeight: 'bold',
-          // ログイン済みなら小さく
-          fontSize: isLoggedIn ? '12px' : (size === 'lg' ? '18px' : '15px'),
-          padding: isLoggedIn ? '6px 14px' : (size === 'lg' ? '18px 32px' : '10px 20px'),
-          borderRadius: '8px',
-          border: 'none',
-          cursor: (isLoggingIn || isLoggedIn) ? 'default' : 'pointer',
-          width: (size === 'lg' && !isLoggedIn) ? '100%' : 'auto',
-          display: 'block',
-          WebkitTapHighlightColor: 'transparent',
-          WebkitUserSelect: 'none',
-          userSelect: 'none',
-          touchAction: 'manipulation',
-          outline: 'none',
-          WebkitAppearance: 'none',
-          minHeight: isLoggedIn ? '28px' : (size === 'lg' ? '56px' : '44px'),
-          opacity: isLoggedIn ? 0.5 : 1,
-        }}
-      >
-        {isLoggedIn ? "✅ ログイン済み" : isLoggingIn ? "ログイン中..." : "🟢 LINEでログイン"}
-      </button>
+      <div style={{ width: size === 'lg' ? '100%' : 'auto' }}>
+        {/* エラー時リトライUI */}
+        {liffError && !isLoggedIn && (
+          <div style={{
+            backgroundColor: '#fff8e1',
+            border: '1px solid #f0c040',
+            borderRadius: '8px',
+            padding: '12px 14px',
+            marginBottom: '10px',
+            fontSize: '13px',
+            color: '#7a5c00',
+            lineHeight: '1.6',
+            whiteSpace: 'pre-line',
+          }}>
+            ⚠️ {liffError.message}
+          </div>
+        )}
+        <button
+          type="button"
+          onTouchEnd={(e) => {
+            if (isLoggedIn || isLoggingIn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            console.log("[Home] LINE login button touchEnd");
+            clearLiffError();
+            loginWithLine();
+          }}
+          onClick={(e) => {
+            if (isLoggedIn || isLoggingIn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            console.log("[Home] LINE login button clicked");
+            clearLiffError();
+            loginWithLine();
+          }}
+          disabled={isLoggingIn || isLoggedIn}
+          style={{
+            backgroundColor: (isLoggingIn || isLoggedIn) ? '#ccc' : (liffError ? '#e67e22' : '#06C755'),
+            color: (isLoggingIn || isLoggedIn) ? '#888' : 'white',
+            fontWeight: 'bold',
+            // ログイン済みなら小さく
+            fontSize: isLoggedIn ? '12px' : (size === 'lg' ? '18px' : '15px'),
+            padding: isLoggedIn ? '6px 14px' : (size === 'lg' ? '18px 32px' : '10px 20px'),
+            borderRadius: '8px',
+            border: 'none',
+            cursor: (isLoggingIn || isLoggedIn) ? 'default' : 'pointer',
+            width: (size === 'lg' && !isLoggedIn) ? '100%' : 'auto',
+            display: 'block',
+            WebkitTapHighlightColor: 'transparent',
+            WebkitUserSelect: 'none',
+            userSelect: 'none',
+            touchAction: 'manipulation',
+            outline: 'none',
+            WebkitAppearance: 'none',
+            minHeight: isLoggedIn ? '28px' : (size === 'lg' ? '56px' : '44px'),
+            opacity: isLoggedIn ? 0.5 : 1,
+          }}
+        >
+          {isLoggedIn ? "✅ ログイン済み" : isLoggingIn ? "ログイン中..." : liffError ? "🔄 再読み込みする" : "🟢 LINEでログイン"}
+        </button>
+      </div>
     );
   };
 

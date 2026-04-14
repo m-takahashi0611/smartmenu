@@ -127,6 +127,13 @@
       "when": 1776070828301,
       "tag": "0017_robust_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1776136781011,
+      "tag": "0018_lyrical_yellowjacket",
+      "breakpoints": true
     }
   ]
 }
