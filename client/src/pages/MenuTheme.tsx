@@ -336,6 +336,8 @@ export default function MenuTheme() {
                           ? selectedLifestage.includes(item.id)
                           : category.id === "economy"
                           ? selectedEconomy === item.id
+                          : category.id === "dishCount"
+                          ? selectedDishCount === item.id
                           : selectedStyle === item.id;
                       return (
                         <button
