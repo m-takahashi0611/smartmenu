@@ -165,8 +165,19 @@ export async function generateMenuPlan(
   })() : null;
 
   // 課金ユーザー向けプロンプト強化フラグ
+  const dishCountTheme = (baseTheme as any)?.dishCountTheme;
+  const dishCountInstruction = isPremium && dishCountTheme ? (() => {
+    const dishCountRuleMap: Record<string, string> = {
+      ichiju_issai: '【食卓構成】一汁一菜（汁物1品＋主菜1品）で提案すること。副菜は不要。',
+      ichiju_nisai: '【食卓構成】一汁二菜（汁物1品＋主菜1品＋副菜1品）で提案すること。各案に必ず汁物・主菜・副菜を含めること。',
+      ichiju_sansai: '【食卓構成】一汁三菜（汁物1品＋主菜1品＋副菜2品）で提案すること。各案に必ず汁物・主菜・副菜2品を含めること。料理名は「主菜：〇〇、副菜：〇〇・〇〇、汁物：〇〇」の形式で返すこと。',
+      ichiju_yonsai: '【食卓構成】一汁四菜以上（汁物1品＋主菜1品＋副菜3品以上）の豪華な構成で提案すること。各案に必ず汁物・主菜・副菜3品以上を含めること。',
+    };
+    return dishCountRuleMap[dishCountTheme] ?? null;
+  })() : null;
+
   const premiumPromptExtra = isPremium
-    ? '\n【プレミアム機能】栄養バランス（タンパク質・野菜・炭水化物）を考慮し、より詳細で質の高い提案を行うこと。'
+    ? `\n【プレミアム機能】栄養バランス（タンパク質・野菜・炭水化物）を考慮し、より詳細で質の高い提案を行うこと。${dishCountInstruction ? `\n${dishCountInstruction}` : ''}`
     : '';
 
   // 買い物・自炊プロフィール
