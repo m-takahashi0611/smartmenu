@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,8 +79,35 @@ export default function Dashboard() {
 
   const utils = trpc.useUtils();
 
+  // 献立生成タイムアウト管理
+  const GENERATE_TIMEOUT_MS = 25000; // 25秒
+  const generateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [generateTimedOut, setGenerateTimedOut] = useState(false);
+
+  const reportError = trpc.errorLog.report.useMutation();
+
   const generateMenu = trpc.menu.getOrGenerate.useMutation({
+    onMutate: () => {
+      // タイムアウトタイマー開始
+      setGenerateTimedOut(false);
+      if (generateTimeoutRef.current) clearTimeout(generateTimeoutRef.current);
+      generateTimeoutRef.current = setTimeout(() => {
+        setGenerateTimedOut(true);
+        // タイムアウトをエラーログとして送信
+        reportError.mutate({
+          type: "menu_generate_timeout",
+          message: `献立生成が${GENERATE_TIMEOUT_MS / 1000}秒でタイムアウトしました`,
+          userAgent: navigator.userAgent,
+          extra: {
+            date: today,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      }, GENERATE_TIMEOUT_MS);
+    },
     onSuccess: (data) => {
+      if (generateTimeoutRef.current) clearTimeout(generateTimeoutRef.current);
+      setGenerateTimedOut(false);
       utils.menu.getByDate.invalidate({ date: today });
       if (data.shoppingList && data.shoppingList.length > 0) {
         setShoppingCandidates(data.shoppingList);
@@ -90,7 +117,11 @@ export default function Dashboard() {
       }
       toast.success("献立を生成しました！");
     },
-    onError: (err) => toast.error("エラー", { description: err.message }),
+    onError: (err) => {
+      if (generateTimeoutRef.current) clearTimeout(generateTimeoutRef.current);
+      setGenerateTimedOut(false);
+      toast.error("エラー", { description: err.message });
+    },
   });
 
   const addShoppingItem = trpc.shopping.add.useMutation();
@@ -604,13 +635,25 @@ export default function Dashboard() {
                 <div className="text-5xl mb-4">🛒</div>
                 <p className="text-muted-foreground mb-2">買い物リストが空です</p>
                 <p className="text-sm text-muted-foreground mb-4">献立を生成すると買い物リスト候補が表示されます</p>
-                <Button
-                  onClick={() => { generateMenu.mutate({ date: today }); setActiveTab("recipe"); }}
-                  disabled={generateMenu.isPending}
-                  className="bg-primary text-primary-foreground"
-                >
-                  {generateMenu.isPending ? "生成中..." : "献立を生成する"}
-                </Button>
+                {generateTimedOut ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-destructive">⏱ タイムアウトしました。ネットワーク接続を確認してください。</p>
+                    <Button
+                      onClick={() => { setGenerateTimedOut(false); generateMenu.mutate({ date: today }); setActiveTab("recipe"); }}
+                      className="bg-primary text-primary-foreground"
+                    >
+                      再試行する
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={() => { generateMenu.mutate({ date: today }); setActiveTab("recipe"); }}
+                    disabled={generateMenu.isPending}
+                    className="bg-primary text-primary-foreground"
+                  >
+                    {generateMenu.isPending ? "生成中..." : "献立を生成する"}
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -625,9 +668,18 @@ export default function Dashboard() {
                   <CardTitle className="text-base">🍽️ 今日の献立</CardTitle>
                   <div className="flex gap-2">
                     {!todayMenu && (
-                      <Button size="sm" onClick={() => generateMenu.mutate({ date: today })} disabled={generateMenu.isPending} className="bg-primary text-primary-foreground">
-                        {generateMenu.isPending ? "生成中..." : "献立を生成"}
-                      </Button>
+                      generateTimedOut ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-destructive">⏱ タイムアウト</span>
+                          <Button size="sm" onClick={() => { setGenerateTimedOut(false); generateMenu.mutate({ date: today }); }} className="bg-primary text-primary-foreground">
+                            再試行
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" onClick={() => generateMenu.mutate({ date: today })} disabled={generateMenu.isPending} className="bg-primary text-primary-foreground">
+                          {generateMenu.isPending ? "生成中..." : "献立を生成"}
+                        </Button>
+                      )
                     )}
                     {todayMenu && (
                       <Button size="sm" variant="outline" onClick={() => sendToLine.mutate({ date: today })} disabled={sendToLine.isPending}>
@@ -711,9 +763,21 @@ export default function Dashboard() {
                   <div className="text-center py-12">
                     <div className="text-5xl mb-4">🍽️</div>
                     <p className="text-muted-foreground mb-4">今日の献立がまだ生成されていません</p>
-                    <Button onClick={() => generateMenu.mutate({ date: today })} disabled={generateMenu.isPending} className="bg-primary text-primary-foreground">
-                      {generateMenu.isPending ? "AIが献立を考えています..." : "献立を生成する"}
-                    </Button>
+                    {generateTimedOut ? (
+                      <div className="space-y-2">
+                        <p className="text-sm text-destructive">⏱ タイムアウトしました（25秒）。ネットワーク接続を確認してください。</p>
+                        <Button
+                          onClick={() => { setGenerateTimedOut(false); generateMenu.mutate({ date: today }); }}
+                          className="bg-primary text-primary-foreground"
+                        >
+                          再試行する
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button onClick={() => generateMenu.mutate({ date: today })} disabled={generateMenu.isPending} className="bg-primary text-primary-foreground">
+                        {generateMenu.isPending ? "AIが献立を考えています..." : "献立を生成する"}
+                      </Button>
+                    )}
                   </div>
                 )}
               </CardContent>
