@@ -223,3 +223,9 @@
 - [ ] **ERR-6**: フロントエンド：ログインエラー時にLINE公式アカウントへの問い合わせボタンを表示
 - [ ] **ERR-7**: フロントエンド：エラー内容（UA・エラーメッセージ）をサーバーに送信
 - [ ] **ERR-8**: ダッシュボード管理者画面：エラーログ一覧を表示（日時・種別・UA・ユーザーID）
+
+## LINEチャットボット バグ修正（2026-04-15）
+
+- [x] **LINE-BUG-1**: menu_theme_regen処理後に `return true` がなく、AIチャット（generateContextualReply）に流れて二重応答になるバグを修正
+- [x] **LINE-BUG-2**: menu_theme_regen後の献立出し直しメッセージにクイックリプライ（1・2・3の選択ボタン）が付いていないバグを修正（result.optionsを使ってQRを構築）
+- [x] **LINE-BUG-3**: menu_option_selectionのoptions:[]（空配列）問題を修正（result.optionsを正しくpendingActionに保存）

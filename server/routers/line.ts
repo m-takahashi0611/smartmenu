@@ -1470,18 +1470,33 @@ ${dinnerResult.message}`;
       : '新しい献立を出し直しますね🍳\nちょっと待ってください...' }]);
 
     const result = await generateMenuPlan(userId, targetDate, mealType as any, undefined, theme, true);
-    await sendLineMessage(lineUserId, [{ type: 'text', text: result.message }]);
+
+    // 出し直し後のクイックリプライを構築（夕食・明日の朝食は3択ボタン付き）
+    const regenOptions = result.options ?? [];
+    if (regenOptions.length > 0) {
+      const regenQR = [
+        ...regenOptions.slice(0, 3).map((o, i) => ({
+          type: 'action' as const,
+          action: { type: 'message' as const, label: `${['1️⃣','2️⃣','3️⃣'][i]} ${o.name}`.slice(0, 20), text: o.name },
+        })),
+        { type: 'action' as const, action: { type: 'message' as const, label: '🎲 もう一度出し直す', text: 'その他' } },
+      ];
+      await sendLineMessage(lineUserId, [{ type: 'text', text: result.message, quickReply: { items: regenQR } }]);
+    } else {
+      await sendLineMessage(lineUserId, [{ type: 'text', text: result.message }]);
+    }
 
     if (result.menuPlanId) {
       await setLineUserPendingAction(lineUserId, {
         type: 'menu_option_selection',
-        options: [],
+        options: regenOptions,
         mealType,
         targetDate,
         menuPlanId: result.menuPlanId,
         regenerateCount: (regenerateCount ?? 0) + 1,
       });
     }
+    return true; // ← AIチャットへ流れないようにフロー処理で終了
   }
 
   // ─── 献立候補選択待ちの場合（1/2/3の番号入力に対して復唱確認）─────────────────────────────────────────────────────
