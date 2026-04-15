@@ -161,15 +161,15 @@ export default function Contact() {
               {/* お名前 */}
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-gray-700 font-medium">
-                  お名前 {!isFromError && <span className="text-red-500 text-xs">必須</span>}
-                  {isFromError && <span className="text-xs text-gray-400 ml-1">(任意)</span>}
+                  お名前 <span className="text-red-500 text-xs">必須</span>
+                  {isFromError && <span className="text-xs text-green-600 ml-1 font-normal">(LINE名を自動入力)</span>}
                 </Label>
                 <Input
                   id="name"
-                  placeholder={isFromError ? "LINE名が取得できなかった場合は空白でも可" : "例：山田 花子"}
+                  placeholder="例：山田 花子"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required={!isFromError}
+                  required
                   className="border-gray-200 focus:border-green-400 focus:ring-green-400"
                 />
               </div>
