@@ -3612,6 +3612,116 @@ https://www.kondatebiyori.com`,
       return;
     }
 
+    // ─── 自由レシピ要求（案C）：「〇〇のレシピ教えて」→ 献立マッチング＋プレミアム判定 ──────────────────
+    // 「レシピ」キーワードを含む場合に処理（pendingAction処理後のフォールスルーをここで捕捉）
+    const recipeRequestMatch = text.match(/(.+?)(?:の|の料理の)?レシピ(?:を|が|は)?(?:教えて|見せて|知りたい|教えてください|見たい|ください)?$/);
+    const isRecipeKeywordOnly = /^レシピ(?:教えて|見せて|知りたい|を教えて|を見せて)?$/.test(text.trim());
+
+    if (recipeRequestMatch || isRecipeKeywordOnly) {
+      const requestedDish = recipeRequestMatch ? recipeRequestMatch[1].trim() : null;
+
+      // 当日の献立を取得
+      const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0];
+      let todayDishNames: string[] = [];
+      if (userId) {
+        try {
+          const todayPlan = await getMenuPlanByDate(userId, todayStr);
+          if (todayPlan?.menuData) {
+            const planData = typeof todayPlan.menuData === 'string' ? JSON.parse(todayPlan.menuData) : todayPlan.menuData;
+            if (planData?.dinnerOptions) {
+              todayDishNames = planData.dinnerOptions.map((o: any) => o.name as string);
+            } else {
+              todayDishNames = [planData?.breakfast, planData?.lunch, planData?.dinner].filter(Boolean) as string[];
+            }
+          }
+        } catch { /* ignore */ }
+      }
+
+      // 料理名なし → 今日の献立候補をクイックリプライで提示
+      if (!requestedDish || isRecipeKeywordOnly) {
+        if (todayDishNames.length > 0) {
+          const qrItems = todayDishNames.slice(0, 13).map(name => ({
+            type: 'action' as const,
+            action: { type: 'message' as const, label: `📖 ${name}`, text: `${name}のレシピ教えて` },
+          }));
+          await replyAndSave(replyToken, [{
+            type: 'text',
+            text: 'どの料理のレシピを知りたいですか？😊\n\n今日の献立から選ぶ場合はボタンをタップ👇',
+            quickReply: { items: qrItems },
+          }]);
+        } else {
+          await replyAndSave(replyToken, [{
+            type: 'text',
+            text: 'どの料理のレシピを知りたいですか？\n料理名を入力してください😊\n例：「唐揚げのレシピ教えて」',
+          }]);
+        }
+        return;
+      }
+
+      // 料理名あり → 今日の献立に含まれるか部分一致チェック
+      const normalize = (s: string) => s.replace(/[\s　・・]/g, '').toLowerCase();
+      const matchedDish = todayDishNames.find(name =>
+        normalize(name).includes(normalize(requestedDish)) ||
+        normalize(requestedDish).includes(normalize(name))
+      );
+
+      if (matchedDish) {
+        // 献立にある → 通常レシピ生成（無料・有料共通）
+        try {
+          const recipeResponse = await invokeLLM({
+            messages: [
+              { role: 'system', content: 'あなたは日本の主婦向け料理レシピAIです。簡潔で分かりやすいレシピをLINEメッセージ形式で返してください。' },
+              { role: 'user', content: `「${matchedDish}」のレシピを教えてください。\n\n以下の形式で返してください：\n【材料】（4人分目安）\n・食材名 分量\n\n【作り方】\n1. 手順\n2. 手順\n（5〜7ステップ程度）\n\n【ポイント】\nコツや注意点を1〜2行で` },
+            ],
+          });
+          const recipeText = recipeResponse.choices[0]?.message?.content ?? 'レシピの取得に失敗しました。';
+          await replyAndSave(replyToken, [{ type: 'text', text: `🍳 ${matchedDish} のレシピ\n\n${recipeText}` }]);
+        } catch {
+          await replyAndSave(replyToken, [{ type: 'text', text: '申し訳ありません。レシピの取得に失敗しました。しばらくしてからお試しください。' }]);
+        }
+        return;
+      }
+
+      // 献立にない → プレミアム判定
+      const isPremiumForRecipe = userId ? await getUserIsPremium(userId) : false;
+
+      if (isPremiumForRecipe) {
+        // 有料会員 → 自由レシピ生成
+        try {
+          const recipeResponse = await invokeLLM({
+            messages: [
+              { role: 'system', content: 'あなたは日本の主婦向け料理レシピAIです。簡潔で分かりやすいレシピをLINEメッセージ形式で返してください。' },
+              { role: 'user', content: `「${requestedDish}」のレシピを教えてください。\n\n以下の形式で返してください：\n【材料】（4人分目安）\n・食材名 分量\n\n【作り方】\n1. 手順\n2. 手順\n（5〜7ステップ程度）\n\n【ポイント】\nコツや注意点を1〜2行で` },
+            ],
+          });
+          const recipeText = recipeResponse.choices[0]?.message?.content ?? 'レシピの取得に失敗しました。';
+          await replyAndSave(replyToken, [{ type: 'text', text: `🍳 ${requestedDish} のレシピ\n\n${recipeText}\n\n―――――――――――――――――\n✨ プレミアム会員特典でお届けしました！` }]);
+        } catch {
+          await replyAndSave(replyToken, [{ type: 'text', text: '申し訳ありません。レシピの取得に失敗しました。しばらくしてからお試しください。' }]);
+        }
+        return;
+      }
+
+      // 無料会員 → 今日の献立候補 + プレミアム案内
+      const todayQR = todayDishNames.slice(0, 10).map(name => ({
+        type: 'action' as const,
+        action: { type: 'message' as const, label: `📖 ${name}`, text: `${name}のレシピ教えて` },
+      }));
+      todayQR.push({
+        type: 'action' as const,
+        action: { type: 'uri' as const, label: '⭐ プレミアムを見る', uri: 'https://www.kondatebiyori.com/dashboard' } as any,
+      });
+      const todayDishList = todayDishNames.length > 0
+        ? `\n\n今日の献立のレシピはこちらから見られます👇\n${todayDishNames.map((n, i) => `${i + 1}️⃣ ${n}`).join('\n')}`
+        : '';
+      await replyAndSave(replyToken, [{
+        type: 'text',
+        text: `${requestedDish}は今日の献立にないので、レシピのご案内ができません😊${todayDishList}\n\n✨ プレミアム会員になると、献立に関係なくどんな料理のレシピでも聞けます！\nhttps://www.kondatebiyori.com/dashboard`,
+        quickReply: todayQR.length > 1 ? { items: todayQR } : undefined,
+      }]);
+      return;
+    }
+
     // ─── AI文脈理解型応答（会話履歴・位置情報対応） ──────────────────────────────────────────────
     // generateContextualReply内で履歴保存されるので、ここでは保存不要
     try {
