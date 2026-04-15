@@ -162,11 +162,11 @@ export default function Contact() {
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-gray-700 font-medium">
                   お名前 <span className="text-red-500 text-xs">必須</span>
-                  {isFromError && <span className="text-xs text-green-600 ml-1 font-normal">(LINE名を自動入力)</span>}
+                  {isFromError && form.name && <span className="text-xs text-green-600 ml-1 font-normal">(LINE名を自動入力)</span>}
                 </Label>
                 <Input
                   id="name"
-                  placeholder="例：山田 花子"
+                  placeholder={isFromError ? "LINEの表示名を入力してください" : "例：山田 花子"}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   required
