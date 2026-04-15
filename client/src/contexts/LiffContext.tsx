@@ -24,16 +24,20 @@ type LiffContextType = {
   isLiff: boolean;
   isLoggingIn: boolean;
   liffError: LiffError | null;
+  liffLineName: string | null;
   clearLiffError: () => void;
   loginWithLine: () => Promise<void>;
+  buildContactUrl: () => string;
 };
 
 const LiffContext = createContext<LiffContextType>({
   isLiff: false,
   isLoggingIn: false,
   liffError: null,
+  liffLineName: null,
   clearLiffError: () => {},
   loginWithLine: async () => {},
+  buildContactUrl: () => '/contact',
 });
 
 /**
@@ -83,6 +87,7 @@ export function LiffProvider({ children }: { children: ReactNode }) {
   });
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [liffError, setLiffError] = useState<LiffError | null>(null);
+  const [liffLineName, setLiffLineName] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -114,6 +119,20 @@ export function LiffProvider({ children }: { children: ReactNode }) {
   const clearLiffError = useCallback(() => {
     setLiffError(null);
   }, []);
+
+  // エラー経由でお問い合わせフォームに遷移するURLを生成
+  const buildContactUrl = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set('from', 'error');
+    if (liffLineName) params.set('name', liffLineName);
+    if (liffError) {
+      params.set('errorType', liffError.message.includes('タイムアウト') ? 'timeout' : 'login_failed');
+      params.set('errorMsg', liffError.message);
+    }
+    params.set('ua', navigator.userAgent.substring(0, 200));
+    params.set('at', new Date().toISOString());
+    return `/contact?${params.toString()}`;
+  }, [liffLineName, liffError]);
 
   const loginWithLine = useCallback(async () => {
     if (!LIFF_ID) {
@@ -153,6 +172,7 @@ export function LiffProvider({ children }: { children: ReactNode }) {
       }
 
       console.log("[LIFF] Got profile:", profile.displayName);
+      setLiffLineName(profile.displayName);
       await loginMutation.mutateAsync({
         idToken,
         lineUserId: profile.userId,
@@ -195,8 +215,10 @@ export function LiffProvider({ children }: { children: ReactNode }) {
       isLiff,
       isLoggingIn: isLoggingIn || loginMutation.isPending,
       liffError,
+      liffLineName,
       clearLiffError,
       loginWithLine,
+      buildContactUrl,
     }}>
       {children}
     </LiffContext.Provider>

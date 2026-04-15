@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -25,12 +25,42 @@ const CATEGORIES = [
 
 export default function Contact() {
   const [submitted, setSubmitted] = useState(false);
+  const [isFromError, setIsFromError] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
     category: "" as (typeof CATEGORIES)[number] | "",
     message: "",
   });
+
+  // エラー経由の場合、URLパラメータから自動入力
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('from') === 'error') {
+      setIsFromError(true);
+      const name = params.get('name') || '';
+      const errorType = params.get('errorType') || '';
+      const errorMsg = params.get('errorMsg') || '';
+      const ua = params.get('ua') || '';
+      const at = params.get('at') || '';
+      const autoMessage = [
+        '【エラー報告】',
+        `発生時刻: ${at ? new Date(at).toLocaleString('ja-JP') : '不明'}`,
+        `エラー種別: ${errorType || '不明'}`,
+        `エラー内容: ${errorMsg || '不明'}`,
+        `UA: ${ua}`,
+        '',
+        '――――――――――',
+        '上記のエラーについて、追加でお伝えしたいことがあればご記入ください。',
+      ].join('\n');
+      setForm(prev => ({
+        ...prev,
+        name: name,
+        category: 'その他',
+        message: autoMessage,
+      }));
+    }
+  }, []);
 
   const sendMutation = trpc.contact.send.useMutation({
     onSuccess: () => {
@@ -114,23 +144,32 @@ export default function Contact() {
               </div>
               <p className="text-gray-600 text-sm">
                 ご質問・ご要望・取材・業務提携など、お気軽にお問い合わせください。
-                通常2〜3営業日以内にご返信いたします。
+                通常2～3営業日以内にご返信いたします。
               </p>
             </div>
+
+            {/* エラー経由バナー */}
+            {isFromError && (
+              <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+                <p className="font-bold mb-1">⚠️ ログインエラーについてのお問い合わせ</p>
+                <p>エラー情報は自動入力されています。メールアドレスを入力して送信するだけでご連絡できます。</p>
+              </div>
+            )}
 
             {/* フォーム */}
             <form onSubmit={handleSubmit} className="space-y-6 bg-white rounded-2xl p-6 shadow-sm border border-green-50">
               {/* お名前 */}
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-gray-700 font-medium">
-                  お名前 <span className="text-red-500 text-xs">必須</span>
+                  お名前 {!isFromError && <span className="text-red-500 text-xs">必須</span>}
+                  {isFromError && <span className="text-xs text-gray-400 ml-1">(任意)</span>}
                 </Label>
                 <Input
                   id="name"
-                  placeholder="例：山田 花子"
+                  placeholder={isFromError ? "LINE名が取得できなかった場合は空白でも可" : "例：山田 花子"}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required
+                  required={!isFromError}
                   className="border-gray-200 focus:border-green-400 focus:ring-green-400"
                 />
               </div>

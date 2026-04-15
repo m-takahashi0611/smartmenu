@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLiffContext } from "@/contexts/LiffContext";
 import { getLoginUrl } from "@/const";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { trpc } from "@/lib/trpc";
 
 const features = [
   {
@@ -67,7 +68,8 @@ const stepsAll = [
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
-  const { isLiff, isLoggingIn, liffError, clearLiffError, loginWithLine } = useLiffContext();
+  const { isLiff, isLoggingIn, liffError, clearLiffError, loginWithLine, buildContactUrl } = useLiffContext();
+  const reportErrorMutation = trpc.errorLog.report.useMutation();
 
   // デバッグ用ログ
   useEffect(() => {
@@ -88,6 +90,48 @@ export default function Home() {
     }
   }, [isLiff, authLoading, user, isLoggingIn, loginWithLine]);
 
+  // 運営に報告するボタン
+  const [reported, setReported] = useState(false);
+  const ReportButton = () => {
+    if (reported) {
+      return (
+        <span style={{ fontSize: '12px', color: '#7a5c00' }}>✅ 運営に報告しました。対応します。</span>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          if (!liffError) return;
+          reportErrorMutation.mutate({
+            type: 'user_reported',
+            message: liffError.message,
+            userAgent: navigator.userAgent,
+            extra: { url: window.location.href, timestamp: new Date().toISOString() },
+          }, {
+            onSuccess: () => setReported(true),
+            onError: () => setReported(true), // 失敗しても報告済み表示
+          });
+        }}
+        disabled={reportErrorMutation.isPending}
+        style={{
+          display: 'inline-block',
+          backgroundColor: '#06C755',
+          color: 'white',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          padding: '6px 14px',
+          borderRadius: '6px',
+          border: 'none',
+          cursor: 'pointer',
+          textAlign: 'center',
+        }}
+      >
+        {reportErrorMutation.isPending ? '送信中...' : '📨 運営に報告する'}
+      </button>
+    );
+  };
+
   // LINEログインボタン（ログイン済みならグレーアウト・小型化）
   const LineLoginButton = ({ size = "lg" }: { size?: "sm" | "lg" }) => {
     const isLoggedIn = !!user;
@@ -107,23 +151,26 @@ export default function Home() {
             whiteSpace: 'pre-line',
           }}>
             <div>⚠️ {liffError.message}</div>
-            <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f0c040' }}>
+            <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f0c040', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* 運営に報告するボタン */}
+              <ReportButton />
+              {/* 詳しく問い合わせるボタン */}
               <a
-                href="https://line.me/R/ti/p/@073ajwtq"
-                target="_blank"
-                rel="noopener noreferrer"
+                href={buildContactUrl()}
                 style={{
                   display: 'inline-block',
-                  backgroundColor: '#06C755',
-                  color: 'white',
+                  backgroundColor: 'transparent',
+                  color: '#7a5c00',
                   fontSize: '12px',
                   fontWeight: 'bold',
                   padding: '6px 14px',
                   borderRadius: '6px',
                   textDecoration: 'none',
+                  border: '1px solid #f0c040',
+                  textAlign: 'center',
                 }}
               >
-                💬 うまくいかない場合はこちら
+                ✉️ 詳しく問い合わせる
               </a>
             </div>
           </div>
@@ -218,16 +265,13 @@ export default function Home() {
             <a href="#how-to-use" className="text-sm text-muted-foreground hover:text-foreground transition-colors">使い方</a>
           </nav>
           <div className="flex items-center gap-2">
-            {/* ヘッダーのLINEボタン：ログイン済みならグレーアウト小型 */}
-            {isLiff ? (
-              <LineLoginButton size="sm" />
-            ) : user ? (
+            {user ? (
               <span className="text-xs text-muted-foreground">✅ ログイン済み</span>
-            ) : (
+            ) : !isLiff ? (
               <a href={getLoginUrl()}>
                 <Button size="sm" className="bg-primary text-primary-foreground">ログイン</Button>
               </a>
-            )}
+            ) : null}
           </div>
         </div>
       </header>
