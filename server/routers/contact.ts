@@ -4,6 +4,7 @@ import { sendContactMail } from "../mailer";
 import { TRPCError } from "@trpc/server";
 
 export const CONTACT_CATEGORIES = [
+  "エラー報告",
   "プラン・支払いについて",
   "機能について",
   "取材・広告について",

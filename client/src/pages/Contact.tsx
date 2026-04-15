@@ -16,6 +16,7 @@ import { CheckCircle, ArrowLeft, Mail } from "lucide-react";
 import { toast } from "sonner";
 
 const CATEGORIES = [
+  "エラー報告",
   "プラン・支払いについて",
   "機能について",
   "取材・広告について",
@@ -56,7 +57,7 @@ export default function Contact() {
       setForm(prev => ({
         ...prev,
         name: name,
-        category: 'その他',
+        category: 'エラー報告',
         message: autoMessage,
       }));
     }
