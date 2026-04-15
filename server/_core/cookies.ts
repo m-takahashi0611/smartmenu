@@ -2,6 +2,15 @@ import type { CookieOptions, Request } from "express";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
+/**
+ * iOSのSafari/LINEアプリ内ブラウザかどうかを判定する
+ * iOS SafariはSameSite=NoneのCookieをブロックするケースがある
+ */
+function isIosBrowser(req: Request): boolean {
+  const ua = req.headers["user-agent"] ?? "";
+  return /iPhone|iPad|iPod/i.test(ua);
+}
+
 function isIpAddress(host: string) {
   // Basic IPv4 check and IPv6 presence detection.
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
@@ -39,10 +48,15 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
+  const secure = isSecureRequest(req);
+  // iOS Safari/LINEアプリ内ブラウザはSameSite=NoneのCookieをブロックするため
+  // iOSの場合はSameSite=Laxを使用する（同一オリジンのリクエストには問題なし）
+  const sameSite: "none" | "lax" = isIosBrowser(req) ? "lax" : "none";
+
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req),
+    sameSite,
+    secure,
   };
 }
