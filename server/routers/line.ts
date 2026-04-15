@@ -296,9 +296,103 @@ async function generateContextualReply(
   userLat?: number | null,
   userLon?: number | null
 ): Promise<string> {
-  // ─── 最優先：冷蔵庫・買い物リストクエリは直接返答（AIに渡さない）──────────────
+   // ─── 最優先：冷蔵庫・買い物リストクエリは直接返答（AIに渡さない）──────
   const isFridgeQuery = /冷蔵庫の中身|冷蔵庫.*教えて|冷蔵庫.*見せて|冷蔵庫.*確認|冷蔵庫.*一覧/.test(userMessage);
   const isShoppingQuery = /買い物リスト.*教えて|買い物リスト.*見せて|買い物リスト.*確認|買い物リスト.*一覧|買い物.*リスト/.test(userMessage);
+
+  // ─── R-2修正：レシピ要求は専用フローに誘導（AIチャットに流さない）──────
+  // 「〇〇のレシピ」パターンを検知した場合、レシピ処理関数へ誘導する
+  const recipeMatchInChat = userMessage.match(/(.+?)のレシピ(?:を|が|は)?(?:教えて|見せて|知りたい|教えてください|見たい|ください)?$/);
+  const isRecipeOnlyInChat = /^レシピ(?:教えて|見せて|知りたい|を教えて|を見せて)?$/.test(userMessage.trim());
+  if (recipeMatchInChat || isRecipeOnlyInChat) {
+    // レシピ要求を検知→当日献立とマッチングしてプレミアム判定へ
+    const requestedDishInChat = recipeMatchInChat ? recipeMatchInChat[1].trim() : null;
+    const todayStrForChat = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0];
+    let todayDishNamesForChat: string[] = [];
+    if (userId) {
+      try {
+        const { getMenuPlanByDate } = await import('../db');
+        const todayPlanForChat = await getMenuPlanByDate(userId, todayStrForChat);
+        if (todayPlanForChat?.menuData) {
+          const planData = typeof todayPlanForChat.menuData === 'string' ? JSON.parse(todayPlanForChat.menuData) : todayPlanForChat.menuData;
+          if (planData?.dinnerOptions) {
+            todayDishNamesForChat = planData.dinnerOptions.map((o: any) => o.name as string);
+          } else {
+            todayDishNamesForChat = [planData?.breakfast, planData?.lunch, planData?.dinner].filter(Boolean) as string[];
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    // 料理名なし → 今日の献立候補を案内
+    if (!requestedDishInChat || isRecipeOnlyInChat) {
+      if (todayDishNamesForChat.length > 0) {
+        const dishList = todayDishNamesForChat.map((n, i) => `${i + 1}️⃣ ${n}`).join('\n');
+        return `今日の献立のレシピはこちらから見られます👇\n\n${dishList}\n\n料理名で「〇〇のレシピ教えて」と送ってください🍳`;
+      } else {
+        return '料理名を入れて送ってください😊\n例：「唐揚げのレシピ教えて」';
+      }
+    }
+
+    // 数字指定（「1のレシピ」等）→ 当日献立N番目の料理名に変換
+    const numMatchInChat = requestedDishInChat.match(/^([1-3１２３一二三])番?$/);
+    let resolvedDishInChat = requestedDishInChat;
+    if (numMatchInChat && todayDishNamesForChat.length > 0) {
+      const numStr = numMatchInChat[1];
+      const idx = '１一'.includes(numStr) ? 0 : '２二'.includes(numStr) ? 1 : '３三'.includes(numStr) ? 2 : parseInt(numStr, 10) - 1;
+      if (idx >= 0 && idx < todayDishNamesForChat.length) {
+        resolvedDishInChat = todayDishNamesForChat[idx];
+      }
+    }
+
+    // 献立マッチング
+    const normalizeChat = (s: string) => s.replace(/[\s　・·]/g, '').toLowerCase();
+    const matchedDishInChat = todayDishNamesForChat.find(name =>
+      normalizeChat(name).includes(normalizeChat(resolvedDishInChat)) ||
+      normalizeChat(resolvedDishInChat).includes(normalizeChat(name))
+    );
+
+    if (matchedDishInChat) {
+      // 献立にある → 無料・有料共通でレシピ生成
+      try {
+        const { invokeLLM } = await import('../_core/llm');
+        const recipeResp = await invokeLLM({
+          messages: [
+            { role: 'system', content: 'あなたは日本の主婦向け料理レシピAIです。簡潔で分かりやすいレシピをLINEメッセージ形式で返してください。' },
+            { role: 'user', content: `「${matchedDishInChat}」のレシピを教えてください。\n\n以下の形式で返してください：\n【材料】（4人分目安）\n・食材名 分量\n\n【作り方】\n1. 手順\n2. 手順\n（5〜7ステップ程度）\n\n【ポイント】\nコツや注意点を1〜2行で` },
+          ],
+        });
+        const recipeText = recipeResp.choices[0]?.message?.content ?? 'レシピの取得に失敗しました。';
+        return `🍳 ${matchedDishInChat} のレシピ\n\n${recipeText}`;
+      } catch {
+        return '申し訳ありません。レシピの取得に失敗しました。しばらくしてからお試しください。';
+      }
+    }
+
+    // 献立にない → プレミアム判定
+    const isPremiumInChat = userId ? await getUserIsPremium(userId) : false;
+    if (isPremiumInChat) {
+      try {
+        const { invokeLLM } = await import('../_core/llm');
+        const recipeResp = await invokeLLM({
+          messages: [
+            { role: 'system', content: 'あなたは日本の主婦向け料理レシピAIです。簡潔で分かりやすいレシピをLINEメッセージ形式で返してください。' },
+            { role: 'user', content: `「${resolvedDishInChat}」のレシピを教えてください。\n\n以下の形式で返してください：\n【材料】（4人分目安）\n・食材名 分量\n\n【作り方】\n1. 手順\n2. 手順\n（5〜7ステップ程度）\n\n【ポイント】\nコツや注意点を1〜2行で` },
+          ],
+        });
+        const recipeText = recipeResp.choices[0]?.message?.content ?? 'レシピの取得に失敗しました。';
+        return `🍳 ${resolvedDishInChat} のレシピ\n\n${recipeText}\n\n―――――――――――――――――――\n✨ プレミアム会員特典でお届けしました！`;
+      } catch {
+        return '申し訳ありません。レシピの取得に失敗しました。しばらくしてからお試しください。';
+      }
+    } else {
+      // 無料会員 → 今日の献立候補 + プレミアム案内
+      const todayDishList = todayDishNamesForChat.length > 0
+        ? `\n\n今日の献立のレシピはこちらから見られます👇\n${todayDishNamesForChat.map((n, i) => `${i + 1}️⃣ ${n}`).join('\n')}`
+        : '';
+      return `${resolvedDishInChat}は今日の献立にないので、レシピのご案内ができません😊${todayDishList}\n\n✨ プレミアム会員になると、献立に関係なくどんな料理のレシピでも聞けます！\nhttps://www.kondatebiyori.com/dashboard`;
+    }
+  }
 
   if (isFridgeQuery) {
     console.log(`[LINE] generateContextualReply: Intercepted fridge query: "${userMessage}"`);
@@ -1208,9 +1302,13 @@ ${dinnerResult.message}`;
           const qrMenuItems = [
             ...result.options.slice(0, 3).map((o, i) => ({
               type: 'action' as const,
-              action: { type: 'message' as const, label: `${i + 1}. ${o.name.slice(0, 18)}`, text: o.name },
+              action: { type: 'message' as const, label: `${i + 1}. ${o.name.slice(0, 16)}`, text: o.name },
             })),
-            { type: 'action' as const, action: { type: 'message' as const, label: '🎲 献立をやり直す', text: '献立をやり直す' } },
+            ...result.options.slice(0, 3).map((o) => ({
+              type: 'action' as const,
+              action: { type: 'message' as const, label: `📖 ${o.name.slice(0, 14)}のレシピ`, text: `${o.name}のレシピ教えて` },
+            })),
+            { type: 'action' as const, action: { type: 'message' as const, label: '🏒 献立をやり直す', text: '献立をやり直す' } },
           ];
           await replyLineMessage(replyToken, [{ type: 'text', text: result.message + '\n\n👇 下のボタンから選んでね！', quickReply: { items: qrMenuItems } }], lineUserId);
           // DBからdinnerOptionsを取得してpendingActionに保存
@@ -1479,7 +1577,11 @@ ${dinnerResult.message}`;
           type: 'action' as const,
           action: { type: 'message' as const, label: `${['1️⃣','2️⃣','3️⃣'][i]} ${o.name}`.slice(0, 20), text: o.name },
         })),
-        { type: 'action' as const, action: { type: 'message' as const, label: '🎲 もう一度出し直す', text: 'その他' } },
+        ...regenOptions.slice(0, 3).map((o) => ({
+          type: 'action' as const,
+          action: { type: 'message' as const, label: `📖 ${o.name.slice(0, 14)}のレシピ`, text: `${o.name}のレシピ教えて` },
+        })),
+        { type: 'action' as const, action: { type: 'message' as const, label: '🏒 もう一度出し直す', text: 'その他' } },
       ];
       await sendLineMessage(lineUserId, [{ type: 'text', text: result.message, quickReply: { items: regenQR } }]);
     } else {
@@ -3674,11 +3776,22 @@ ${itemList}
         return;
       }
 
+      // R-1修正：数字指定（「1のレシピ」等）→ 当日献立N番目の料理名に変換
+      const numMatchForDish = requestedDish.match(/^([1-3１２３一二三])番?$/);
+      let resolvedRequestedDish = requestedDish;
+      if (numMatchForDish && todayDishNames.length > 0) {
+        const numStr = numMatchForDish[1];
+        const idx = '１一'.includes(numStr) ? 0 : '２二'.includes(numStr) ? 1 : '３三'.includes(numStr) ? 2 : parseInt(numStr, 10) - 1;
+        if (idx >= 0 && idx < todayDishNames.length) {
+          resolvedRequestedDish = todayDishNames[idx];
+        }
+      }
+
       // 料理名あり → 今日の献立に含まれるか部分一致チェック
-      const normalize = (s: string) => s.replace(/[\s　・・]/g, '').toLowerCase();
+      const normalize = (s: string) => s.replace(/[\s　・·]/g, '').toLowerCase();
       const matchedDish = todayDishNames.find(name =>
-        normalize(name).includes(normalize(requestedDish)) ||
-        normalize(requestedDish).includes(normalize(name))
+        normalize(name).includes(normalize(resolvedRequestedDish)) ||
+        normalize(resolvedRequestedDish).includes(normalize(name))
       );
 
       if (matchedDish) {
@@ -3707,12 +3820,11 @@ ${itemList}
           const recipeResponse = await invokeLLM({
             messages: [
               { role: 'system', content: 'あなたは日本の主婦向け料理レシピAIです。簡潔で分かりやすいレシピをLINEメッセージ形式で返してください。' },
-              { role: 'user', content: `「${requestedDish}」のレシピを教えてください。\n\n以下の形式で返してください：\n【材料】（4人分目安）\n・食材名 分量\n\n【作り方】\n1. 手順\n2. 手順\n（5〜7ステップ程度）\n\n【ポイント】\nコツや注意点を1〜2行で` },
+              { role: 'user', content: `「${resolvedRequestedDish}」のレシピを教えてください。\n\n以下の形式で返してください：\n【材料】（4人分目安）\n・食材名 分量\n\n【作り方】\n1. 手順\n2. 手順\n（5〜7ステップ程度）\n\n【ポイント】\nコツや注意点を1〜2行で` },
             ],
           });
           const recipeText = recipeResponse.choices[0]?.message?.content ?? 'レシピの取得に失敗しました。';
-          await replyAndSave(replyToken, [{ type: 'text', text: `🍳 ${requestedDish} のレシピ\n\n${recipeText}\n\n―――――――――――――――――\n✨ プレミアム会員特典でお届けしました！` }]);
-        } catch {
+          await replyAndSave(replyToken, [{ type: 'text', text: `🍳 ${resolvedRequestedDish} のレシピ\n\n${recipeText}\n\n―――――――――――――――――――\n✨ プレミアム会員特典でお届けしました！` }]);       } catch {
           await replyAndSave(replyToken, [{ type: 'text', text: '申し訳ありません。レシピの取得に失敗しました。しばらくしてからお試しください。' }]);
         }
         return;
@@ -3732,7 +3844,7 @@ ${itemList}
         : '';
       await replyAndSave(replyToken, [{
         type: 'text',
-        text: `${requestedDish}は今日の献立にないので、レシピのご案内ができません😊${todayDishList}\n\n✨ プレミアム会員になると、献立に関係なくどんな料理のレシピでも聞けます！\nhttps://www.kondatebiyori.com/dashboard`,
+        text: `${resolvedRequestedDish}は今日の献立にないので、レシピのご案内ができません😊${todayDishList}\n\n✨ プレミアム会員になると、献立に関係なくどんな料理のレシピでも聞けます！\nhttps://www.kondatebiyori.com/dashboard`,
         quickReply: todayQR.length > 1 ? { items: todayQR } : undefined,
       }]);
       return;

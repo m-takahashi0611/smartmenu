@@ -25,8 +25,22 @@ export async function broadcastMenus(date?: string) {
     }
 
     try {
-      const { message, menuPlanId } = await generateMenuPlan(lineUser.userId, today);
-      await sendLineMessage(lineUser.lineUserId, [{ type: "text", text: message }]);
+      const { message, menuPlanId, options } = await generateMenuPlan(lineUser.userId, today);
+      // レシピボタン付きクイックリプライを構築
+      const qrItems = options && options.length > 0 ? [
+        ...options.slice(0, 3).map((o: { name: string }, i: number) => ({
+          type: 'action' as const,
+          action: { type: 'message' as const, label: `${i + 1}. ${o.name.slice(0, 16)}`, text: o.name },
+        })),
+        ...options.slice(0, 3).map((o: { name: string }) => ({
+          type: 'action' as const,
+          action: { type: 'message' as const, label: `📖 ${o.name.slice(0, 14)}のレシピ`, text: `${o.name}のレシピ教えて` },
+        })),
+        { type: 'action' as const, action: { type: 'message' as const, label: '🏒 献立をやり直す', text: '献立をやり直す' } },
+      ] : undefined;
+      const msgPayload: any = { type: "text", text: message + (qrItems ? '\n\n👇 下のボタンから選んでね！' : '') };
+      if (qrItems) msgPayload.quickReply = { items: qrItems };
+      await sendLineMessage(lineUser.lineUserId, [msgPayload]);
       await insertDeliveryLog({
         userId: lineUser.userId,
         lineUserId: lineUser.lineUserId,
@@ -80,8 +94,21 @@ export async function broadcastToSelected(lineUserIds: string[], date?: string) 
       continue;
     }
     try {
-      const { message, menuPlanId } = await generateMenuPlan(lineUser.userId, today);
-      await sendLineMessage(lineUser.lineUserId, [{ type: "text", text: message }]);
+      const { message, menuPlanId, options } = await generateMenuPlan(lineUser.userId, today);
+      const qrItems2 = options && options.length > 0 ? [
+        ...options.slice(0, 3).map((o: { name: string }, i: number) => ({
+          type: 'action' as const,
+          action: { type: 'message' as const, label: `${i + 1}. ${o.name.slice(0, 16)}`, text: o.name },
+        })),
+        ...options.slice(0, 3).map((o: { name: string }) => ({
+          type: 'action' as const,
+          action: { type: 'message' as const, label: `📖 ${o.name.slice(0, 14)}のレシピ`, text: `${o.name}のレシピ教えて` },
+        })),
+        { type: 'action' as const, action: { type: 'message' as const, label: '🏒 献立をやり直す', text: '献立をやり直す' } },
+      ] : undefined;
+      const msgPayload2: any = { type: "text", text: message + (qrItems2 ? '\n\n👇 下のボタンから選んでね！' : '') };
+      if (qrItems2) msgPayload2.quickReply = { items: qrItems2 };
+      await sendLineMessage(lineUser.lineUserId, [msgPayload2]);
       await insertDeliveryLog({
         userId: lineUser.userId,
         lineUserId: lineUser.lineUserId,
