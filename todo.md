@@ -238,3 +238,7 @@
 - [x] **LINE-BUG-1**: menu_theme_regen処理後に `return true` がなく、AIチャット（generateContextualReply）に流れて二重応答になるバグを修正
 - [x] **LINE-BUG-2**: menu_theme_regen後の献立出し直しメッセージにクイックリプライ（1・2・3の選択ボタン）が付いていないバグを修正（result.optionsを使ってQRを構築）
 - [x] **LINE-BUG-3**: menu_option_selectionのoptions:[]（空配列）問題を修正（result.optionsを正しくpendingActionに保存）
+
+## 未登録ユーザー返信文修正（2026-04-15）
+
+- [x] **ONBOARD-1**: ダッシュボード未ログインユーザーへの返信文を全箇所で統一文言に置換

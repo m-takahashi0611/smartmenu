@@ -303,7 +303,7 @@ async function generateContextualReply(
   if (isFridgeQuery) {
     console.log(`[LINE] generateContextualReply: Intercepted fridge query: "${userMessage}"`);
     if (!userId) {
-      return `まずはダッシュボードから家族情報を登録してください\nhttps://www.kondatebiyori.com`;
+      return `まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`;
     }
     const items = await getFridgeItems(userId);
     if (items.length === 0) {
@@ -317,7 +317,7 @@ async function generateContextualReply(
   if (isShoppingQuery) {
     console.log(`[LINE] generateContextualReply: Intercepted shopping query: "${userMessage}"`);
     if (!userId) {
-      return `まずはダッシュボードから家族情報を登録してください\nhttps://www.kondatebiyori.com`;
+      return `まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`;
     }
     const db = await getDb();
     if (!db) return 'エラーが発生しました。しばらくしてから再度お試しください。';
@@ -2897,7 +2897,7 @@ ${itemList}
         await replyAndSave(replyToken, [
           {
             type: "text",
-            text: `${displayName}さん、まずはアプリにログインして家族情報を登録してください\n\nこちらから\nhttps://www.kondatebiyori.com`,
+            text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
           },
         ]);
         return;
@@ -3023,8 +3023,12 @@ ${itemList}
       if (!userId) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `${displayName}さん、まずはダッシュボードから家族情報を登録してください
-https://www.kondatebiyori.com`,
+          text: `${displayName}さん、まずはこちらからログインしてください😊
+👉 https://www.kondatebiyori.com
+
+ログインが完了したら、冷蔵庫の前に立ちながら
+「卵10個、牛乳1本、キャベツ半玉…」と
+音声で話しかけるだけで食材を登録することもできますよ🎤`,
         }]);
         return;
       }
@@ -3127,8 +3131,12 @@ https://www.kondatebiyori.com`,
     // ─── 冷蔵庫を全部消す（食材なし）──────────────────────────────────────────────────────
     if (/冷蔵庫(?:の中身)?(?:を全部消して|を全消しして|を全部削除して|を空にして|をリセットして)$/.test(text.trim())) {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: 'text', text: `${displayName}さん、まずはダッシュボードからログインしてください
-https://www.kondatebiyori.com` }]);
+        await replyAndSave(replyToken, [{ type: 'text', text: `${displayName}さん、まずはこちらからログインしてください😊
+👉 https://www.kondatebiyori.com
+
+ログインが完了したら、冷蔵庫の前に立ちながら
+「卵10個、牛乳1本、キャベツ半玉…」と
+音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
         return;
       }
       const deletedCount = await clearAllFridgeItems(userId);
@@ -3146,7 +3154,7 @@ https://www.kondatebiyori.com` }]);
         // ─── 買い物リスト全部冷蔵庫へ移動 ──────────────────────────────────────────────────────
     if (/買い物リストを全部冷蔵庫に移動して|買い物リストを冷蔵庫に移動して|買い物リスト.*全部.*冷蔵庫/.test(text)) {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはダッシュボードからログインしてください\nhttps://www.kondatebiyori.com` }]);
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
         return;
       }
       const db = await getDb();
@@ -3198,7 +3206,7 @@ https://www.kondatebiyori.com` }]);
     // ─── 買い物リスト全部削除 ──────────────────────────────────────────────────────────────
     if (/買い物リストを全部削除して|買い物リストを削除して|買い物リスト.*全部.*削除/.test(text)) {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはダッシュボードからログインしてください\nhttps://www.kondatebiyori.com` }]);
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
         return;
       }
       const db = await getDb();
@@ -3221,8 +3229,12 @@ https://www.kondatebiyori.com` }]);
     const isShoppingDone = /買い物リスト購入済み|買い物完了|買い物した|買い物おわった|買い物終わった|買い物終了|購入完了|全部買った|買い物全部完了/.test(text);
     if (isShoppingDone) {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはダッシュボードからログインしてください
-https://www.kondatebiyori.com` }]);
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊
+👉 https://www.kondatebiyori.com
+
+ログインが完了したら、冷蔵庫の前に立ちながら
+「卵10個、牛乳1本、キャベツ半玉…」と
+音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
         return;
       }
       const db = await getDb();
@@ -3249,8 +3261,12 @@ https://www.kondatebiyori.com` }]);
       if (!userId) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `${displayName}さん、まずはダッシュボードから家族情報を登録してください
-https://www.kondatebiyori.com`,
+          text: `${displayName}さん、まずはこちらからログインしてください😊
+👉 https://www.kondatebiyori.com
+
+ログインが完了したら、冷蔵庫の前に立ちながら
+「卵10個、牛乳1本、キャベツ半玉…」と
+音声で話しかけるだけで食材を登録することもできますよ🎤`,
         }]);
         return;
       }
@@ -3313,7 +3329,7 @@ https://www.kondatebiyori.com`,
     // ※「今日だけ特別：〇〇」（コロン付き）はこのifより前の specialTodayMatch で処理済み
     if (normalizedText === "今日だけ特別") {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはダッシュボードからログインしてください\nhttps://www.kondatebiyori.com` }]);
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
         return;
       }
       const isPremium = await getUserIsPremium(userId);
@@ -3522,7 +3538,7 @@ https://www.kondatebiyori.com`,
       if (!userId) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `${displayName}さん、まずはダッシュボードから家族情報を登録してください\nhttps://www.kondatebiyori.com`,
+          text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
         }]);
         return;
       }
@@ -3554,7 +3570,7 @@ https://www.kondatebiyori.com`,
       if (!userId) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `${displayName}さん、まずはダッシュボードから家族情報を登録してください\nhttps://www.kondatebiyori.com`,
+          text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
         }]);
         return;
       }
