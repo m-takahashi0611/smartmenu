@@ -1721,6 +1721,14 @@ ${dinnerResult.message}`;
       }
     }
 
+    // 「〇〇のレシピ教えて」（料理名付き）→ pendingを解除して通常のレシピフローに流す
+    const recipeWithDishInSelection = trimmed.match(/(.+?)(?:の|の料理の)?レシピ(?:を|が|は)?(?:教えて|見せて|知りたい|教えてください|見たい|ください)?$/);
+    if (recipeWithDishInSelection && recipeWithDishInSelection[1].trim().length > 0) {
+      // pendingをクリアして通常処理（案Cのレシピフロー）に流す
+      await setLineUserPendingAction(lineUserId, null);
+      return false;
+    }
+
     // 「レシピ」「教えて」などのキーワード → 全候補を再表示
     if (/レシピ|教えて|見せて/.test(trimmed)) {
       const optionLines = options.map((o, i) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
