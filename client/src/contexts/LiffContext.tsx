@@ -7,6 +7,7 @@
  *   → Android LINE内ブラウザでは liff.init() が失敗するケースがあるため
  * - liff.init() にタイムアウトを設けて必ず setIsLoggingIn(false) を呼ぶ
  * - タイムアウト時はリトライボタンを表示（LINE再起動不要）
+ * - エラー発生時はサーバーに送信してオーナーに通知
  */
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { trpc } from "@/lib/trpc";
@@ -84,6 +85,10 @@ export function LiffProvider({ children }: { children: ReactNode }) {
   const [liffError, setLiffError] = useState<LiffError | null>(null);
 
   const utils = trpc.useUtils();
+
+  // エラーログ送信ミューテーション
+  const reportErrorMutation = trpc.errorLog.report.useMutation();
+
   const loginMutation = trpc.lineAuth.loginWithLine.useMutation({
     onSuccess: () => {
       utils.auth.me.invalidate();
@@ -92,9 +97,16 @@ export function LiffProvider({ children }: { children: ReactNode }) {
     onError: (err) => {
       console.error("[LIFF] Session creation failed:", err);
       setIsLoggingIn(false);
+      const errMsg = err.message || "セッション作成エラー";
       setLiffError({
         message: "ログインに失敗しました。もう一度お試しください。",
         canRetry: true,
+      });
+      // エラーをサーバーに送信
+      reportErrorMutation.mutate({
+        type: "login_session_failed",
+        message: errMsg,
+        userAgent: navigator.userAgent,
       });
     },
   });
@@ -160,8 +172,23 @@ export function LiffProvider({ children }: { children: ReactNode }) {
           : `ログインエラーが発生しました。\nもう一度お試しください。`,
         canRetry: true,
       });
+
+      // エラーをサーバーに送信（オーナー通知）
+      try {
+        reportErrorMutation.mutate({
+          type: isTimeout ? "liff_init_timeout" : "liff_login_failed",
+          message: errMsg,
+          userAgent: navigator.userAgent,
+          extra: {
+            url: window.location.href,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      } catch {
+        // エラー送信失敗は無視
+      }
     }
-  }, [loginMutation]);
+  }, [loginMutation, reportErrorMutation]);
 
   return (
     <LiffContext.Provider value={{

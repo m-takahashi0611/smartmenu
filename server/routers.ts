@@ -16,6 +16,7 @@ import { subscriptionRouter } from "./routers/subscription";
 import { contactRouter } from "./routers/contact";
 import { bentoRouter } from "./routers/bento";
 import { menuThemeRouter } from "./routers/menuTheme";
+import { errorLogRouter } from "./routers/errorLog";
 
 export const appRouter = router({
   system: systemRouter,
@@ -43,6 +44,7 @@ export const appRouter = router({
   contact: contactRouter,
   bento: bentoRouter,
   menuTheme: menuThemeRouter,
+  errorLog: errorLogRouter,
 });
 
 export type AppRouter = typeof appRouter;

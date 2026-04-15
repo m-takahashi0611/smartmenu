@@ -106,7 +106,26 @@ export default function Home() {
             lineHeight: '1.6',
             whiteSpace: 'pre-line',
           }}>
-            ⚠️ {liffError.message}
+            <div>⚠️ {liffError.message}</div>
+            <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f0c040' }}>
+              <a
+                href="https://line.me/R/ti/p/@073ajwtq"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-block',
+                  backgroundColor: '#06C755',
+                  color: 'white',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  textDecoration: 'none',
+                }}
+              >
+                💬 うまくいかない場合はこちら
+              </a>
+            </div>
           </div>
         )}
         <button

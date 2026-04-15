@@ -377,3 +377,22 @@ export const broadcastMessages = mysqlTable("broadcast_messages", {
 });
 export type BroadcastMessage = typeof broadcastMessages.$inferSelect;
 export type InsertBroadcastMessage = typeof broadcastMessages.$inferInsert;
+
+/**
+ * エラーログテーブル
+ * フロントエンドで発生したログインエラー等を記録
+ * ダッシュボードで確認・オーナー通知に使用
+ */
+export const errorLogs = mysqlTable("error_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  type: varchar("type", { length: 100 }).notNull(), // 例: "liff_init_timeout", "login_failed", "oauth_error"
+  message: text("message").notNull(), // エラーメッセージ
+  userAgent: text("userAgent"), // UA文字列
+  userId: int("userId"), // ログイン済みの場合のuserId（任意）
+  lineUserId: varchar("lineUserId", { length: 64 }), // LINEユーザーID（任意）
+  extra: json("extra"), // 追加情報（任意）
+  notifiedOwner: boolean("notifiedOwner").default(false).notNull(), // オーナー通知済みフラグ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ErrorLog = typeof errorLogs.$inferSelect;
+export type InsertErrorLog = typeof errorLogs.$inferInsert;

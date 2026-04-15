@@ -107,6 +107,95 @@ function ConversationModal({
   );
 }
 
+// ─── エラーログタブ ─────────────────────────────────────────────────────────
+function ErrorLogsTab() {
+  const { data: logs, isLoading, refetch } = trpc.errorLog.list.useQuery(
+    { limit: 100, offset: 0 },
+    { refetchOnWindowFocus: false }
+  );
+
+  const formatDate = (dateVal: any) => {
+    if (!dateVal) return "-";
+    return new Date(dateVal).toLocaleString("ja-JP");
+  };
+
+  const typeLabel: Record<string, string> = {
+    liff_init_timeout: "タイムアウト",
+    liff_login_failed: "LIFFログイン失敗",
+    login_session_failed: "セッション作成失敗",
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">⚠️ エラーログ（直近100件）</CardTitle>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            更新
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : !logs || logs.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p className="text-sm">エラーログはありません ✅</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="whitespace-nowrap">発生日時</TableHead>
+                    <TableHead className="whitespace-nowrap">種別</TableHead>
+                    <TableHead>メッセージ</TableHead>
+                    <TableHead className="whitespace-nowrap">ユーザーID</TableHead>
+                    <TableHead className="whitespace-nowrap">通知</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {logs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {formatDate(log.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="destructive" className="text-xs whitespace-nowrap">
+                          {typeLabel[log.type] ?? log.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs max-w-xs">
+                        <p className="truncate" title={log.message}>{log.message}</p>
+                        {log.extra != null && (
+                          <p className="text-muted-foreground text-[10px] mt-0.5 truncate">
+                            {JSON.stringify(log.extra as Record<string, unknown>)}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground font-mono">
+                        {log.userId ? `uid:${log.userId}` : log.lineUserId ? `line:${log.lineUserId.slice(0, 8)}...` : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {log.notifiedOwner ? (
+                          <Badge variant="secondary" className="text-xs">通知済</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-muted-foreground">未通知</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── 配信メッセージタブ ───────────────────────────────────────────────────────
 function BroadcastMessageTab({ lineUsers }: { lineUsers: any[] | undefined }) {
   const utils = trpc.useUtils();
@@ -454,7 +543,7 @@ export default function Admin() {
     },
   });
 
-  const [activeTab, setActiveTab] = useState<"users" | "logs" | "broadcast" | "richmenu" | "cleanup">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "logs" | "broadcast" | "richmenu" | "cleanup" | "errorlogs">("users");
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
 
   // 配信設定モーダル
@@ -721,6 +810,7 @@ export default function Admin() {
             { id: "broadcast", label: "📨 配信メッセージ" },
             { id: "richmenu", label: "📱 リッチメニュー" },
             { id: "cleanup", label: "🗑️ データクリア" },
+            { id: "errorlogs", label: "⚠️ エラーログ" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1176,6 +1266,11 @@ export default function Admin() {
         {/* 配信メッセージ管理 */}
         {activeTab === "broadcast" && (
           <BroadcastMessageTab lineUsers={lineUsers} />
+        )}
+
+        {/* エラーログ */}
+        {activeTab === "errorlogs" && (
+          <ErrorLogsTab />
         )}
 
         {/* データクリア */}
