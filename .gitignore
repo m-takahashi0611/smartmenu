@@ -109,5 +109,8 @@ temp/
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
 
+# Server-side static assets (uploaded to CDN, not needed in deployment)
+server/assets/
+
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
