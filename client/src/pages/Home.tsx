@@ -350,7 +350,7 @@ export default function Home() {
                   <span className="text-white font-bold text-2xl">はじめましょう！</span>
                 </div>
                 <img
-                  src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/%E3%81%8D%E3%82%83%E3%82%89_917c7e6f.jpg"
+                  src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mori_kitchen_colorful_b246d0d3.jpg"
                   alt="キャラクター"
                   className="w-full block rounded-b-2xl shadow-md"
                 />
