@@ -31,9 +31,15 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!isUnauthorized) return;
 
   // LIFF環境（LINE内ブラウザ）の場合はトップページにリダイレクト（LINEログインボタンがある画面）
-  // Manus OAuthサインイン画面に飛ばさない
+  // ただし、/planページ（LINEログインボタンが既にある）にいる場合はリダイレクトしない
   if (isLiffEnvironment()) {
-    if (!window.location.pathname.startsWith("/") || window.location.pathname !== "/") {
+    const currentPath = window.location.pathname;
+    // /planや/dashboardなど、未認証でも表示できるページはリダイレクトしない
+    const noRedirectPaths = ["/plan", "/terms", "/contact"];
+    if (noRedirectPaths.some(p => currentPath.startsWith(p))) {
+      return; // このページはそのまま表示（未ログイン用UIがある）
+    }
+    if (currentPath !== "/") {
       window.location.href = "/";
     }
     return;

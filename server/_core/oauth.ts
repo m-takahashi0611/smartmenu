@@ -19,8 +19,26 @@ export function registerOAuthRoutes(app: Express) {
       return;
     }
 
+    // stateからreturnPathを取り出す（形式: base64("redirectUri|returnPath")）
+    // sdkにはredirectUriのみを渡す（|returnPath部分を除く）
+    let returnPath = "/";
+    let redirectUri = "";
     try {
-      const tokenResponse = await sdk.exchangeCodeForToken(code, state);
+      const decoded = Buffer.from(state, "base64").toString("utf-8");
+      const parts = decoded.split("|");
+      redirectUri = parts[0]; // redirectUri部分のみ
+      if (parts.length >= 2 && parts[1]) {
+        returnPath = parts[1];
+      }
+    } catch {
+      // デコード失敗時はstateをそのまま使用
+      redirectUri = Buffer.from(state, "base64").toString("utf-8");
+    }
+    // redirectUriのみを含むstateを再エンコードしてsdkに渡す
+    const cleanState = Buffer.from(redirectUri).toString("base64");
+
+    try {
+      const tokenResponse = await sdk.exchangeCodeForToken(code, cleanState);
       const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
 
       if (!userInfo.openId) {
@@ -44,17 +62,6 @@ export function registerOAuthRoutes(app: Express) {
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
-      // stateからreturnPathを取り出す（形式: base64("redirectUri|returnPath")）
-      let returnPath = "/";
-      try {
-        const decoded = Buffer.from(state, "base64").toString("utf-8");
-        const parts = decoded.split("|");
-        if (parts.length >= 2 && parts[1]) {
-          returnPath = parts[1];
-        }
-      } catch {
-        // デコード失敗時はTOPへ
-      }
       res.redirect(302, returnPath);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
