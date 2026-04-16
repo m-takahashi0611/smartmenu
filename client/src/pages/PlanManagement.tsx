@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
 
 /**
  * プラン管理ページ
@@ -29,6 +31,7 @@ export default function PlanManagement() {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const utils = trpc.useUtils();
+  const { user, loading: authLoading } = useAuth();
 
   const { data: plan, isLoading } = trpc.subscription.getMyPlan.useQuery();
   const { data: referralData } = trpc.campaign.getMyReferralCode.useQuery();
@@ -85,10 +88,63 @@ export default function PlanManagement() {
     cancelSubscription.mutate();
   };
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return (
       <div className="min-h-screen bg-orange-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+      </div>
+    );
+  }
+
+  // 未ログイン時はLINEログインを促す画面を表示
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-orange-50">
+        <div className="bg-white border-b border-orange-100 sticky top-0 z-10">
+          <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
+            <button
+              onClick={() => navigate("/")}
+              className="p-2 rounded-full hover:bg-orange-50 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <h1 className="text-lg font-bold text-gray-900">プラン管理</h1>
+          </div>
+        </div>
+        <div className="max-w-lg mx-auto px-4 py-12 flex flex-col items-center gap-6">
+          <div className="text-center space-y-3">
+            <Crown className="w-16 h-16 text-orange-400 mx-auto" />
+            <h2 className="text-xl font-bold text-gray-900">🎁 20日間 全機能無料体験</h2>
+            <p className="text-gray-600 text-sm leading-relaxed">
+              カード登録するだけで、プレミアム機能が<br />20日間タダで使えます！
+            </p>
+          </div>
+          <div className="w-full bg-white rounded-2xl shadow-sm p-5 space-y-3">
+            <p className="text-sm font-semibold text-gray-700">プレミアムで使える機能：</p>
+            <ul className="space-y-2 text-sm text-gray-700">
+              {[
+                "AI高精度献立（天気・栄養考慮）",
+                "買い物リスト自動生成",
+                "チラシ・レシート解析",
+                "献立テーマ（ダイエットなど）",
+                "お弁当モード",
+              ].map((f) => (
+                <li key={f} className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-orange-500 shrink-0" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-gray-400 text-center pt-1">20日後は月額480円 ／ いつでも解約OK</p>
+          </div>
+          <Button
+            onClick={() => { window.location.href = getLoginUrl(); }}
+            className="w-full bg-[#06C755] hover:bg-[#05a847] text-white py-4 text-base font-bold rounded-xl"
+          >
+            LINEでログインして始める
+          </Button>
+          <p className="text-xs text-gray-400 text-center">すでにご利用中の方はLINEログインでそのまま続けられます</p>
+        </div>
       </div>
     );
   }

@@ -2748,6 +2748,95 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
           },
         },
       ]);
+      // 3回目: カード登録促進 Flex Message
+      await sendLineMessage(lineUserId, [
+        {
+          type: "flex",
+          altText: "🎁 20日間 全機能無料体験のご案内",
+          contents: {
+            type: "bubble",
+            size: "mega",
+            header: {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "text",
+                  text: "🎁 20日間 全機能無料体験",
+                  weight: "bold",
+                  size: "lg",
+                  color: "#ffffff",
+                  align: "center",
+                },
+              ],
+              backgroundColor: "#FF6B35",
+              paddingAll: "16px",
+            },
+            body: {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "text",
+                  text: "カード登録するだけで\nプレミアム機能が20日間タダ！",
+                  wrap: true,
+                  size: "sm",
+                  color: "#555555",
+                  align: "center",
+                },
+                {
+                  type: "separator",
+                  margin: "md",
+                },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  margin: "md",
+                  spacing: "sm",
+                  contents: [
+                    { type: "text", text: "✓ AI高精度献立（天気・栄養考慮）", size: "sm", color: "#333333" },
+                    { type: "text", text: "✓ 買い物リスト自動生成", size: "sm", color: "#333333" },
+                    { type: "text", text: "✓ チラシ・レシート解析", size: "sm", color: "#333333" },
+                    { type: "text", text: "✓ 献立テーマ（ダイエットなど）", size: "sm", color: "#333333" },
+                    { type: "text", text: "✓ お弁当モード", size: "sm", color: "#333333" },
+                  ],
+                },
+                {
+                  type: "separator",
+                  margin: "md",
+                },
+                {
+                  type: "text",
+                  text: "20日後は月額480円 ／ いつでも解約OK",
+                  size: "xs",
+                  color: "#aaaaaa",
+                  align: "center",
+                  margin: "md",
+                },
+              ],
+              paddingAll: "16px",
+            },
+            footer: {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "button",
+                  action: {
+                    type: "uri",
+                    label: "✨ 今すぐ無料で始める →",
+                    uri: "https://www.kondatebiyori.com/plan",
+                  },
+                  style: "primary",
+                  color: "#FF6B35",
+                  height: "sm",
+                },
+              ],
+              paddingAll: "12px",
+            },
+          },
+        },
+      ]);
     } catch (pushErr) {
       console.error('[LINE] Failed to send welcome push messages:', pushErr);
     }
