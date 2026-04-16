@@ -42,13 +42,25 @@ export default function Dashboard() {
   const [shoppingSelectedIds, setShoppingSelectedIds] = useState<Set<number>>(new Set());
 
   // 外部サイト警告の安心ポップアップ（1日1回表示）
-  const STORAGE_KEY_NEVER = "hide_line_warning_popup_never"; // 永久非表示フラグ
+  const STORAGE_KEY_NEVER = "hide_line_warning_popup_never"; // 次回から表示しない
   const STORAGE_KEY_DATE = "line_warning_popup_last_shown";  // 最終表示日
   const [showLineWarningPopup, setShowLineWarningPopup] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
+  // カード登録促進ポップアップ（トライアルユーザー向け・毎回表示）
+  const [showTrialPopup, setShowTrialPopup] = useState(false);
+  const { data: planData } = trpc.subscription.getMyPlan.useQuery();
+  const createCheckout = trpc.subscription.createCheckoutSession.useMutation({
+    onSuccess: (data) => {
+      if (data.url) window.open(data.url, "_blank");
+    },
+    onError: (err) => {
+      toast.error(err.message || "決済ページの作成に失敗しました");
+    },
+  });
+
   useEffect(() => {
-    // 永久非表示フラグがあれば表示しない
+    // 次回から表示しないフラグがあれば表示しない
     const neverShow = localStorage.getItem(STORAGE_KEY_NEVER);
     if (neverShow) return;
 
@@ -60,9 +72,18 @@ export default function Dashboard() {
     setShowLineWarningPopup(true);
   }, []);
 
+  // 「次回から表示しない」済みのトライアルユーザーは直接カード登録ポップを表示
+  useEffect(() => {
+    if (!planData) return;
+    if (planData.status !== "trial") return;
+    const neverShow = localStorage.getItem(STORAGE_KEY_NEVER);
+    if (!neverShow) return; // セキュリティポップが出る場合はそちらに任せる
+    setShowTrialPopup(true);
+  }, [planData]);
+
   const handleCloseLineWarningPopup = () => {
     if (dontShowAgain) {
-      // 「次回から表示しない」チェック時は永久非表示
+      // 「次回から表示しない」チェック時
       localStorage.setItem(STORAGE_KEY_NEVER, "1");
     } else {
       // チェックなしの場合は今日の日付を保存（1日1回制御）
@@ -70,6 +91,10 @@ export default function Dashboard() {
       localStorage.setItem(STORAGE_KEY_DATE, today);
     }
     setShowLineWarningPopup(false);
+    // トライアルユーザーにはカード登録促進ポップアップを続けて表示
+    if (planData?.status === "trial") {
+      setShowTrialPopup(true);
+    }
   };
 
   const { data: todayMenu, isLoading: menuLoading } = trpc.menu.getByDate.useQuery({ date: today });
@@ -898,6 +923,44 @@ export default function Dashboard() {
           <p className="text-xs text-muted-foreground">© 2025 献立日和～coto coto～</p>
         </div>
       </footer>
+
+      {/* カード登録促進ポップアップ（トライアルユーザー向け） */}
+      <Dialog open={showTrialPopup} onOpenChange={(open) => { if (!open) setShowTrialPopup(false); }}>
+        <DialogContent className="max-w-sm w-[calc(100%-2rem)] rounded-2xl">
+          <DialogHeader>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-2xl">🎁</span>
+              <DialogTitle className="text-base font-bold text-primary">20日間 全機能無料体験</DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-foreground leading-relaxed">
+              カード登録するだけで、プレミアム機能が<strong className="text-primary">20日間タダ</strong>で使えます！
+              <br /><br />
+              <span className="text-xs text-muted-foreground">✓ AI高精度献立（天気・栄養考慮）</span><br />
+              <span className="text-xs text-muted-foreground">✓ 買い物リスト自動生成</span><br />
+              <span className="text-xs text-muted-foreground">✓ チラシ・レシート解析</span><br />
+              <span className="text-xs text-muted-foreground">✓ 献立テーマ・お弁当モード</span>
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground text-center mt-1">20日後は月額480円 ／ いつでも解約OK</p>
+          <Button
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 mt-2"
+            onClick={() => {
+              setShowTrialPopup(false);
+              createCheckout.mutate({ origin: window.location.origin });
+            }}
+            disabled={createCheckout.isPending}
+          >
+            {createCheckout.isPending ? "処理中..." : "✨ 今すぐカード登録して始める"}
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full text-xs text-muted-foreground mt-0"
+            onClick={() => setShowTrialPopup(false)}
+          >
+            あとで
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       {/* LINE外部サイト警告の安心ポップアップ */}
       <Dialog open={showLineWarningPopup} onOpenChange={(open) => { if (!open) handleCloseLineWarningPopup(); }}>
