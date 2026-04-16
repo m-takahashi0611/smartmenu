@@ -549,6 +549,9 @@ export default function Admin() {
   const { data: campaignCodes, refetch: refetchCampaignCodes } = trpc.campaign.listCampaignCodes.useQuery(undefined, {
     enabled: user?.role === "admin" && activeTab === "campaign",
   });
+  const { data: lineUrlData } = trpc.campaign.getLineAddFriendBaseUrl.useQuery(undefined, {
+    enabled: user?.role === "admin" && activeTab === "campaign",
+  });
   const [newCampaignCode, setNewCampaignCode] = useState("");
   const [newCampaignLabel, setNewCampaignLabel] = useState("");
   const [newCampaignDiscount, setNewCampaignDiscount] = useState(30);
@@ -1381,42 +1384,64 @@ export default function Admin() {
                 ) : (
                   <div className="space-y-2">
                     {campaignCodes.map((c) => (
-                      <div key={c.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm font-bold">{c.code}</span>
-                            <Badge variant={c.isActive ? "default" : "secondary"}>
-                              {c.isActive ? "有効" : "無効"}
-                            </Badge>
+                      <div key={c.id} className="flex flex-col gap-2 p-3 border rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-bold">{c.code}</span>
+                              <Badge variant={c.isActive ? "default" : "secondary"}>
+                                {c.isActive ? "有効" : "無効"}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {c.label && <span>{c.label} ・ </span>}
+                              割引: <span className="font-bold text-orange-500">{c.discountPercent}%OFF</span>
+                              {c.expiresAt && <span> ・ 期限: {new Date(c.expiresAt).toLocaleDateString("ja-JP")}</span>}
+                            </p>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {c.label && <span>{c.label} ・ </span>}
-                            割引: <span className="font-bold text-orange-500">{c.discountPercent}%OFF</span>
-                            {c.expiresAt && <span> ・ 期限: {new Date(c.expiresAt).toLocaleDateString("ja-JP")}</span>}
-                          </p>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateCampaignCode.mutate({ id: c.id, isActive: !c.isActive })}
+                              disabled={updateCampaignCode.isPending}
+                            >
+                              {c.isActive ? "無効化" : "有効化"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                if (confirm(`「${c.code}」を削除しますか？`))
+                                  deleteCampaignCode.mutate({ id: c.id });
+                              }}
+                              disabled={deleteCampaignCode.isPending}
+                              className="text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
+                            >
+                              削除
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => updateCampaignCode.mutate({ id: c.id, isActive: !c.isActive })}
-                            disabled={updateCampaignCode.isPending}
-                          >
-                            {c.isActive ? "無効化" : "有効化"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              if (confirm(`「${c.code}」を削除しますか？`))
-                                deleteCampaignCode.mutate({ id: c.id });
-                            }}
-                            disabled={deleteCampaignCode.isPending}
-                            className="text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
-                          >
-                            削除
-                          </Button>
-                        </div>
+                        {lineUrlData && (
+                          <div className="flex items-center gap-2 bg-muted/50 rounded px-2 py-1.5">
+                            <span className="text-xs font-mono text-muted-foreground flex-1 break-all">
+                              {lineUrlData.lineAddFriendUrl}?ref={c.code}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="shrink-0 h-7 text-xs"
+                              onClick={() => {
+                                const url = `${lineUrlData.lineAddFriendUrl}?ref=${c.code}`;
+                                navigator.clipboard.writeText(url)
+                                  .then(() => toast.success("URLをコピーしました"))
+                                  .catch(() => toast.error("コピーに失敗しました"));
+                              }}
+                            >
+                              コピー
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

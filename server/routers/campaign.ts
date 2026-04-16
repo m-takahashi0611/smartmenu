@@ -3,6 +3,7 @@ import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
+import { ENV } from "../_core/env";
 import {
   campaignCodes,
   referralCodes,
@@ -35,8 +36,16 @@ export const campaignRouter = router({
   // ─── 管理者: キャンペーンコード CRUD ─────────────────────────────────────
 
   /**
-   * キャンペーンコード一覧取得（管理者用）
+   * LINE友だち追加URLのベースを返す（管理者用）
    */
+  getLineAddFriendBaseUrl: adminProcedure.query(() => {
+    const channelId = ENV.lineChannelId;
+    return {
+      lineAddFriendUrl: `https://line.me/R/ti/p/${channelId}`,
+      channelId,
+    };
+  }),
+
   listCampaignCodes: adminProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続エラー" });
