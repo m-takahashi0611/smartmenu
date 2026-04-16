@@ -24,6 +24,8 @@ import {
   getUserIsPremium,
   getUserIsTrial,
   clearAllFridgeItems,
+  updateActualMeal,
+  getMenuPlansByDateRange,
 } from "../db";
 import { lineUsers, fridgeItems as fridgeItemsTable, shoppingListItems } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
@@ -1621,7 +1623,7 @@ ${dinnerResult.message}`;
   if (pending?.type === 'menu_option_selection') {
     const { options, mealType, targetDate, menuPlanId } = pending as {
       options: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
-      mealType: string;
+      mealType: 'breakfast' | 'lunch' | 'dinner';
       targetDate: string;
       menuPlanId: number;
     };
@@ -1810,10 +1812,37 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // 　13」または「案内を終了する」→ 案内を終了して通常メニューに戻る
+    // 　13」または「案内を終了する」→ 実食記録を聴く
     if (/^[3３]$/.test(trimmed) || trimmed === '案内を終了する') {
-      await setLineUserPendingAction(lineUserId, null);
-      await replyLineMessage(replyToken, [{ type: 'text', text: '案内を終了します😊またいつでも「献立」と送ってください！' }], lineUserId);
+      // 実食記録ヘアリングペンディングに移行
+      const mealLabel = mealType === 'dinner' ? '夕食' : mealType === 'lunch' ? '昼食' : '朝食';
+      await setLineUserPendingAction(lineUserId, {
+        type: 'actual_meal_hearing',
+        selectedName,
+        options,
+        mealType,
+        targetDate,
+        menuPlanId,
+        askedAt: Date.now(),
+      });
+      const actualQR = [
+        ...options.slice(0, 3).map((o) => ({
+          type: 'action' as const,
+          action: { type: 'message' as const, label: o.name.slice(0, 20), text: `作った：${o.name}` },
+        })),
+        { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 別の料理にした', text: '別の料理にした' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '🏢 外食した', text: '外食した' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '🚫 食べてない', text: '食べてない' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '⏭️ あとで教える', text: 'あとで教える' } },
+      ];
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: `お疲れさまでした！😊
+
+${mealLabel}は何を作りましたか？
+毎日の記録が積み重なると、よりあなた好みに合った献立を提案できるようになります！💪`,
+        quickReply: { items: actualQR },
+      }], lineUserId);
       return true;
     }
 
@@ -1901,6 +1930,112 @@ ${dinnerResult.message}`;
       { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
       { type: 'action', action: { type: 'message', label: '❌ やっぱりやめる', text: 'キャンセル' } },
     ] } }], lineUserId);
+    return true;
+  }
+
+  // ─── 実食記録ヒアリング待ちの場合 ─────────────────────────────────────────────────
+  if (pending?.type === 'actual_meal_hearing') {
+    const { options, mealType, targetDate, menuPlanId } = pending as {
+      options: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
+      mealType: 'breakfast' | 'lunch' | 'dinner';
+      targetDate: string;
+      menuPlanId: number;
+    };
+    const trimmed = text.trim();
+    const mealLabel = mealType === 'dinner' ? '夕食' : mealType === 'lunch' ? '昼食' : '朝食';
+
+    if (trimmed === 'あとで教える') {
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: 'わかりました！また教えてくださいね😊\n「献立」と送るといつでも提案します！' }], lineUserId);
+      return true;
+    }
+    if (trimmed === '外食した') {
+      await updateActualMeal(menuPlanId, { mealType, actualMeal: '外食', actualStatus: 'eating_out' });
+      await setLineUserPendingAction(lineUserId, null);
+       await replyLineMessage(replyToken, [{ type: 'text', text: '外食ですね！記録しました😊\n次回の献立提案に活かしていきます！' }], lineUserId);
+      return true;
+    }
+    if (trimmed === '食べてない') {
+      await updateActualMeal(menuPlanId, { mealType, actualMeal: null, actualStatus: 'not_eaten' });
+      await setLineUserPendingAction(lineUserId, null);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '了解しました！記録しました😊' }], lineUserId);
+      return true;
+    }
+    if (trimmed === '別の料理にした') {
+      await setLineUserPendingAction(lineUserId, {
+        type: 'actual_meal_free_input',
+        mealType,
+        targetDate,
+        menuPlanId,
+        askedAt: Date.now(),
+      });
+      await replyLineMessage(replyToken, [{ type: 'text', text: '何を作りましたか？料理名を送ってください😊' }], lineUserId);
+      return true;
+    }
+    if (trimmed === '入力し直す') {
+      const actualQR = [
+        ...options.slice(0, 3).map((o) => ({
+          type: 'action' as const,
+          action: { type: 'message' as const, label: o.name.slice(0, 20), text: `作った：${o.name}` },
+        })),
+        { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 別の料理にした', text: '別の料理にした' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '🏢 外食した', text: '外食した' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '🚫 食べてない', text: '食べてない' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '⏭️ あとで教える', text: 'あとで教える' } },
+      ];
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: `もう一度教えてください😊\n\n${mealLabel}は何を作りましたか？`,
+        quickReply: { items: actualQR },
+      }], lineUserId);
+      return true;
+    }
+    // 「作った：〇〇」形式（クイックリプライから）
+    const cookedMatch = trimmed.match(/^作った：(.+)$/);
+    if (cookedMatch) {
+      const mealName = cookedMatch[1].trim();
+      await updateActualMeal(menuPlanId, { mealType, actualMeal: mealName, actualStatus: 'cooked' });
+      await setLineUserPendingAction(lineUserId, null);
+      const recipeQR = [
+        { type: 'action' as const, action: { type: 'message' as const, label: '📖 レシピを見る', text: `${mealName}のレシピ教えて` } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '✅ 大丈夫です', text: '大丈夫です' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '✏️ 入力し直す', text: '入力し直す' } },
+      ];
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: `いいですね！😊 「${mealName}」を記録しました。\n\nレシピも見ますか？`,
+        quickReply: { items: recipeQR },
+      }], lineUserId);
+      return true;
+    }
+    // その他テキスト → 自由入力として記録
+    await updateActualMeal(menuPlanId, { mealType, actualMeal: trimmed, actualStatus: 'other' });
+    await setLineUserPendingAction(lineUserId, null);
+    await replyLineMessage(replyToken, [{
+      type: 'text',
+      text: `「${trimmed}」を記録しました！😊\n\nレシピも見ますか？`,
+      quickReply: { items: [
+        { type: 'action' as const, action: { type: 'message' as const, label: '📖 レシピを見る', text: `${trimmed}のレシピ教えて` } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '✅ 大丈夫です', text: '大丈夫です' } },
+      ] },
+    }], lineUserId);
+    return true;
+  }
+
+  // ─── 実食自由入力待ちの場合 ─────────────────────────────────────────────────────
+  if (pending?.type === 'actual_meal_free_input') {
+    const { mealType, menuPlanId } = pending as { mealType: 'breakfast' | 'lunch' | 'dinner'; menuPlanId: number; targetDate: string };
+    const trimmed = text.trim();
+    await updateActualMeal(menuPlanId, { mealType, actualMeal: trimmed, actualStatus: 'other' });
+    await setLineUserPendingAction(lineUserId, null);
+    await replyLineMessage(replyToken, [{
+      type: 'text',
+      text: `「${trimmed}」を記録しました！😊\n\nレシピも見ますか？`,
+      quickReply: { items: [
+        { type: 'action' as const, action: { type: 'message' as const, label: '📖 レシピを見る', text: `${trimmed}のレシピ教えて` } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '✅ 大丈夫です', text: '大丈夫です' } },
+      ] },
+    }], lineUserId);
     return true;
   }
 
@@ -3147,27 +3282,54 @@ ${itemList}
         ]);
         return;
       }
-
-      // ─── 時間帯に応じた確認質問を返す ────────────────────────────────────────
+      // ─── 時間帯に応じた確認質問を返す ──────────────────────────────────────────────
       const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const currentHourJST = nowJST.getUTCHours();
 
-      // ─── 全時間帯で買い物ヒアリングを挿入 ──────────────────────────────
+      // ─── 前日夕食未記録チェック（パターンB） ──────────────────────────────────────────
       {
-        // 朝〜昼（5〜15時）は「今日」、夕方〜深夜（15時以降）は「明日」と表現を変える
-        const shopDayText = (currentHourJST >= 5 && currentHourJST < 15) ? '今日' : '明日';
-        await setLineUserPendingAction(lineUserId, {
-          type: 'shopping_hearing',
-          hourJST: currentHourJST,
-          askedAt: Date.now(),
-        });
-        const hearingText = `${familyGuidePrefix}献立を考える前に少し聞かせてください😊\n\n${shopDayText}、買い物に行く予定はありますか？\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります\n\n`;
-        await replyAndSave(replyToken, [{ type: 'text', text: hearingText, quickReply: { items: [
-          { type: 'action', action: { type: 'message', label: '🛒 はい、行く予定', text: 'はい、行く予定です' } },
-          { type: 'action', action: { type: 'message', label: '🏠 今ある食材で', text: 'いいえ、今ある食材で作ります' } },
-        ] } }]);
-        return;
+        const yesterdayJST = new Date(nowJST);
+        yesterdayJST.setUTCDate(yesterdayJST.getUTCDate() - 1);
+        const yesterdayStr = yesterdayJST.toISOString().slice(0, 10);
+        const yesterdayPlan = userId ? await getMenuPlanByDate(userId, yesterdayStr) : null;
+        if (yesterdayPlan && (yesterdayPlan.menuData) && !yesterdayPlan.actualStatusDinner) {
+          // 前日夕食未記録 → 先に聴く
+          let dinnerOptions: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }> = [];
+          try {
+            const menuData = typeof yesterdayPlan.menuData === 'string' ? JSON.parse(yesterdayPlan.menuData) : yesterdayPlan.menuData;
+            if (menuData?.dinner) {
+              dinnerOptions = Array.isArray(menuData.dinner) ? menuData.dinner : [menuData.dinner];
+            } else if (menuData?.options) {
+              dinnerOptions = menuData.options;
+            }
+          } catch { /* ignore */ }
+          await setLineUserPendingAction(lineUserId, {
+            type: 'actual_meal_hearing',
+            options: dinnerOptions,
+            mealType: 'dinner',
+            targetDate: yesterdayStr,
+            menuPlanId: yesterdayPlan.id,
+            askedAt: Date.now(),
+          });
+          const actualQR = [
+            ...dinnerOptions.slice(0, 3).map((o) => ({
+              type: 'action' as const,
+              action: { type: 'message' as const, label: o.name.slice(0, 20), text: `作った：${o.name}` },
+            })),
+            { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 別の料理にした', text: '別の料理にした' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🏢 外食した', text: '外食した' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🚫 食べてない', text: '食べてない' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '⏭️ あとで教える', text: 'あとで教える' } },
+          ];
+          await replyAndSave(replyToken, [{
+            type: 'text',
+            text: `昨日の夕食、何を作りましたか？😊\n毎日の記録が積み重なると、よりあなた好みに合った献立を提案できるようになります！💪`,
+            quickReply: { items: actualQR },
+          }]);
+          return;
+        }
       }
+
 
       let questionText: string;
       let pendingChoices: Record<string, string>;
@@ -4010,13 +4172,9 @@ ${itemList}
       const fallbackMsg = "「献立」と送ると今日の献立を提案します";
       await replyAndSave(replyToken, [{ type: "text", text: fallbackMsg }]);
       await addConversationMessage({ lineUserId, role: 'assistant', content: fallbackMsg }).catch(() => {});
-    } finally {
-      // 処理完了後にフラグをリセット（再帰呼び出しの場合はスキップ）
-      if (!_skipHistory) {
-        await setLineUserProcessing(lineUserId, false).catch(() => {});
-      }
     }
-    } catch (_outerErr) {
+    }
+    catch (_outerErr) {
       console.error('[LINE] Unhandled error in message handler:', _outerErr);
     } finally {
       // 外側のtry/finally: どのreturnパスでもprocessingフラグを確実にリセット

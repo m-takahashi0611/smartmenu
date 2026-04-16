@@ -511,6 +511,13 @@ export const menuRouter = router({
           }
         })(),
         messageText: p.messageText,
+        // 実食記録フィールド
+        actualStatusBreakfast: p.actualStatusBreakfast,
+        actualStatusLunch: p.actualStatusLunch,
+        actualStatusDinner: p.actualStatusDinner,
+        actualMealBreakfast: p.actualMealBreakfast,
+        actualMealLunch: p.actualMealLunch,
+        actualMealDinner: p.actualMealDinner,
       }));
     }),
 

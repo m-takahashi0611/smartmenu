@@ -4,6 +4,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 
+type ActualStatus = "cooked" | "ordered" | "ate_out" | "skipped" | "other" | null | undefined;
+
+function ActualStatusBadge({ status, meal }: { status: ActualStatus; meal?: string | null }) {
+  if (!status) return null;
+  const map: Record<string, { label: string; color: string }> = {
+    cooked: { label: "✅ 作った", color: "text-green-700 bg-green-50 border-green-200" },
+    ordered: { label: "🛵 出前", color: "text-blue-700 bg-blue-50 border-blue-200" },
+    ate_out: { label: "🏢 外食", color: "text-orange-700 bg-orange-50 border-orange-200" },
+    skipped: { label: "🚫 食べてない", color: "text-gray-600 bg-gray-50 border-gray-200" },
+    other: { label: "🍽️ 別の料理", color: "text-purple-700 bg-purple-50 border-purple-200" },
+  };
+  const info = map[status] ?? { label: status, color: "text-gray-600 bg-gray-50 border-gray-200" };
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium ${info.color}`}>
+      {info.label}
+      {meal && status === "other" && <span className="ml-1 text-xs opacity-80">（{meal}）</span>}
+    </span>
+  );
+}
+
 export default function History() {
   const { data: plans, isLoading } = trpc.menu.list.useQuery({ limit: 14 });
 
@@ -42,31 +62,64 @@ export default function History() {
                 lunch?: string;
                 dinner?: string;
                 estimatedCost?: number;
+                options?: Array<{ name: string }>;
               } | null;
+
+              const meals = [
+                {
+                  label: "🌅 朝食",
+                  value: menuData?.breakfast,
+                  status: (plan as any).actualStatusBreakfast as ActualStatus,
+                  actualMeal: (plan as any).actualMealBreakfast as string | null,
+                },
+                {
+                  label: "☀️ 昼食",
+                  value: menuData?.lunch,
+                  status: (plan as any).actualStatusLunch as ActualStatus,
+                  actualMeal: (plan as any).actualMealLunch as string | null,
+                },
+                {
+                  label: "🌙 夕食",
+                  value: menuData?.dinner ?? menuData?.options?.[0]?.name,
+                  status: (plan as any).actualStatusDinner as ActualStatus,
+                  actualMeal: (plan as any).actualMealDinner as string | null,
+                },
+              ];
+              const hasAnyActual = meals.some((m) => m.status);
 
               return (
                 <Card key={plan.id}>
                   <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <CardTitle className="text-base">{formatDate(plan.planDate)}</CardTitle>
-                      {plan.isDelivered && (
-                        <Badge variant="outline" className="text-green-600 border-green-200 text-xs">
-                          ✓ LINE配信済み
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {hasAnyActual && (
+                          <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-200">
+                            📝 実食記録あり
+                          </Badge>
+                        )}
+                        {plan.isDelivered && (
+                          <Badge variant="outline" className="text-green-600 border-green-200 text-xs">
+                            ✓ LINE配信済み
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
                     {menuData ? (
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { label: "🌅 朝食", value: menuData.breakfast },
-                          { label: "☀️ 昼食", value: menuData.lunch },
-                          { label: "🌙 夕食", value: menuData.dinner },
-                        ].map((meal) => (
-                          <div key={meal.label} className="bg-muted/50 rounded-lg p-2 text-center">
-                            <p className="text-xs text-muted-foreground mb-1">{meal.label}</p>
-                            <p className="text-xs font-medium">{meal.value ?? "未定"}</p>
+                      <div className="space-y-2">
+                        {meals.map((meal) => (
+                          <div key={meal.label} className="flex items-start gap-3 bg-muted/40 rounded-lg px-3 py-2">
+                            <span className="text-xs text-muted-foreground w-16 shrink-0 pt-0.5">{meal.label}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">{meal.value ?? "未定"}</p>
+                              {meal.status && (
+                                <div className="mt-1">
+                                  <ActualStatusBadge status={meal.status} meal={meal.actualMeal} />
+                                </div>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>

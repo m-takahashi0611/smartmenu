@@ -168,6 +168,13 @@ export const menuPlans = mysqlTable("menu_plans", {
   generatedPrompt: text("generatedPrompt"), // 生成に使ったプロンプト（デバッグ用）
   rawResponse: text("rawResponse"), // AIの生成結果（JSON文字列）
   isDelivered: boolean("isDelivered").default(false).notNull(),
+  // 実食記録
+  actualMealBreakfast: varchar("actualMealBreakfast", { length: 200 }), // 実際に食べた朝食料理名
+  actualMealLunch: varchar("actualMealLunch", { length: 200 }), // 実際に食べた昼食料理名
+  actualMealDinner: varchar("actualMealDinner", { length: 200 }), // 実際に食べた夕食料理名
+  actualStatusBreakfast: mysqlEnum("actualStatusBreakfast", ["cooked", "other", "eating_out", "not_eaten", "skipped"]),
+  actualStatusLunch: mysqlEnum("actualStatusLunch", ["cooked", "other", "eating_out", "not_eaten", "skipped"]),
+  actualStatusDinner: mysqlEnum("actualStatusDinner", ["cooked", "other", "eating_out", "not_eaten", "skipped"]),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

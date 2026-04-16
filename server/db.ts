@@ -333,6 +333,40 @@ export async function markMenuPlanDelivered(id: number) {
   await db.update(menuPlans).set({ isDelivered: true, updatedAt: new Date() }).where(eq(menuPlans.id, id));
 }
 
+/**
+ * 実食記録を更新する
+ */
+export async function updateActualMeal(id: number, data: {
+  mealType: 'breakfast' | 'lunch' | 'dinner';
+  actualMeal: string | null;
+  actualStatus: 'cooked' | 'other' | 'eating_out' | 'not_eaten' | 'skipped';
+}) {
+  const db = await getDb();
+  if (!db) return;
+  if (data.mealType === 'breakfast') {
+    await db.update(menuPlans).set({ actualMealBreakfast: data.actualMeal, actualStatusBreakfast: data.actualStatus, updatedAt: new Date() }).where(eq(menuPlans.id, id));
+  } else if (data.mealType === 'lunch') {
+    await db.update(menuPlans).set({ actualMealLunch: data.actualMeal, actualStatusLunch: data.actualStatus, updatedAt: new Date() }).where(eq(menuPlans.id, id));
+  } else {
+    await db.update(menuPlans).set({ actualMealDinner: data.actualMeal, actualStatusDinner: data.actualStatus, updatedAt: new Date() }).where(eq(menuPlans.id, id));
+  }
+}
+
+/**
+ * 指定日範囲の履歴を取得（実食記録確認用）
+ */
+export async function getMenuPlansByDateRange(userId: number, fromDate: string, toDate: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(menuPlans)
+    .where(and(
+      eq(menuPlans.userId, userId),
+      sql`${menuPlans.planDate} >= ${fromDate}`,
+      sql`${menuPlans.planDate} <= ${toDate}`,
+    ))
+    .orderBy(menuPlans.planDate);
+}
+
 // ─── Subscription helpers ─────────────────────────────────────────────────────
 /**
  * ユーザーがプレミアム（またはトライアル中）かどうかを返す
