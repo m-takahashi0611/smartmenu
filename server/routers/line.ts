@@ -875,6 +875,12 @@ async function handleIntentAction(
         await replyLineMessage(replyToken, [{ type: 'text', text: 'ユーザー登録が必要です。ダッシュボードからログインしてください。' }], lineUserId);
         return true;
       }
+      // トライアルユーザーは買い物リスト機能不可
+      const _isTrialForShopping = await getUserIsTrial(userId);
+      if (_isTrialForShopping) {
+        await replyLineMessage(replyToken, [{ type: 'text', text: '買い物リストはカード登録後にご利用いただけます。\n\nカード登録でプレミアム機能が使えるようになります！' }], lineUserId);
+        return true;
+      }
       try {
         const db = await getDb();
         if (db && items.length > 0) {
@@ -1059,6 +1065,14 @@ async function handleIntentAction(
       return true;
     }
     case 'mood_theme': {
+      // トライアルユーザーは献立テーマ機能不可
+      if (userId) {
+        const _isTrialForTheme = await getUserIsTrial(userId);
+        if (_isTrialForTheme) {
+          await replyLineMessage(replyToken, [{ type: 'text', text: '献立テーマ設定はカード登録後にご利用いただけます。\n\nカード登録でプレミアム機能が使えるようになります！' }], lineUserId);
+          return true;
+        }
+      }
       const themeText = theme || itemDisplay;
       await setLineUserPendingAction(lineUserId, { type: 'mood_theme_action', theme: themeText, text });
       await replyLineMessage(replyToken, [{ type: 'text', text: `「${themeText}」の気分ですね！\n\nどうしますか？\n\n1️⃣ 今日の献立テーマに設定して提案\n2️⃣ キャンセル\n\n`, quickReply: { items: [
@@ -3111,6 +3125,14 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
 
     // ─── 画像メッセージの処理（レシート解析） ───────────────────────────────────────
     if (event.message?.type === "image") {
+      // トライアルユーザーはレシート・チラシ解析不可
+      if (userId) {
+        const _isTrialForImage = await getUserIsTrial(userId);
+        if (_isTrialForImage) {
+          await replyAndSave(replyToken, [{ type: "text", text: "画像解析（レシート・チラシ）はカード登録後にご利用いただけます。\n\nカード登録でプレミアム機能が使えるようになります！" }]);
+          return;
+        }
+      }
       const messageId = event.message.id;
       console.log(`[LINE] Image message received: ${messageId}`);
       try {
@@ -3285,6 +3307,16 @@ ${itemList}
       // ─── 時間帯に応じた確認質問を返す ──────────────────────────────────────────────
       const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const currentHourJST = nowJST.getUTCHours();
+      // ─── トライアルユーザーの献立提案回数制限（日3回） ──────────────────────────────────────────
+      const _isTrialForMenu = await getUserIsTrial(userId);
+      if (_isTrialForMenu) {
+        const todayStr = nowJST.toISOString().slice(0, 10);
+        const todayPlans = await getMenuPlansByDateRange(userId, todayStr, todayStr);
+        if (todayPlans.length >= 3) {
+          await replyAndSave(replyToken, [{ type: "text", text: "今日の献立提案は3回まで利用できます。\n\nカード登録で無制限に提案できるようになります！" }]);
+          return;
+        }
+      }
 
       // ─── 前日夕食未記録チェック（パターンB） ──────────────────────────────────────────
       {
@@ -4173,18 +4205,18 @@ ${itemList}
       await replyAndSave(replyToken, [{ type: "text", text: fallbackMsg }]);
       await addConversationMessage({ lineUserId, role: 'assistant', content: fallbackMsg }).catch(() => {});
     }
-    }
-    catch (_outerErr) {
-      console.error('[LINE] Unhandled error in message handler:', _outerErr);
-    } finally {
-      // 外側のtry/finally: どのreturnパスでもprocessingフラグを確実にリセット
-      if (!_skipHistory) {
-        await setLineUserProcessing(lineUserId, false).catch(() => {});
-      }
+  }
+  catch (_outerErr) {
+    console.error('[LINE] Unhandled error in message handler:', _outerErr);
+  } finally {
+    // 外側のtry/finally: どのreturnパスでもprocessingフラグを確実にリセット
+    if (!_skipHistory) {
+      await setLineUserProcessing(lineUserId, false).catch(() => {});
     }
   }
 }
 
+}
 // ─── tRPC router ──────────────────────────────────────────────────────────────
 
 export const lineRouter = router({

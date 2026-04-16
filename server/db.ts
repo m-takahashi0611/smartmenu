@@ -376,12 +376,9 @@ export async function getUserIsPremium(userId: number): Promise<boolean> {
   if (!db) return false;
   const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
   if (!sub) return false;
-  if (sub.status === "active") return true;
-  if (sub.status === "trial") {
-    const daysPassed = Math.floor((Date.now() - new Date(sub.trialStartedAt).getTime()) / (1000 * 60 * 60 * 24));
-    return daysPassed < sub.trialDays;
-  }
-  return false;
+  // trial はプレミアムではない（機能制限が異なる）
+  // active = 課金中（無料期間含む）, cancelled = 解約済み（残期間あり）のみプレミアム扱い
+  return sub.status === "active" || sub.status === "cancelled";
 }
 
 // ─── Shopping List ────────────────────────────────────────────────────────────

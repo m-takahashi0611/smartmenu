@@ -9,6 +9,7 @@ import {
   getStores,
   getUserBaseTheme,
   getUserIsPremium,
+  getUserIsTrial,
   insertDeliveryLog,
   insertMenuPlan,
   insertShoppingListItems,
@@ -58,10 +59,13 @@ export async function generateMenuPlan(
   const mealLabel = getMealLabel(resolvedMealType);
 
   // 課金状態とベーステーマを取得
-  const [isPremium, baseTheme] = await Promise.all([
+  const [isPremium, isTrial, baseTheme] = await Promise.all([
     getUserIsPremium(userId),
+    getUserIsTrial(userId),
     getUserBaseTheme(userId),
   ]);
+  // トライアルはシンプルモード（ベーステーマ・高精度AI無効）
+  const effectiveIsPremium = isPremium && !isTrial;
 
   // 既存の献立があればそれを返す（同じ日・同じ食事タイプ）—forceRegenerate時はスキップ
   if (!forceRegenerate) {
@@ -119,7 +123,7 @@ export async function generateMenuPlan(
   const weatherDesc = formatWeatherForPrompt(weather);
 
   // ベーステーマの説明（課金ユーザーのみ有効）
-  const baseThemeDesc = isPremium && baseTheme ? (() => {
+  const baseThemeDesc = effectiveIsPremium && baseTheme ? (() => {
     const parts: string[] = [];
     const healthMap: Record<string, string> = {
       diet: 'ダイエット重視（低カロリー・脂質控えめ）',
@@ -166,7 +170,7 @@ export async function generateMenuPlan(
 
   // 課金ユーザー向けプロンプト強化フラグ
   const dishCountTheme = (baseTheme as any)?.dishCountTheme;
-  const dishCountInstruction = isPremium && dishCountTheme ? (() => {
+  const dishCountInstruction = effectiveIsPremium && dishCountTheme ? (() => {
     const dishCountRuleMap: Record<string, string> = {
       ichiju_issai: '【食卓構成】一汁一菜（汁物1品＋主菜1品）で提案すること。副菜は不要。',
       ichiju_nisai: '【食卓構成】一汁二菜（汁物1品＋主菜1品＋副菜1品）で提案すること。各案に必ず汁物・主菜・副菜を含めること。',
@@ -176,7 +180,7 @@ export async function generateMenuPlan(
     return dishCountRuleMap[dishCountTheme] ?? null;
   })() : null;
 
-  const premiumPromptExtra = isPremium
+  const premiumPromptExtra = effectiveIsPremium
     ? `\n【プレミアム機能】栄養バランス（タンパク質・野菜・炭水化物）を考慮し、より詳細で質の高い提案を行うこと。${dishCountInstruction ? `\n${dishCountInstruction}` : ''}`
     : '';
 
