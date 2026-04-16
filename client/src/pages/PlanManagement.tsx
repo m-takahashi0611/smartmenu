@@ -138,7 +138,7 @@ export default function PlanManagement() {
             <p className="text-xs text-gray-400 text-center pt-1">20日後は月額480円 ／ いつでも解約OK</p>
           </div>
           <Button
-            onClick={() => { window.location.href = getLoginUrl(); }}
+            onClick={() => { window.location.href = getLoginUrl("/plan"); }}
             className="w-full bg-[#06C755] hover:bg-[#05a847] text-white py-4 text-base font-bold rounded-xl"
           >
             LINEでログインして始める
