@@ -436,8 +436,20 @@ export async function getDeliveryLogs(limit = 50) {
   return db.select().from(deliveryLogs).limit(limit);
 }
 
-// ─── LINE Conversation History ─────────────────────────────────────────────────────────────────────────────────
+/**
+ * トライアルユーザーかどうか判定（カード未登録状態 = statusがない or status === 'trial'でかつ非アクティブ）
+ * トライアル = 課金ユーザーより機能制限が多い
+ */
+export async function getUserIsTrial(userId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return true; // DB接続不可の場合は安全側にトライアル扱い
+  const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
+  if (!sub) return true; // サブスクリプションなし = トライアル
+  if (sub.status === "active" || sub.status === "cancelled") return false; // 課金または解約済み = トライアルでない
+  return true; // その他（trial）= トライアル
+}
 
+// ─── Shopping List ────────────────────────────────────────────────────────────────────────────────────
 /** 直近Nターンの会話履歴を取得 */
 export async function getConversationHistory(lineUserId: string, limit = 10) {
   const db = await getDb();

@@ -247,3 +247,19 @@
 
 - [ ] **R-1**: 「1のレシピ」「2のレシピ」→ 当日献立のN番目の料理名に変換してからマッチング（無課金/有料の仕様を維持）
 - [ ] **R-2**: generateContextualReply内でも「〇〇のレシピ教えて」パターンを検知したら、献立マッチング→プレミアム判定のレシピ処理に誘導（AIチャットに素通りさせない・無課金/有料の仕様を維持）
+
+## キャンペーンコード・ユーザータイプ設計（2026-04-16）
+
+- [x] DBスキーマ追加: campaign_codes, referral_codes, referral_usages テーブル
+- [x] lineUsersテーブルにreferralCodeカラム追加
+- [x] DBマイグレーション適用
+- [x] campaignRouter実装（管理者CRUD・ユーザー紹介コード発行・検証）
+- [x] routers.tsにcampaignRouterを登録
+- [x] LINE followイベントでref=パラメータ（キャンペーンコード）を保存
+- [x] Stripe Checkoutにキャンペーンコード自動割引適用ロジック追加
+- [x] PlanManagement.tsxに友達紹介コードUIを追加（コピー・シェアボタン）
+- [x] Admin.tsxにキャンペーンコード管理タブを追加（作成・有効/無効・削除）
+- [x] db.tsにgetUserIsTrial関数を追加
+- [x] 音声メッセージ処理にトライアルユーザー制限を追加（LINE）
+- [ ] 買い物リスト・チラシ解析・献立履歴・テーマ設定のトライアル制限（LINE側）
+- [ ] 友達紹介コード経由登録時の特典付与ロジック（内容要検討）

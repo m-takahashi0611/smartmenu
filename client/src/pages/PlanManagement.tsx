@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLocation } from "wouter";
-import { Crown, ArrowLeft, CreditCard, Calendar, AlertCircle, Loader2, ExternalLink, Check, X } from "lucide-react";
+import { Crown, ArrowLeft, CreditCard, Calendar, AlertCircle, Loader2, ExternalLink, Check, X, Share2, Copy, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,8 @@ export default function PlanManagement() {
   const utils = trpc.useUtils();
 
   const { data: plan, isLoading } = trpc.subscription.getMyPlan.useQuery();
+  const { data: referralData } = trpc.campaign.getMyReferralCode.useQuery();
+  const { data: referralStats } = trpc.campaign.getMyReferralStats.useQuery();
 
   const createCheckout = trpc.subscription.createCheckoutSession.useMutation({
     onSuccess: (data) => {
@@ -385,6 +387,65 @@ export default function PlanManagement() {
             </button>
           )}
         </div>
+
+        {/* 友達紹介コード */}
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="w-4 h-4 text-orange-500" />
+              友達紹介
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-gray-600">
+              あなた専用の紹介リンクを友達にシェアしよう！紹介した友達が登録すると、お互いに特典が受け取れます。
+            </p>
+            {referralData ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                  <span className="text-sm font-mono text-orange-700 flex-1 truncate">
+                    {`${window.location.origin}?ref=${referralData.code}`}
+                  </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}?ref=${referralData.code}`);
+                      toast.success("リンクをコピーしました");
+                    }}
+                    className="p-1 hover:bg-orange-100 rounded"
+                  >
+                    <Copy className="w-4 h-4 text-orange-500" />
+                  </button>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full border-orange-200 text-orange-600 hover:bg-orange-50"
+                  onClick={() => {
+                    const url = `${window.location.origin}?ref=${referralData.code}`;
+                    const text = `献立日和〜coto coto〜で毎日の献立をAIにおまかせ！\n${url}`;
+                    if (navigator.share) {
+                      navigator.share({ title: '献立日和', text, url });
+                    } else {
+                      navigator.clipboard.writeText(url);
+                      toast.success("リンクをコピーしました");
+                    }
+                  }}
+                >
+                  <Share2 className="w-4 h-4 mr-2" />
+                  友達に紹介する
+                </Button>
+                {(referralStats?.usageCount ?? 0) > 0 && (
+                  <p className="text-xs text-gray-500 text-center">
+                    これまでに <span className="font-bold text-orange-500">{referralStats?.usageCount}</span> 人に紹介しました
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="flex justify-center py-2">
+                <Loader2 className="w-4 h-4 animate-spin text-orange-400" />
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* 解約済みの再加入 */}
         {isCancelled && (

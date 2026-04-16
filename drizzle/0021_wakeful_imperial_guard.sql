@@ -1,0 +1,1 @@
+ALTER TABLE `line_users` ADD `referralCode` varchar(100);

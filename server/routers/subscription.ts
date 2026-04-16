@@ -1,6 +1,6 @@
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
-import { subscriptions } from "../../drizzle/schema";
+import { subscriptions, campaignCodes, lineUsers } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getStripe } from "../stripe/client";
@@ -134,8 +134,47 @@ export const subscriptionRouter = router({
         }
       }
 
+      // キャンペーンコードを自動適用（LINEのref=パラメータから取得）
+      let stripeCouponId: string | undefined;
+      let appliedCampaignCode: string | undefined;
+      try {
+        // ユーザーのLINEアカウントからreferralCodeを取得
+        const lineUser = await db
+          .select({ referralCode: lineUsers.referralCode })
+          .from(lineUsers)
+          .where(eq(lineUsers.userId, userId))
+          .limit(1);
+        const refCode = lineUser[0]?.referralCode;
+        if (refCode) {
+          // campaign_codesテーブルでコードを検索
+          const [campaign] = await db
+            .select()
+            .from(campaignCodes)
+            .where(eq(campaignCodes.code, refCode))
+            .limit(1);
+          if (campaign && campaign.isActive) {
+            const isExpired = campaign.expiresAt && new Date(campaign.expiresAt) < new Date();
+            if (!isExpired) {
+              // Stripeにクーポンを作成（初回決済のみ適用）
+              const coupon = await stripe.coupons.create({
+                percent_off: parseFloat(campaign.discountPercent as string),
+                duration: "once",
+                name: `${campaign.label ?? campaign.code} 割引`,
+                metadata: { campaignCode: campaign.code, userId: userId.toString() },
+              });
+              stripeCouponId = coupon.id;
+              appliedCampaignCode = campaign.code;
+              console.log(`[Checkout] Applied campaign coupon: ${campaign.code} (${campaign.discountPercent}% off) for userId=${userId}`);
+            }
+          }
+        }
+      } catch (couponErr) {
+        // クーポン作成失敗してもチェックアウトは続行
+        console.warn('[Checkout] Failed to create coupon:', couponErr);
+      }
+
       // Checkout Sessionを作成
-      const session = await stripe.checkout.sessions.create({
+      const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
         customer: stripeCustomerId,
         payment_method_types: ["card"],
         line_items: [
@@ -145,7 +184,7 @@ export const subscriptionRouter = router({
           },
         ],
         mode: "subscription",
-        allow_promotion_codes: true,
+        allow_promotion_codes: !stripeCouponId, // クーポン自動適用時はプロモコード入力を無効化
         success_url: `${input.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${input.origin}/dashboard`,
         client_reference_id: userId.toString(),
@@ -153,10 +192,27 @@ export const subscriptionRouter = router({
           userId: userId.toString(),
           customerEmail: userEmail ?? "",
           customerName: userName ?? "",
+          campaignCode: appliedCampaignCode ?? "",
         },
-      });
+      };
+      if (stripeCouponId) {
+        (sessionParams as any).discounts = [{ coupon: stripeCouponId }];
+      }
+      const session = await stripe.checkout.sessions.create(sessionParams);
 
-      return { url: session.url };
+      // 適用済コードをDBに保存
+      if (appliedCampaignCode) {
+        await db
+          .update(subscriptions)
+          .set({ campaignCode: appliedCampaignCode })
+          .where(eq(subscriptions.userId, userId));
+        // 使用回数をインクリメント
+        await db.execute(
+          `UPDATE campaign_codes SET usageCount = usageCount + 1 WHERE code = '${appliedCampaignCode.replace(/'/g, "''")}'`
+        );
+      }
+
+      return { url: session.url, appliedCampaignCode };
     }),
 
   /**

@@ -543,7 +543,38 @@ export default function Admin() {
     },
   });
 
-  const [activeTab, setActiveTab] = useState<"users" | "logs" | "broadcast" | "richmenu" | "cleanup" | "errorlogs">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "logs" | "broadcast" | "richmenu" | "cleanup" | "errorlogs" | "campaign">("users");
+
+  // キャンペーンコード管理
+  const { data: campaignCodes, refetch: refetchCampaignCodes } = trpc.campaign.listCampaignCodes.useQuery(undefined, {
+    enabled: user?.role === "admin" && activeTab === "campaign",
+  });
+  const [newCampaignCode, setNewCampaignCode] = useState("");
+  const [newCampaignLabel, setNewCampaignLabel] = useState("");
+  const [newCampaignDiscount, setNewCampaignDiscount] = useState(30);
+  const [newCampaignExpiry, setNewCampaignExpiry] = useState("");
+
+  const createCampaignCode = trpc.campaign.createCampaignCode.useMutation({
+    onSuccess: () => {
+      toast.success("キャンペーンコードを作成しました");
+      setNewCampaignCode("");
+      setNewCampaignLabel("");
+      setNewCampaignDiscount(30);
+      setNewCampaignExpiry("");
+      refetchCampaignCodes();
+    },
+    onError: (err) => toast.error("作成に失敗しました", { description: err.message }),
+  });
+
+  const updateCampaignCode = trpc.campaign.updateCampaignCode.useMutation({
+    onSuccess: () => { toast.success("更新しました"); refetchCampaignCodes(); },
+    onError: (err) => toast.error("更新に失敗しました", { description: err.message }),
+  });
+
+  const deleteCampaignCode = trpc.campaign.deleteCampaignCode.useMutation({
+    onSuccess: () => { toast.success("削除しました"); refetchCampaignCodes(); },
+    onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
+  });
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
 
   // 配信設定モーダル
@@ -811,6 +842,7 @@ export default function Admin() {
             { id: "richmenu", label: "📱 リッチメニュー" },
             { id: "cleanup", label: "🗑️ データクリア" },
             { id: "errorlogs", label: "⚠️ エラーログ" },
+            { id: "campaign", label: "🎟️ キャンペーン" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1271,6 +1303,138 @@ export default function Admin() {
         {/* エラーログ */}
         {activeTab === "errorlogs" && (
           <ErrorLogsTab />
+        )}
+
+        {/* キャンペーンコード管理 */}
+        {activeTab === "campaign" && (
+          <div className="space-y-6">
+            {/* 新規作成 */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">🎟️ キャンペーンコード作成</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">コード（英数字・_・-）</Label>
+                    <Input
+                      placeholder="例: tanaka_youtube"
+                      value={newCampaignCode}
+                      onChange={(e) => setNewCampaignCode(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">ラベル（内部管理用）</Label>
+                    <Input
+                      placeholder="例: 田中YouTuber動線"
+                      value={newCampaignLabel}
+                      onChange={(e) => setNewCampaignLabel(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">割引率（%）</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={newCampaignDiscount}
+                      onChange={(e) => setNewCampaignDiscount(Number(e.target.value))}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">有効期限（空白=無期限）</Label>
+                    <Input
+                      type="date"
+                      value={newCampaignExpiry}
+                      onChange={(e) => setNewCampaignExpiry(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={() => createCampaignCode.mutate({
+                    code: newCampaignCode,
+                    label: newCampaignLabel || undefined,
+                    discountPercent: newCampaignDiscount,
+                    expiresAt: newCampaignExpiry || undefined,
+                  })}
+                  disabled={createCampaignCode.isPending || !newCampaignCode}
+                  className="w-full"
+                >
+                  {createCampaignCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  コードを作成
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* コード一覧 */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">登録済みコード一覧</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!campaignCodes || campaignCodes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">コードがまだ登録されていません</p>
+                ) : (
+                  <div className="space-y-2">
+                    {campaignCodes.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-bold">{c.code}</span>
+                            <Badge variant={c.isActive ? "default" : "secondary"}>
+                              {c.isActive ? "有効" : "無効"}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {c.label && <span>{c.label} ・ </span>}
+                            割引: <span className="font-bold text-orange-500">{c.discountPercent}%OFF</span>
+                            {c.expiresAt && <span> ・ 期限: {new Date(c.expiresAt).toLocaleDateString("ja-JP")}</span>}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => updateCampaignCode.mutate({ id: c.id, isActive: !c.isActive })}
+                            disabled={updateCampaignCode.isPending}
+                          >
+                            {c.isActive ? "無効化" : "有効化"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              if (confirm(`「${c.code}」を削除しますか？`))
+                                deleteCampaignCode.mutate({ id: c.id });
+                            }}
+                            disabled={deleteCampaignCode.isPending}
+                            className="text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
+                          >
+                            削除
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 使い方説明 */}
+            <Card className="bg-muted/30">
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">
+                  <strong>使い方:</strong> YouTuber等に専用リンクを発行する際は、上記でコードを作成し、
+                  <code className="bg-muted px-1 rounded">?ref=コード名</code> をLINEの友だち追加URLに付けて共有してください。
+                  そのリンクから登録したユーザーの初回決済時に自動で割引が適用されます。
+                </p>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {/* データクリア */}

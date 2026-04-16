@@ -141,6 +141,20 @@
       "when": 1776217087017,
       "tag": "0019_aspiring_dark_phoenix",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1776319972403,
+      "tag": "0020_lucky_sprite",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1776320218129,
+      "tag": "0021_wakeful_imperial_guard",
+      "breakpoints": true
     }
   ]
 }

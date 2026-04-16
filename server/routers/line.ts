@@ -22,6 +22,7 @@ import {
   checkLineUserProcessing,
   setLineUserProcessing,
   getUserIsPremium,
+  getUserIsTrial,
   clearAllFridgeItems,
 } from "../db";
 import { lineUsers, fridgeItems as fridgeItemsTable, shoppingListItems } from "../../drizzle/schema";
@@ -2643,11 +2644,15 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
 
   if (type === "follow") {
     const profile = await getLineUserProfile(lineUserId);
+    // LINEのref=パラメータ（キャンペーンコード・YouTuber紹介 or 友達紹介コード）を取得
+    // LINE Messaging APIのfollowイベントは event.source に referralInfo を含む場合がある
+    const referralInfo = (event as any)?.referralInfo ?? null;
+    const refCode: string | null = referralInfo?.ref ?? null;
     const db = await getDb();
     if (db) {
       const existing = await getLineUserByLineId(lineUserId);
       if (!existing) {
-        console.log(`[LINE] New follower: ${lineUserId} - inserting into line_users with userId=null`);
+        console.log(`[LINE] New follower: ${lineUserId} - inserting into line_users with userId=null, refCode=${refCode}`);
         try {
           await db.insert(lineUsers).values({
             userId: null as unknown as number, // LIFFログイン前は null
@@ -2655,19 +2660,25 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
             displayName: profile?.displayName ?? "ユーザー",
             pictureUrl: profile?.pictureUrl ?? null,
             isActive: true,
+            referralCode: refCode,
           });
         } catch (insertErr) {
           console.error('[LINE] Failed to insert new follower:', insertErr);
         }
       } else {
+        // 再フォロー時もrefCodeが新たにあれば保存
+        const updateData: Record<string, unknown> = {
+          displayName: profile?.displayName ?? "ユーザー",
+          pictureUrl: profile?.pictureUrl ?? null,
+          isActive: true,
+          updatedAt: new Date(),
+        };
+        if (refCode && !existing.referralCode) {
+          updateData.referralCode = refCode;
+        }
         await db
           .update(lineUsers)
-          .set({
-            displayName: profile?.displayName ?? "ユーザー",
-            pictureUrl: profile?.pictureUrl ?? null,
-            isActive: true,
-            updatedAt: new Date(),
-          })
+          .set(updateData)
           .where(eq(lineUsers.lineUserId, lineUserId));
       }
     }
@@ -2804,11 +2815,16 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
       ]);
       return;
     }
-
-    // ─── 音声メッセージの処理 ─────────────────────────────────────────────────────
+    // ─── 音声メッセージの処理 ────────────────────────────────────────────────────────────────────────────────────
     if (event.message?.type === "audio") {
       const messageId = event.message.id;
       console.log(`[LINE] Audio message received: ${messageId}`);
+      // トライアルユーザーは音声機能不可
+      const isTrial = await getUserIsTrial(userId ?? 0);
+      if (isTrial) {
+        await replyAndSave(replyToken, [{ type: "text", text: "音声メッセージは無料プラン以上でご利用いただけます。\n\nカード登録で今すぐ使えるようになります！\n→ プラン管理ページから登録できます" }]);
+        return;
+      }
       try {
         // LINEの音声コンテンツをダウンロードしてS3にアップロード
         const audioBuffer = await downloadLineContent(messageId);

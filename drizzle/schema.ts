@@ -9,6 +9,7 @@ import {
   date,
   json,
   double,
+  decimal,
 } from "drizzle-orm/mysql-core";
 
 /**
@@ -55,10 +56,11 @@ export const lineUsers = mysqlTable("line_users", {
   // ブロックフラグ（管理者によるブロック）
   isBlocked: boolean("isBlocked").default(false).notNull(),
   blockedAt: timestamp("blockedAt"),
+  // 流入元キャンペーンコード（YouTuber紹介 or 友達紹介）
+  referralCode: varchar("referralCode", { length: 100 }), // LINE友だち追加時のref=パラメータ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type LineUser = typeof lineUsers.$inferSelect;
 export type InsertLineUser = typeof lineUsers.$inferInsert;
 
@@ -396,3 +398,51 @@ export const errorLogs = mysqlTable("error_logs", {
 });
 export type ErrorLog = typeof errorLogs.$inferSelect;
 export type InsertErrorLog = typeof errorLogs.$inferInsert;
+
+/**
+ * キャンペーンコードテーブル（YouTuber専用・管理者発行）
+ * 初回決済時に割引を適用するコード
+ */
+export const campaignCodes = mysqlTable("campaign_codes", {
+  id: int("id").autoincrement().primaryKey(),
+  code: varchar("code", { length: 100 }).notNull().unique(), // 例: tanaka_youtube
+  label: varchar("label", { length: 200 }), // 管理用ラベル（例: 田中チャンネル）
+  discountPercent: decimal("discountPercent", { precision: 5, scale: 2 }).notNull(), // 割引率（例: 30.00 = 30%OFF）
+  isActive: boolean("isActive").default(true).notNull(),
+  usageCount: int("usageCount").default(0).notNull(), // 使用回数
+  expiresAt: timestamp("expiresAt"), // 有効期限（NULLなら無期限）
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CampaignCode = typeof campaignCodes.$inferSelect;
+export type InsertCampaignCode = typeof campaignCodes.$inferInsert;
+
+/**
+ * 友達紹介コードテーブル（ユーザー自動発行）
+ * 既存ユーザーが友達を紹介するためのコード
+ */
+export const referralCodes = mysqlTable("referral_codes", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(), // 紹介者のuserId
+  code: varchar("code", { length: 20 }).notNull().unique(), // 例: USR_abc123
+  usageCount: int("usageCount").default(0).notNull(), // 使用回数
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ReferralCode = typeof referralCodes.$inferSelect;
+export type InsertReferralCode = typeof referralCodes.$inferInsert;
+
+/**
+ * 紹介コード使用履歴テーブル
+ * 誰が誰の紹介コードを使って登録したかを記録
+ */
+export const referralUsages = mysqlTable("referral_usages", {
+  id: int("id").autoincrement().primaryKey(),
+  referralCodeId: int("referralCodeId").notNull(), // referral_codes.id
+  referrerId: int("referrerId").notNull(), // 紹介者のuserId
+  referredUserId: int("referredUserId").notNull().unique(), // 紹介された側のuserId
+  bonusGranted: boolean("bonusGranted").default(false).notNull(), // 特典付与済みフラグ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ReferralUsage = typeof referralUsages.$inferSelect;
+export type InsertReferralUsage = typeof referralUsages.$inferInsert;
