@@ -1425,6 +1425,7 @@ ${dinnerResult.message}`;
             { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
             { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
             { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
+            { type: 'action', action: { type: 'message', label: '📝 今日の食事として記録', text: '今日の食事として記録する' } },
           ] },
         }], lineUserId);
         return true;
@@ -1454,6 +1455,7 @@ ${dinnerResult.message}`;
             { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
             { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
             { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
+            { type: 'action', action: { type: 'message', label: '📝 今日の食事として記録', text: '今日の食事として記録する' } },
           ] },
         }], lineUserId);
         return true;
@@ -1705,6 +1707,7 @@ ${dinnerResult.message}`;
 2️⃣ 違う献立を選び直す
 3️⃣ 案内を終了する
 4️⃣ 献立をやり直す（新しく生成）
+5️⃣ 今日の食事として記録する
 
 👇 下のボタンから選んでね！`,
         quickReply: { items: [
@@ -1712,6 +1715,7 @@ ${dinnerResult.message}`;
           { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
           { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
           { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
+          { type: 'action', action: { type: 'message', label: '📝 今日の食事として記録', text: '今日の食事として記録する' } },
         ] },
       }], lineUserId);
       return true;
@@ -1741,6 +1745,7 @@ ${dinnerResult.message}`;
             { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
             { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
             { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
+            { type: 'action', action: { type: 'message', label: '📝 今日の食事として記録', text: '今日の食事として記録する' } },
           ] },
         }], lineUserId);
         return true;
@@ -1826,36 +1831,44 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // 　13」または「案内を終了する」→ 実食記録を聴く
+    // 「3」または「案内を終了する」→ 終了メッセージのみ（実食記録を聞わない）
     if (/^[3３]$/.test(trimmed) || trimmed === '案内を終了する') {
-      // 実食記録ヘアリングペンディングに移行
-      const mealLabel = mealType === 'dinner' ? '夕食' : mealType === 'lunch' ? '昼食' : '朝食';
-      await setLineUserPendingAction(lineUserId, {
-        type: 'actual_meal_hearing',
-        selectedName,
-        options,
-        mealType,
-        targetDate,
-        menuPlanId,
-        askedAt: Date.now(),
-      });
-      const actualQR = [
-        ...options.slice(0, 3).map((o) => ({
-          type: 'action' as const,
-          action: { type: 'message' as const, label: o.name.slice(0, 20), text: `作った：${o.name}` },
-        })),
-        { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 別の料理にした', text: '別の料理にした' } },
-        { type: 'action' as const, action: { type: 'message' as const, label: '🏢 外食した', text: '外食した' } },
-        { type: 'action' as const, action: { type: 'message' as const, label: '🚫 食べてない', text: '食べてない' } },
-        { type: 'action' as const, action: { type: 'message' as const, label: '⏭️ あとで教える', text: 'あとで教える' } },
+      await setLineUserPendingAction(lineUserId, null);
+      const encourageMessages = [
+        '今日もお疲れさまでした！🌸',
+        '毎日の献立、一緒に楽しみましょう！🥗',
+        '今日も素敵な食卓になりますように！✨',
+        '明日もまた一緒に考えましょう！🍱',
+        '毎日の積み重ねが大切です！💪',
       ];
+      const randomEncourage = encourageMessages[Math.floor(Math.random() * encourageMessages.length)];
       await replyLineMessage(replyToken, [{
         type: 'text',
-        text: `お疲れさまでした！😊
-
-${mealLabel}は何を作りましたか？
-毎日の記録が積み重なると、よりあなた好みに合った献立を提案できるようになります！💪`,
-        quickReply: { items: actualQR },
+        text: `お疲れさまでした！😊\n\n毎日の記録が積み重なると、よりあなた好みに合った献立を提案できるようになります！💪\n\n${randomEncourage}`,
+      }], lineUserId);
+      return true;
+    }
+    // 「5」または「今日の食事として記録する」→ selectedNameを「作った」として即記録して終了
+    if (/^[5５]$/.test(trimmed) || trimmed === '今日の食事として記録する') {
+      await setLineUserPendingAction(lineUserId, null);
+      try {
+        if (menuPlanId) {
+          await updateActualMeal(menuPlanId, { mealType: mealType as 'breakfast' | 'lunch' | 'dinner', actualMeal: selectedName, actualStatus: 'cooked' });
+        }
+      } catch (err) {
+        console.error('[LINE] Failed to record actual meal:', err);
+      }
+      const encourageMessages2 = [
+        '今日もお疲れさまでした！🌸',
+        '毎日の献立、一緒に楽しみましょう！🥗',
+        '今日も素敵な食卓になりますように！✨',
+        '明日もまた一緒に考えましょう！🍱',
+        '毎日の積み重ねが大切です！💪',
+      ];
+      const randomEncourage2 = encourageMessages2[Math.floor(Math.random() * encourageMessages2.length)];
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: `「${selectedName}」を今日の食事として記録しました！✅\n\nお疲れさまでした！😊\n毎日の記録が積み重なると、よりあなた好みに合った献立を提案できるようになります！💪\n\n${randomEncourage2}\n\n※記録の修正はダッシュボードの「履歴」からできます`,
       }], lineUserId);
       return true;
     }
@@ -1942,6 +1955,7 @@ ${mealLabel}は何を作りましたか？
       { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
       { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
       { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
+      { type: 'action', action: { type: 'message', label: '📝 今日の食事として記録', text: '今日の食事として記録する' } },
       { type: 'action', action: { type: 'message', label: '❌ やっぱりやめる', text: 'キャンセル' } },
     ] } }], lineUserId);
     return true;
@@ -3005,6 +3019,13 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
     } catch (pushErr) {
       console.error('[LINE] Failed to send welcome push messages:', pushErr);
     }
+    // 友達追加時は必ず標準リッチメニューをセット（トライアルユーザーにプレミアムメニューが表示されないよう）
+    try {
+      await switchToNormalMenu(lineUserId);
+      console.log(`[LINE] follow: switchToNormalMenu applied for ${lineUserId}`);
+    } catch (menuErr) {
+      console.error('[LINE] Failed to switch to normal menu on follow:', menuErr);
+    }
   } else if (type === "unfollow") {
     const db = await getDb();
     if (db) {
@@ -3013,7 +3034,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
         .set({ isActive: false, updatedAt: new Date() })
         .where(eq(lineUsers.lineUserId, lineUserId));
     }
-   } else if (type === "message") {
+  } else if (type === "message") {
     const lineUser = await getLineUserByLineId(lineUserId);
     const userId = lineUser?.userId ?? null;
     const displayName = lineUser?.displayName ?? "ゲスト";
@@ -4205,18 +4226,18 @@ ${itemList}
       await replyAndSave(replyToken, [{ type: "text", text: fallbackMsg }]);
       await addConversationMessage({ lineUserId, role: 'assistant', content: fallbackMsg }).catch(() => {});
     }
-  }
-  catch (_outerErr) {
+    }
+    catch (_outerErr) {
     console.error('[LINE] Unhandled error in message handler:', _outerErr);
-  } finally {
+    } finally {
     // 外側のtry/finally: どのreturnパスでもprocessingフラグを確実にリセット
     if (!_skipHistory) {
       await setLineUserProcessing(lineUserId, false).catch(() => {});
     }
+    }
   }
 }
 
-}
 // ─── tRPC router ──────────────────────────────────────────────────────────────
 
 export const lineRouter = router({
