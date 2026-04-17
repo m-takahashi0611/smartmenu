@@ -28,7 +28,7 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
-const MASCOT_STANDING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mascot_standing_f22a517d.jpg";
+const MASCOT_STANDING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_wave-SJFFFGGiajefS9Vh7cqFQF.png";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "献立ダッシュボード", path: "/dashboard" },

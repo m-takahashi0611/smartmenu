@@ -7,9 +7,9 @@ import { getLoginUrl } from "@/const";
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 
-const MASCOT_COOKING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mascot_cooking_373317f0.jpg";
-const MASCOT_STANDING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mascot_standing_f22a517d.jpg";
-const MASCOT_HAPPY = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mascot_happy_e806a3d0.png";
+const MASCOT_COOKING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_cooking-2kPVJfknvoFLpXHRLPVvVs.png";
+const MASCOT_STANDING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_wave-SJFFFGGiajefS9Vh7cqFQF.png";
+const MASCOT_HAPPY = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_wave-SJFFFGGiajefS9Vh7cqFQF.png";
 
 const features = [
   { icon: "🍽️", title: "AI献立提案", description: "家族構成・冷蔵庫在庫・近隣スーパーの特売情報を組み合わせて、毎日最適な献立をAIが自動生成します。" },
@@ -218,56 +218,15 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4">
           <div className="text-center mb-8">
             <h2 className="text-2xl md:text-3xl font-bold mb-3" style={{ color: '#3D2B1F' }}>
-              <span style={{ color: '#FF7F50' }}>3ステップ</span>で始められます
+              <span style={{ color: '#FF7F50' }}>使い方</span>はかんたん！
             </h2>
-            {/* キャラクター */}
-            <div className="flex justify-center mb-4">
-              <div className="relative inline-block">
-                <img src={MASCOT_HAPPY} alt="コトコくん" className="w-24 h-24 object-contain" />
-                <div className="absolute -top-2 -right-6 rounded-xl px-2 py-1 text-xs font-bold shadow" style={{ backgroundColor: '#6B9E6B', color: 'white' }}>
-                  かんたん！
-                </div>
-              </div>
-            </div>
           </div>
 
-          <div className="space-y-4 max-w-sm mx-auto">
-            {[
-              { step: "01", icon: "📱", title: "LINEで友達追加", desc: "献立日和の公式LINEアカウントを友達追加します" },
-              { step: "02", icon: "👨‍👩‍👧", title: "家族情報を登録", desc: "家族の人数・年齢・アレルギーなどを設定します" },
-              { step: "03", icon: "🥦", title: "冷蔵庫を登録", desc: "今ある食材と消費期限を入力します" },
-              { step: "04", icon: "🍱", title: "毎朝LINEで受け取る", desc: "指定した時間に献立と買い物リストが届きます" },
-            ].map((s) => (
-              <div key={s.step} className="flex items-start gap-4 rounded-2xl p-4 shadow-sm" style={{ backgroundColor: 'white', border: '1px solid #F0D9C8' }}>
-                <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm" style={{ backgroundColor: '#FF7F50' }}>
-                  {s.step}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xl">{s.icon}</span>
-                    <h3 className="text-sm font-bold" style={{ color: '#3D2B1F' }}>{s.title}</h3>
-                  </div>
-                  <p className="text-xs" style={{ color: '#8a7060' }}>{s.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* 使い方画像（既存） */}
-          <div className="mt-10 space-y-4">
-            <div className="max-w-sm mx-auto">
-              <div className="rounded-t-2xl py-4 px-6 text-center" style={{ backgroundColor: '#FF7F50' }}>
-                <span className="text-white font-bold text-xl">はじめましょう！</span>
-              </div>
-              <img
-                src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mori_kitchen_colorful_b246d0d3.jpg"
-                alt="キャラクター"
-                className="w-full block rounded-b-2xl shadow-md"
-              />
-            </div>
-            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_B_steps_v2-9A8LjBpnEDhAuoDHCav52d.png" alt="まず3ステップで始めましょう！" className="w-full max-w-sm mx-auto block rounded-2xl shadow-md" />
-            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/new_welcome_02_fridge-d3bkgkRcZQTBCDuaN6bSye.png" alt="冷蔵庫の食材を登録する" className="w-full max-w-sm mx-auto block rounded-2xl shadow-md" />
-            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/new_welcome_03_commands-By9oD4t2reaRVJFbjRnUSq.png" alt="AIに伝えるコツ" className="w-full max-w-sm mx-auto block rounded-2xl shadow-md" />
+          {/* 使い方画像 */}
+          <div className="space-y-5 max-w-sm mx-auto">
+            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_B_steps_v2-9A8LjBpnEDhAuoDHCav52d.png" alt="まず3ステップで始めましょう！" className="w-full block rounded-2xl shadow-md" style={{ border: '2px solid #F0D9C8' }} />
+            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/new_welcome_02_fridge-d3bkgkRcZQTBCDuaN6bSye.png" alt="冷蔵庫の食材を登録する" className="w-full block rounded-2xl shadow-md" style={{ border: '2px solid #F0D9C8' }} />
+            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/new_welcome_03_commands-By9oD4t2reaRVJFbjRnUSq.png" alt="AIに伝えるコツ" className="w-full block rounded-2xl shadow-md" style={{ border: '2px solid #F0D9C8' }} />
           </div>
 
           {/* CTA */}

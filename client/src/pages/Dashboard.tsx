@@ -309,11 +309,11 @@ export default function Dashboard() {
     });
   };
 
-  const MASCOT_STANDING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mascot_standing_f22a517d.jpg";
-  const MASCOT_THINKING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mascot_thinking_0109e2c8.png";
-  const MASCOT_HAPPY = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mascot_happy_e806a3d0.png";
-  const ICON_FRIDGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/icon_fridge_a8e146cb.png";
-  const ICON_SHOPPING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/icon_shopping_78d8970c.png";
+  const MASCOT_STANDING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_wave-SJFFFGGiajefS9Vh7cqFQF.png";
+  const MASCOT_THINKING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_think-drvF2Dx6NgBmfM8SeMiN9M.png";
+  const MASCOT_HAPPY = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_cooking-2kPVJfknvoFLpXHRLPVvVs.png";
+  const ICON_FRIDGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_fridge-KQLswGt9s5EXbespkogmJC.png";
+  const ICON_SHOPPING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_shopping-Tck2PebbYtvQzyzVCbvmqh.png";
   const ICON_BREAKFAST = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/icon_breakfast_7bf50e19.png";
   const ICON_LUNCH = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/icon_lunch_c821e51f.png";
   const ICON_DINNER = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/icon_dinner_569d9e21.png";
