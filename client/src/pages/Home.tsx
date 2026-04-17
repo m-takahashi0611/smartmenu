@@ -224,9 +224,9 @@ export default function Home() {
 
           {/* 使い方画像 */}
           <div className="space-y-5 max-w-sm mx-auto">
-            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_B_steps_v2-9A8LjBpnEDhAuoDHCav52d.png" alt="まず3ステップで始めましょう！" className="w-full block rounded-2xl shadow-md" style={{ border: '2px solid #F0D9C8' }} />
-            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/new_welcome_02_fridge-d3bkgkRcZQTBCDuaN6bSye.png" alt="冷蔵庫の食材を登録する" className="w-full block rounded-2xl shadow-md" style={{ border: '2px solid #F0D9C8' }} />
-            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/new_welcome_03_commands-By9oD4t2reaRVJFbjRnUSq.png" alt="AIに伝えるコツ" className="w-full block rounded-2xl shadow-md" style={{ border: '2px solid #F0D9C8' }} />
+            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_step1_new-2gm58iovTBNSsaxx82iY78.png" alt="まず3ステップで始めましょう！" className="w-full block rounded-2xl shadow-md" style={{ border: '2px solid #F0D9C8' }} />
+            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_step2_new-hXzFefqagk9VZcSgJNBsX2.png" alt="冷蔵庫の食材を登録する" className="w-full block rounded-2xl shadow-md" style={{ border: '2px solid #F0D9C8' }} />
+            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/welcome_step3_new-esjJ3fZrqdipgbsJFsWDMt.png" alt="AIに伝えるコツ" className="w-full block rounded-2xl shadow-md" style={{ border: '2px solid #F0D9C8' }} />
           </div>
 
           {/* CTA */}
