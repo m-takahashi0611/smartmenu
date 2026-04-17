@@ -41,13 +41,14 @@ export default function Dashboard() {
   const [shoppingSelectMode, setShoppingSelectMode] = useState(false);
   const [shoppingSelectedIds, setShoppingSelectedIds] = useState<Set<number>>(new Set());
 
-  // 外部サイト警告の安心ポップアップ（1日1回表示）
-  const STORAGE_KEY_NEVER = "hide_line_warning_popup_never"; // 次回から表示しない
-  const STORAGE_KEY_DATE = "line_warning_popup_last_shown";  // 最終表示日
+  // ── LINE外部移動警告ポップアップ（1日1回 or 今後表示しない） ──
+  const STORAGE_KEY_NEVER = "hide_line_warning_popup_never"; // 永続的に非表示
+  const STORAGE_KEY_DATE = "line_warning_popup_last_shown";  // 最終表示日（1日1回制御）
+  const SESSION_KEY_SHOWN = "line_warning_shown_this_session"; // セッション内表示済み
   const [showLineWarningPopup, setShowLineWarningPopup] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
-  // カード登録促進ポップアップ（トライアルユーザー向け・毎回表示）
+  // ── カード登録促進ポップアップ（trialユーザーはダッシュボード遷移ごとに毎回表示） ──
   const [showTrialPopup, setShowTrialPopup] = useState(false);
   const { data: planData } = trpc.subscription.getMyPlan.useQuery();
   const createCheckout = trpc.subscription.createCheckoutSession.useMutation({
@@ -59,42 +60,35 @@ export default function Dashboard() {
     },
   });
 
+  // LINE警告ポップアップの表示制御（カード登録とは完全独立）
   useEffect(() => {
-    // 次回から表示しないフラグがあれば表示しない
     const neverShow = localStorage.getItem(STORAGE_KEY_NEVER);
-    if (neverShow) return;
-
-    // 今日すでに表示済みかチェック
-    const today = new Date().toLocaleDateString("ja-JP"); // 例: "2026/4/9"
+    if (neverShow) return; // 永続的に非表示
+    const alreadyShownThisSession = sessionStorage.getItem(SESSION_KEY_SHOWN);
+    if (alreadyShownThisSession) return; // このセッションで既に表示済み
+    const todayStr = new Date().toLocaleDateString("ja-JP");
     const lastShown = localStorage.getItem(STORAGE_KEY_DATE);
-    if (lastShown === today) return;
-
+    if (lastShown === todayStr) return; // 今日すでに表示済み
     setShowLineWarningPopup(true);
   }, []);
 
-  // 「次回から表示しない」済みのトライアルユーザーは直接カード登録ポップを表示
+  // カード登録促進ポップアップの表示制御（trialユーザーは毎回・LINE警告と無関係）
   useEffect(() => {
     if (!planData) return;
     if (planData.status !== "trial") return;
-    const neverShow = localStorage.getItem(STORAGE_KEY_NEVER);
-    if (!neverShow) return; // セキュリティポップが出る場合はそちらに任せる
     setShowTrialPopup(true);
   }, [planData]);
 
   const handleCloseLineWarningPopup = () => {
     if (dontShowAgain) {
-      // 「次回から表示しない」チェック時
-      localStorage.setItem(STORAGE_KEY_NEVER, "1");
+      localStorage.setItem(STORAGE_KEY_NEVER, "1"); // 永続的に非表示
     } else {
-      // チェックなしの場合は今日の日付を保存（1日1回制御）
-      const today = new Date().toLocaleDateString("ja-JP");
-      localStorage.setItem(STORAGE_KEY_DATE, today);
+      const todayStr = new Date().toLocaleDateString("ja-JP");
+      localStorage.setItem(STORAGE_KEY_DATE, todayStr); // 今日は表示済み
+      sessionStorage.setItem(SESSION_KEY_SHOWN, "1"); // このセッションは表示済み
     }
     setShowLineWarningPopup(false);
-    // トライアルユーザーにはカード登録促進ポップアップを続けて表示
-    if (planData?.status === "trial") {
-      setShowTrialPopup(true);
-    }
+    // カード登録ポップアップはLINE警告とは独立して動作するため、ここでは何もしない
   };
 
   const { data: todayMenu, isLoading: menuLoading } = trpc.menu.getByDate.useQuery({ date: today });
