@@ -309,6 +309,15 @@ export default function Dashboard() {
     });
   };
 
+  const MASCOT_STANDING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mascot_standing_f22a517d.jpg";
+  const MASCOT_THINKING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mascot_thinking_0109e2c8.png";
+  const MASCOT_HAPPY = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mascot_happy_e806a3d0.png";
+  const ICON_FRIDGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/icon_fridge_a8e146cb.png";
+  const ICON_SHOPPING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/icon_shopping_78d8970c.png";
+  const ICON_BREAKFAST = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/icon_breakfast_7bf50e19.png";
+  const ICON_LUNCH = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/icon_lunch_c821e51f.png";
+  const ICON_DINNER = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/icon_dinner_569d9e21.png";
+
   const TABS: { key: TabKey; label: string; icon: string }[] = [
     { key: "fridge", label: "冷蔵庫", icon: "🥦" },
     { key: "shopping", label: "買い物リスト", icon: "🛒" },
@@ -316,34 +325,34 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" style={{ fontFamily: "'Zen Maru Gothic', 'Noto Sans JP', sans-serif" }}>
       {/* ヘッダー */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
+      <header className="sticky top-0 z-50 backdrop-blur border-b" style={{ backgroundColor: 'rgba(255,248,242,0.97)', borderColor: '#f0d9c8' }}>
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link href="/">
             <div className="flex items-center gap-2 cursor-pointer">
-              <span className="text-lg">🍽️</span>
-              <span className="font-bold text-primary text-sm hidden sm:inline">献立日和～coto coto～</span>
-              <span className="font-bold text-primary text-sm sm:hidden">coto coto</span>
+              <img src={MASCOT_STANDING} alt="コトコくん" className="h-9 w-9 object-contain rounded-full" style={{ background: '#fff8f2' }} />
+              <span className="font-bold text-sm hidden sm:inline" style={{ color: '#FF7F50' }}>献立日和～coto coto～</span>
+              <span className="font-bold text-sm sm:hidden" style={{ color: '#FF7F50' }}>coto coto</span>
             </div>
           </Link>
           <div className="flex items-center gap-1">
             <Link href="/family">
-              <button className="flex flex-col items-center justify-center px-3 py-1.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors min-w-[56px]">
+              <button className="flex flex-col items-center justify-center px-3 py-1.5 rounded-xl transition-colors min-w-[52px]" style={{ color: '#6B5040' }}>
                 <span className="text-xl mb-0.5">👨‍👩‍👧</span>
-                <span className="text-xs font-medium text-gray-700">家族</span>
+                <span className="text-xs font-medium">家族</span>
               </button>
             </Link>
             <Link href="/history">
-              <button className="flex flex-col items-center justify-center px-3 py-1.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors min-w-[56px]">
+              <button className="flex flex-col items-center justify-center px-3 py-1.5 rounded-xl transition-colors min-w-[52px]" style={{ color: '#6B5040' }}>
                 <span className="text-xl mb-0.5">📋</span>
-                <span className="text-xs font-medium text-gray-700">履歴</span>
+                <span className="text-xs font-medium">履歴</span>
               </button>
             </Link>
             <a href="/#how-to-use">
-              <button className="flex flex-col items-center justify-center px-3 py-1.5 rounded-xl hover:bg-orange-50 active:bg-orange-100 transition-colors min-w-[56px]">
+              <button className="flex flex-col items-center justify-center px-3 py-1.5 rounded-xl transition-colors min-w-[52px]" style={{ color: '#6B5040' }}>
                 <span className="text-xl mb-0.5">❓</span>
-                <span className="text-xs font-medium text-gray-700">使い方</span>
+                <span className="text-xs font-medium">使い方</span>
               </button>
             </a>
           </div>
@@ -351,23 +360,24 @@ export default function Dashboard() {
       </header>
 
       {/* タブナビゲーション */}
-      <div className="sticky top-14 z-40 bg-background border-b border-border">
+      <div className="sticky top-14 z-40 border-b" style={{ backgroundColor: '#FFF8F2', borderColor: '#f0d9c8' }}>
         <div className="max-w-2xl mx-auto px-2">
           <div className="flex">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors border-b-2 relative ${
-                  activeTab === tab.key
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
+                className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors border-b-2 relative"
+                style={{
+                  borderBottomColor: activeTab === tab.key ? '#FF7F50' : 'transparent',
+                  color: activeTab === tab.key ? '#FF7F50' : '#8a7060',
+                  fontWeight: activeTab === tab.key ? '700' : '400',
+                }}
               >
                 <span className="text-2xl leading-none">{tab.icon}</span>
                 <span className="text-xs font-medium">{tab.label}</span>
                 {tab.key === "shopping" && shoppingList && shoppingList.filter(i => !i.isChecked).length > 0 && (
-                  <span className="absolute top-1 right-3 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                  <span className="absolute top-1 right-3 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold" style={{ backgroundColor: '#FF7F50' }}>
                     {shoppingList.filter(i => !i.isChecked).length}
                   </span>
                 )}
@@ -380,11 +390,14 @@ export default function Dashboard() {
       <main className="max-w-2xl mx-auto px-4 py-4">
 
         {/* ウェルカム */}
-        <div className="mb-4">
-          <h1 className="text-lg font-bold">
-            こんにちは、{user?.name ?? "ゲスト"}さん 👋
-          </h1>
-          <p className="text-sm text-muted-foreground">{formatDate(today)}の献立</p>
+        <div className="mb-4 rounded-2xl p-4 flex items-center gap-4" style={{ background: 'linear-gradient(135deg, #FFF8F2 0%, #F5F9F0 100%)', border: '1px solid #F0D9C8' }}>
+          <img src={MASCOT_HAPPY} alt="コトコくん" className="w-16 h-16 object-contain flex-shrink-0" />
+          <div>
+            <h1 className="text-base font-bold" style={{ color: '#3D2B1F' }}>
+              こんにちは、{user?.name ?? "ゲスト"}さん！
+            </h1>
+            <p className="text-sm" style={{ color: '#8a7060' }}>{formatDate(today)}の献立を一緒に考えましょう 🍳</p>
+          </div>
         </div>
 
         {/* ── 冷蔵庫タブ ── */}
@@ -491,12 +504,12 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-16">
-                <div className="text-5xl mb-4">🥦</div>
-                <p className="text-muted-foreground mb-2">食材が登録されていません</p>
-                <p className="text-sm text-muted-foreground mb-4">LINEで「冷蔵庫に〇〇を追加」と送るか、下のボタンから登録できます</p>
+              <div className="text-center py-10">
+                <img src={ICON_FRIDGE} alt="冷蔵庫" className="w-20 h-20 object-contain mx-auto mb-3" />
+                <p className="font-medium mb-1 text-sm" style={{ color: '#3D2B1F' }}>食材が登録されていません</p>
+                <p className="text-xs mb-4" style={{ color: '#8a7060' }}>LINEで「冷蔵庫に「○○を追加」と送るか、下のボタンから登録できます</p>
                 <Link href="/fridge">
-                  <Button className="bg-primary text-primary-foreground">食材を登録する</Button>
+                  <button className="text-white text-sm font-bold px-6 py-2.5 rounded-2xl" style={{ backgroundColor: '#FF7F50' }}>食材を登録する</button>
                 </Link>
               </div>
             )}
@@ -656,28 +669,28 @@ export default function Dashboard() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-16">
-                <div className="text-5xl mb-4">🛒</div>
-                <p className="text-muted-foreground mb-2">買い物リストが空です</p>
-                <p className="text-sm text-muted-foreground mb-4">献立を生成すると買い物リスト候補が表示されます</p>
+              <div className="text-center py-10">
+                <img src={ICON_SHOPPING} alt="買い物リスト" className="w-20 h-20 object-contain mx-auto mb-3" />
+                <p className="font-medium mb-1 text-sm" style={{ color: '#3D2B1F' }}>買い物リストが空です</p>
+                <p className="text-xs mb-4" style={{ color: '#8a7060' }}>献立を生成すると買い物リスト候補が表示されます</p>
                 {generateTimedOut ? (
                   <div className="space-y-2">
                     <p className="text-sm text-destructive">⏱ タイムアウトしました。ネットワーク接続を確認してください。</p>
-                    <Button
+                    <button
                       onClick={() => { setGenerateTimedOut(false); generateMenu.mutate({ date: today }); setActiveTab("recipe"); }}
-                      className="bg-primary text-primary-foreground"
+                      className="text-white text-sm font-bold px-6 py-2.5 rounded-2xl" style={{ backgroundColor: '#FF7F50' }}
                     >
                       再試行する
-                    </Button>
+                    </button>
                   </div>
                 ) : (
-                  <Button
+                  <button
                     onClick={() => { generateMenu.mutate({ date: today }); setActiveTab("recipe"); }}
                     disabled={generateMenu.isPending}
-                    className="bg-primary text-primary-foreground"
+                    className="text-white text-sm font-bold px-6 py-2.5 rounded-2xl" style={{ backgroundColor: '#FF7F50' }}
                   >
                     {generateMenu.isPending ? "生成中..." : "献立を生成する"}
-                  </Button>
+                  </button>
                 )}
               </div>
             )}
@@ -687,50 +700,51 @@ export default function Dashboard() {
         {/* ── レシピ・献立タブ ── */}
         {activeTab === "recipe" && (
           <div className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">🍽️ 今日の献立</CardTitle>
-                  <div className="flex gap-2">
+            <div className="rounded-2xl overflow-hidden shadow-sm" style={{ border: '1px solid #F0D9C8' }}>
+              <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: '#FFF0E8' }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🍽️</span>
+                  <span className="font-bold text-sm" style={{ color: '#3D2B1F' }}>今日の献立</span>
+                </div>
+                <div className="flex gap-2">
                     {!todayMenu && (
                       generateTimedOut ? (
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-destructive">⏱ タイムアウト</span>
-                          <Button size="sm" onClick={() => { setGenerateTimedOut(false); generateMenu.mutate({ date: today }); }} className="bg-primary text-primary-foreground">
+                          <Button size="sm" onClick={() => { setGenerateTimedOut(false); generateMenu.mutate({ date: today }); }} className="text-white text-xs rounded-xl" style={{ backgroundColor: '#FF7F50' }}>
                             再試行
                           </Button>
                         </div>
                       ) : (
-                        <Button size="sm" onClick={() => generateMenu.mutate({ date: today })} disabled={generateMenu.isPending} className="bg-primary text-primary-foreground">
+                        <Button size="sm" onClick={() => generateMenu.mutate({ date: today })} disabled={generateMenu.isPending} className="text-white text-xs rounded-xl" style={{ backgroundColor: '#FF7F50' }}>
                           {generateMenu.isPending ? "生成中..." : "献立を生成"}
                         </Button>
                       )
                     )}
                     {todayMenu && (
-                      <Button size="sm" variant="outline" onClick={() => sendToLine.mutate({ date: today })} disabled={sendToLine.isPending}>
+                      <Button size="sm" variant="outline" onClick={() => sendToLine.mutate({ date: today })} disabled={sendToLine.isPending} className="text-xs rounded-xl" style={{ borderColor: '#6B9E6B', color: '#6B9E6B' }}>
                         {sendToLine.isPending ? "送信中..." : "📱 LINEに送信"}
                       </Button>
                     )}
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
+              </div>
+              <div className="p-4" style={{ backgroundColor: 'white' }}>
                 {menuLoading ? (
-                  <div className="text-center py-8 text-muted-foreground">読み込み中...</div>
+                  <div className="text-center py-8" style={{ color: '#8a7060' }}>読み込み中...</div>
                 ) : todayMenu && menuData ? (
                   <div className="space-y-3">
                     {/* 夕食3案表示（新形式） */}
                     {menuData.dinnerOptions && menuData.dinnerOptions.length > 0 ? (
                       <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground font-medium">🌙 今夜の夕食候補</p>
+                        <p className="text-xs font-medium" style={{ color: '#8a7060' }}>🌙 今夜の夕食候補</p>
                         {menuData.dinnerOptions.map((opt, i) => (
-                          <div key={i} className="bg-muted/50 rounded-lg p-3">
+                          <div key={i} className="rounded-xl p-3" style={{ backgroundColor: '#FFF8F2', border: '1px solid #F0D9C8' }}>
                             <div className="flex items-center gap-2">
                               <span className="text-base">{["1️⃣","2️⃣","3️⃣"][i]}</span>
-                              <span className="text-sm font-medium">{opt.name}</span>
+                              <span className="text-sm font-medium" style={{ color: '#3D2B1F' }}>{opt.name}</span>
                             </div>
                             {opt.usedFridgeItems.length > 0 && (
-                              <p className="text-xs text-muted-foreground mt-1 ml-7">冷蔵庫：{opt.usedFridgeItems.join("・")}</p>
+                              <p className="text-xs mt-1 ml-7" style={{ color: '#8a7060' }}>冷蔵庫：{opt.usedFridgeItems.join("・")}</p>
                             )}
                           </div>
                         ))}
@@ -738,42 +752,43 @@ export default function Dashboard() {
                     ) : (
                       <div className="grid grid-cols-3 gap-2">
                         {[
-                          { label: "🌅 朝食", value: menuData.breakfast },
-                          { label: "☀️ 昼食", value: menuData.lunch },
-                          { label: "🌙 夕食", value: menuData.dinner },
+                          { label: "🌅 朝食", value: menuData.breakfast, icon: ICON_BREAKFAST },
+                          { label: "☀️ 昼食", value: menuData.lunch, icon: ICON_LUNCH },
+                          { label: "🌙 夕食", value: menuData.dinner, icon: ICON_DINNER },
                         ].filter(m => m.value).map((meal) => (
-                          <div key={meal.label} className="bg-muted/50 rounded-lg p-3 text-center">
-                            <p className="text-xs text-muted-foreground mb-1">{meal.label}</p>
-                            <p className="text-sm font-medium">{meal.value ?? "未定"}</p>
+                          <div key={meal.label} className="rounded-xl p-3 text-center" style={{ backgroundColor: '#FFF8F2', border: '1px solid #F0D9C8' }}>
+                            <img src={meal.icon} alt="" className="w-8 h-8 object-contain mx-auto mb-1" />
+                            <p className="text-xs mb-1" style={{ color: '#8a7060' }}>{meal.label}</p>
+                            <p className="text-xs font-medium" style={{ color: '#3D2B1F' }}>{meal.value ?? "未定"}</p>
                           </div>
                         ))}
                       </div>
                     )}
                     {menuData.dinnerRecipe && (
-                      <div className="bg-primary/5 rounded-lg p-3">
-                        <p className="text-xs font-semibold text-primary mb-1">📝 レシピ</p>
-                        <p className="text-sm text-muted-foreground whitespace-pre-line">{menuData.dinnerRecipe}</p>
+                      <div className="rounded-xl p-3" style={{ backgroundColor: '#F5F9F0', border: '1px solid #D4E8D4' }}>
+                        <p className="text-xs font-semibold mb-1" style={{ color: '#6B9E6B' }}>📝 レシピ</p>
+                        <p className="text-sm whitespace-pre-line" style={{ color: '#6B5040' }}>{menuData.dinnerRecipe}</p>
                       </div>
                     )}
                     {menuData.tips && (
-                      <div className="flex items-start gap-2 text-sm">
+                      <div className="flex items-start gap-2 text-sm rounded-xl p-3" style={{ backgroundColor: '#FFF8F2' }}>
                         <span>💡</span>
-                        <p className="text-muted-foreground">{menuData.tips}</p>
+                        <p style={{ color: '#6B5040' }}>{menuData.tips}</p>
                       </div>
                     )}
                     <div className="flex flex-wrap gap-2">
                       {menuData.estimatedCost && (
-                        <Badge variant="secondary">💰 約{menuData.estimatedCost.toLocaleString()}円</Badge>
+                        <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ backgroundColor: '#FFF0E8', color: '#FF7F50', border: '1px solid #FFB899' }}>💰 約{menuData.estimatedCost.toLocaleString()}円</span>
                       )}
                       {todayMenu.isDelivered && (
-                        <Badge variant="outline" className="text-green-600 border-green-200">✓ LINE配信済み</Badge>
+                        <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ backgroundColor: '#F5F9F0', color: '#6B9E6B', border: '1px solid #B8D8B8' }}>✓ LINE配信済み</span>
                       )}
                     </div>
                     {/* 買い物リスト候補 */}
                     {!showShoppingSelector && menuData.shoppingList && menuData.shoppingList.length > 0 && shoppingList && shoppingList.length === 0 && (
-                      <div className="border border-dashed border-primary/40 rounded-lg p-3 bg-primary/5">
-                        <p className="text-xs font-semibold text-primary mb-2">🛒 買い物リスト候補があります</p>
-                        <Button size="sm" variant="outline" className="text-xs" onClick={() => {
+                      <div className="rounded-xl p-3" style={{ border: '1px dashed #FFB899', backgroundColor: '#FFF8F2' }}>
+                        <p className="text-xs font-semibold mb-2" style={{ color: '#FF7F50' }}>🛒 買い物リスト候補があります</p>
+                        <Button size="sm" variant="outline" className="text-xs rounded-xl" style={{ borderColor: '#FF7F50', color: '#FF7F50' }} onClick={() => {
                           setShoppingCandidates(menuData.shoppingList!);
                           setSelectedItems(new Set(menuData.shoppingList!));
                           setShowShoppingSelector(true);
@@ -786,141 +801,124 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <div className="text-5xl mb-4">🍽️</div>
-                    <p className="text-muted-foreground mb-4">今日の献立がまだ生成されていません</p>
+                    <img src={MASCOT_THINKING} alt="コトコくん" className="w-24 h-24 object-contain mx-auto mb-3" />
+                    <p className="mb-4 text-sm" style={{ color: '#8a7060' }}>今日の献立がまだ生成されていません</p>
                     {generateTimedOut ? (
                       <div className="space-y-2">
                         <p className="text-sm text-destructive">⏱ タイムアウトしました（25秒）。ネットワーク接続を確認してください。</p>
                         <Button
                           onClick={() => { setGenerateTimedOut(false); generateMenu.mutate({ date: today }); }}
-                          className="bg-primary text-primary-foreground"
+                          className="text-white font-bold rounded-xl" style={{ backgroundColor: '#FF7F50' }}
                         >
                           再試行する
                         </Button>
                       </div>
                     ) : (
-                      <Button onClick={() => generateMenu.mutate({ date: today })} disabled={generateMenu.isPending} className="bg-primary text-primary-foreground">
+                      <Button onClick={() => generateMenu.mutate({ date: today })} disabled={generateMenu.isPending} className="text-white font-bold rounded-xl" style={{ backgroundColor: '#FF7F50' }}>
                         {generateMenu.isPending ? "AIが献立を考えています..." : "献立を生成する"}
                       </Button>
                     )}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            {/* 家族情報サマリー（スクロールで見える位置） */}
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">👨‍👩‍👧 家族構成</CardTitle>
-                  <Link href="/family">
-                    <Button variant="ghost" size="sm" className="text-xs">編集</Button>
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
+            {/* 家族情報サマリー */}
+            <div className="rounded-2xl overflow-hidden shadow-sm" style={{ border: '1px solid #F0D9C8' }}>
+              <div className="px-4 py-2.5 flex items-center justify-between" style={{ backgroundColor: '#F5F9F0' }}>
+                <span className="text-sm font-bold" style={{ color: '#3D2B1F' }}>👨‍👩‍👧 家族構成</span>
+                <Link href="/family"><button className="text-xs font-medium" style={{ color: '#6B9E6B' }}>編集</button></Link>
+              </div>
+              <div className="px-4 py-3" style={{ backgroundColor: 'white' }}>
                 {familyData && familyData.members.length > 0 ? (
                   <div className="flex flex-wrap gap-1">
                     {familyData.members.map((m) => (
-                      <Badge key={m.id} variant="secondary" className="text-xs">{m.name}</Badge>
+                      <span key={m.id} className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: '#F5F9F0', color: '#6B9E6B', border: '1px solid #D4E8D4' }}>{m.name}</span>
                     ))}
                   </div>
                 ) : (
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">家族情報を登録すると提案精度が上がります</p>
-                    <Link href="/family">
-                      <Button size="sm" variant="outline" className="text-xs ml-2">登録</Button>
-                    </Link>
+                    <p className="text-xs" style={{ color: '#8a7060' }}>家族情報を登録すると提案精度が上がります</p>
+                    <Link href="/family"><button className="text-xs px-3 py-1 rounded-xl ml-2 font-medium" style={{ backgroundColor: '#FFF0E8', color: '#FF7F50', border: '1px solid #FFB899' }}>登録</button></Link>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* 冷蔵庫サマリー */}
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">🥦 冷蔵庫</CardTitle>
-                  <Button variant="ghost" size="sm" className="text-xs" onClick={() => setActiveTab("fridge")}>管理</Button>
+            <div className="rounded-2xl overflow-hidden shadow-sm" style={{ border: '1px solid #F0D9C8' }}>
+              <div className="px-4 py-2.5 flex items-center justify-between" style={{ backgroundColor: '#FFF0E8' }}>
+                <div className="flex items-center gap-2">
+                  <img src={ICON_FRIDGE} alt="" className="w-5 h-5 object-contain" />
+                  <span className="text-sm font-bold" style={{ color: '#3D2B1F' }}>冷蔵庫</span>
                 </div>
-              </CardHeader>
-              <CardContent className="pt-0">
+                <button className="text-xs font-medium" style={{ color: '#FF7F50' }} onClick={() => setActiveTab("fridge")}>管理</button>
+              </div>
+              <div className="px-4 py-3" style={{ backgroundColor: 'white' }}>
                 {fridgeItems && fridgeItems.length > 0 ? (
                   <div className="flex flex-wrap gap-1">
                     {fridgeItems.slice(0, 6).map((item) => (
-                      <Badge key={item.id} variant="outline" className="text-xs">{item.name}</Badge>
+                      <span key={item.id} className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: '#FFF8F2', color: '#6B5040', border: '1px solid #F0D9C8' }}>{item.name}</span>
                     ))}
-                    {fridgeItems.length > 6 && <Badge variant="outline" className="text-xs">+{fridgeItems.length - 6}</Badge>}
+                    {fridgeItems.length > 6 && <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: '#FFF8F2', color: '#8a7060', border: '1px solid #F0D9C8' }}>+{fridgeItems.length - 6}</span>}
                   </div>
                 ) : (
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">食材を登録してください</p>
-                    <Button size="sm" variant="outline" className="text-xs ml-2" onClick={() => setActiveTab("fridge")}>登録</Button>
+                    <p className="text-xs" style={{ color: '#8a7060' }}>食材を登録してください</p>
+                    <button className="text-xs px-3 py-1 rounded-xl ml-2 font-medium" style={{ backgroundColor: '#FFF0E8', color: '#FF7F50', border: '1px solid #FFB899' }} onClick={() => setActiveTab("fridge")}>登録</button>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* 機能設定ショートカット */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">⚙️ 機能設定</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
+            <div className="rounded-2xl overflow-hidden shadow-sm" style={{ border: '1px solid #F0D9C8' }}>
+              <div className="px-4 py-2.5" style={{ backgroundColor: '#FFF8F2' }}>
+                <span className="text-sm font-bold" style={{ color: '#3D2B1F' }}>⚙️ 機能設定</span>
+              </div>
+              <div className="px-4 py-3 space-y-3" style={{ backgroundColor: 'white' }}>
                 <div className="grid grid-cols-2 gap-2">
-                  <Link href="/family">
-                    <Button variant="outline" size="sm" className="w-full text-xs">👨‍👩‍👧 家族構成</Button>
-                  </Link>
-                  <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setActiveTab("fridge")}>🥦 冷蔵庫管理</Button>
-                  <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setActiveTab("shopping")}>🛒 買い物リスト</Button>
-                  <Link href="/history">
-                    <Button variant="outline" size="sm" className="w-full text-xs">📋 献立履歴</Button>
-                  </Link>
+                  <Link href="/family"><button className="w-full text-xs py-2 px-3 rounded-xl font-medium" style={{ backgroundColor: '#F5F9F0', color: '#6B5040', border: '1px solid #D4E8D4' }}>👨‍👩‍👧 家族構成</button></Link>
+                  <button className="w-full text-xs py-2 px-3 rounded-xl font-medium" style={{ backgroundColor: '#F5F9F0', color: '#6B5040', border: '1px solid #D4E8D4' }} onClick={() => setActiveTab("fridge")}>🥦 冷蔵庫管理</button>
+                  <button className="w-full text-xs py-2 px-3 rounded-xl font-medium" style={{ backgroundColor: '#F5F9F0', color: '#6B5040', border: '1px solid #D4E8D4' }} onClick={() => setActiveTab("shopping")}>🛒 買い物リスト</button>
+                  <Link href="/history"><button className="w-full text-xs py-2 px-3 rounded-xl font-medium" style={{ backgroundColor: '#F5F9F0', color: '#6B5040', border: '1px solid #D4E8D4' }}>📋 献立履歴</button></Link>
                 </div>
-                <div className="mt-2 pt-2 border-t border-border/30">
-                  <p className="text-xs text-muted-foreground mb-2">📡 LINE自動配信</p>
-                  <Link href="/family">
-                    <Button variant="outline" size="sm" className="w-full text-xs text-primary border-primary/30">配信時間・プラン設定を変更 →</Button>
-                  </Link>
+                <div className="pt-2" style={{ borderTop: '1px solid #F0D9C8' }}>
+                  <p className="text-xs mb-2" style={{ color: '#8a7060' }}>📡 LINE自動配信</p>
+                  <Link href="/family"><button className="w-full text-xs py-2 px-3 rounded-xl font-medium" style={{ backgroundColor: '#FFF0E8', color: '#FF7F50', border: '1px solid #FFB899' }}>配信時間・プラン設定を変更 →</button></Link>
                 </div>
-                <div className="mt-2 pt-2 border-t border-border/30">
-                  <p className="text-xs text-muted-foreground mb-2">👑 プレミアム機能</p>
+                <div className="pt-2" style={{ borderTop: '1px solid #F0D9C8' }}>
+                  <p className="text-xs mb-2" style={{ color: '#8a7060' }}>👑 プレミアム機能</p>
                   <div className="grid grid-cols-2 gap-2">
-                    <Link href="/menu-theme">
-                      <Button variant="outline" size="sm" className="w-full text-xs text-amber-600 border-amber-300/60 bg-amber-50/50 dark:bg-amber-950/20">🎯 献立テーマ設定</Button>
-                    </Link>
-                    <Link href="/bento-mode">
-                      <Button variant="outline" size="sm" className="w-full text-xs text-amber-600 border-amber-300/60 bg-amber-50/50 dark:bg-amber-950/20">🍱 お弁当モード</Button>
-                    </Link>
+                    <Link href="/menu-theme"><button className="w-full text-xs py-2 px-3 rounded-xl font-medium" style={{ backgroundColor: '#FFFBF0', color: '#B8860B', border: '1px solid #F0D878' }}>🎯 献立テーマ設定</button></Link>
+                    <Link href="/bento-mode"><button className="w-full text-xs py-2 px-3 rounded-xl font-medium" style={{ backgroundColor: '#FFFBF0', color: '#B8860B', border: '1px solid #F0D878' }}>🍱 お弁当モード</button></Link>
                   </div>
                   <div className="mt-2">
-                    <Link href="/plan">
-                      <Button variant="outline" size="sm" className="w-full text-xs text-orange-600 border-orange-300/60 bg-orange-50/50">💳 プラン管理・アップグレード</Button>
-                    </Link>
+                    <Link href="/plan"><button className="w-full text-xs py-2 px-3 rounded-xl font-medium" style={{ backgroundColor: '#FFF0E8', color: '#FF7F50', border: '1px solid #FFB899' }}>💳 プラン管理・アップグレード</button></Link>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* 過去の献立へのリンク */}
             <Link href="/history">
-              <Button variant="outline" className="w-full text-sm">📋 過去の献立を見る</Button>
+              <button className="w-full text-sm py-3 rounded-2xl font-medium" style={{ backgroundColor: 'white', color: '#8a7060', border: '1px solid #F0D9C8' }}>📋 過去の献立を見る</button>
             </Link>
           </div>
         )}
       </main>
 
       {/* フッター */}
-      <footer className="py-6 border-t border-border mt-4">
+      <footer className="py-6 mt-4" style={{ borderTop: '1px solid #F0D9C8', backgroundColor: '#FDFAF7' }}>
         <div className="max-w-2xl mx-auto px-4 text-center space-y-2">
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
-            <a href="/terms" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">利用規約</a>
-            <a href="/privacy" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">プライバシーポリシー</a>
-            <a href="/tokushoho" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">特定商取引法に基づく表示</a>
-            <a href="/cancel-policy" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">キャンセルポリシー</a>
-            <a href="/contact" className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2">お問い合わせ</a>
+            <a href="/terms" className="text-xs hover:underline" style={{ color: '#8a7060' }}>利用規約</a>
+            <a href="/privacy" className="text-xs hover:underline" style={{ color: '#8a7060' }}>プライバシーポリシー</a>
+            <a href="/tokushoho" className="text-xs hover:underline" style={{ color: '#8a7060' }}>特定商取引法に基づく表示</a>
+            <a href="/cancel-policy" className="text-xs hover:underline" style={{ color: '#8a7060' }}>キャンセルポリシー</a>
+            <a href="/contact" className="text-xs hover:underline" style={{ color: '#8a7060' }}>お問い合わせ</a>
           </div>
-          <p className="text-xs text-muted-foreground">© 2025 献立日和～coto coto～</p>
+          <p className="text-xs" style={{ color: '#b0a090' }}>© 2025 献立日和～coto coto～</p>
         </div>
       </footer>
 
@@ -929,8 +927,8 @@ export default function Dashboard() {
         <DialogContent className="max-w-sm w-[calc(100%-2rem)] rounded-2xl">
           <DialogHeader>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-2xl">🎁</span>
-              <DialogTitle className="text-base font-bold text-primary">20日間 全機能無料体験</DialogTitle>
+              <img src={MASCOT_HAPPY} alt="" className="w-10 h-10 object-contain" />
+              <DialogTitle className="text-base font-bold" style={{ color: '#FF7F50' }}>20日間 全機能無料体験</DialogTitle>
             </div>
             <DialogDescription className="text-sm text-foreground leading-relaxed">
               カード登録するだけで、プレミアム機能が<strong className="text-primary">20日間タダ</strong>で使えます！

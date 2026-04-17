@@ -28,9 +28,11 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
+const MASCOT_STANDING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/mascot_standing_f22a517d.jpg";
+
 const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
+  { icon: LayoutDashboard, label: "献立ダッシュボード", path: "/dashboard" },
+  { icon: Users, label: "家族・設定", path: "/family" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -63,11 +65,11 @@ export default function DashboardLayout({
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
           <div className="flex flex-col items-center gap-4">
-            <div className="text-4xl">🍽️</div>
-            <h1 className="text-2xl font-bold tracking-tight text-center text-foreground">
+            <img src={MASCOT_STANDING} alt="コトコくん" className="w-24 h-24 object-contain" />
+            <h1 className="text-2xl font-bold tracking-tight text-center" style={{ color: '#FF7F50' }}>
               献立日和～coto coto～
             </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
+            <p className="text-sm text-center max-w-sm" style={{ color: '#8a7060' }}>
               AIが毎日の献立をご提案します。
               {isLiff ? "LINEアカウントでログインしてください。" : "ログインして始めましょう。"}
             </p>
@@ -174,19 +176,20 @@ function DashboardLayoutContent({
           className="border-r-0"
           disableTransition={isResizing}
         >
-          <SidebarHeader className="h-16 justify-center">
+          <SidebarHeader className="h-16 justify-center" style={{ borderBottom: '1px solid #F0D9C8' }}>
             <div className="flex items-center gap-3 px-2 transition-all w-full">
               <button
                 onClick={toggleSidebar}
-                className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
+                className="h-8 w-8 flex items-center justify-center rounded-lg transition-colors focus:outline-none shrink-0"
                 aria-label="Toggle navigation"
               >
-                <PanelLeft className="h-4 w-4 text-muted-foreground" />
+                <PanelLeft className="h-4 w-4" style={{ color: '#8a7060' }} />
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
+                  <img src={MASCOT_STANDING} alt="" className="h-7 w-7 object-contain rounded-full" />
+                  <span className="font-bold tracking-tight truncate text-sm" style={{ color: '#FF7F50' }}>
+                    献立日和
                   </span>
                 </div>
               ) : null}
@@ -216,7 +219,7 @@ function DashboardLayoutContent({
             </SidebarMenu>
           </SidebarContent>
 
-          <SidebarFooter className="p-3">
+          <SidebarFooter className="p-3" style={{ borderTop: '1px solid #F0D9C8' }}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -241,7 +244,7 @@ function DashboardLayoutContent({
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
+                  <span>ログアウト</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -259,15 +262,14 @@ function DashboardLayoutContent({
 
       <SidebarInset>
         {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+          <div className="flex h-14 items-center justify-between px-2 backdrop-blur sticky top-0 z-40" style={{ backgroundColor: 'rgba(255,248,242,0.97)', borderBottom: '1px solid #F0D9C8' }}>
             <div className="flex items-center gap-2">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
-                  </span>
-                </div>
+              <SidebarTrigger className="h-9 w-9 rounded-lg" />
+              <div className="flex items-center gap-2">
+                <img src={MASCOT_STANDING} alt="" className="h-7 w-7 object-contain rounded-full" />
+                <span className="font-bold text-sm" style={{ color: '#FF7F50' }}>
+                  {activeMenuItem?.label ?? "献立日和"}
+                </span>
               </div>
             </div>
           </div>
