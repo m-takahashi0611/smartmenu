@@ -39,10 +39,10 @@ export const campaignRouter = router({
    * LINE友だち追加URLのベースを返す（管理者用）
    */
   getLineAddFriendBaseUrl: adminProcedure.query(() => {
-    const channelId = ENV.lineChannelId;
+    const basicId = ENV.lineBasicId || ENV.lineChannelId;
     return {
-      lineAddFriendUrl: `https://line.me/R/ti/p/${channelId}`,
-      channelId,
+      lineAddFriendUrl: `https://line.me/R/ti/p/${basicId}`,
+      channelId: basicId,
     };
   }),
 

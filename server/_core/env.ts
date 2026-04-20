@@ -8,6 +8,7 @@ export const ENV = {
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   lineChannelId: process.env.LINE_CHANNEL_ID ?? "",
+  lineBasicId: process.env.LINE_BASIC_ID ?? "",
   stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? "",
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "",
   smtpHost: process.env.SMTP_HOST ?? "",
