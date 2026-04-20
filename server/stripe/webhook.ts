@@ -50,13 +50,6 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
 
   console.log(`[Stripe Webhook] Event received: ${event.type} (${event.id})`);
 
-  // テストイベントの検証用レスポンス
-  if (event.id.startsWith("evt_test_")) {
-    console.log("[Stripe Webhook] Test event detected, returning verification response");
-    res.json({ verified: true });
-    return;
-  }
-
   try {
     switch (event.type) {
       case "checkout.session.completed": {
