@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { Loader2, LogOut, MessageSquare, X, Ban, CheckCircle, Send, Clock, Calendar, Plus, Pencil, Trash2, MailCheck } from "lucide-react";
+import { Loader2, LogOut, MessageSquare, X, Ban, CheckCircle, Send, Clock, Calendar, Plus, Pencil, Trash2, MailCheck, ChevronDown, ChevronUp, Users } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
@@ -14,6 +14,210 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+
+
+// ─── キャンペーンコード行コンポーネント ────────────────────────────────────────────
+function CampaignCodeRow({
+  c,
+  lineUrlData,
+  isExpanded,
+  onToggleExpand,
+  onToggleActive,
+  onDelete,
+  isPendingUpdate,
+  isPendingDelete,
+}: {
+  c: {
+    id: number;
+    code: string;
+    label: string | null;
+    discountPercent: string | number;
+    feePercent: string | number;
+    isActive: boolean;
+    expiresAt: Date | null;
+    usageCount: number;
+  };
+  lineUrlData: { lineAddFriendUrl: string } | undefined;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onToggleActive: () => void;
+  onDelete: () => void;
+  isPendingUpdate: boolean;
+  isPendingDelete: boolean;
+}) {
+  const discountPct = parseFloat(String(c.discountPercent)) || 0;
+  const feePct = parseFloat(String(c.feePercent)) || 0;
+
+  const { data: stats, isLoading: statsLoading } = trpc.campaign.getCampaignCodeStats.useQuery(
+    { code: c.code },
+    { enabled: isExpanded }
+  );
+
+  const formatDate = (d: Date | string | null | undefined) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" });
+  };
+
+  const statusLabel = (s: string) => {
+    switch (s) {
+      case "active": return { text: "有料期間中", color: "bg-green-100 text-green-700" };
+      case "trial": return { text: "トライアル", color: "bg-blue-100 text-blue-700" };
+      case "cancelled": return { text: "解約済", color: "bg-gray-100 text-gray-600" };
+      case "expired": return { text: "期限切れ", color: "bg-red-100 text-red-700" };
+      default: return { text: s, color: "bg-gray-100 text-gray-600" };
+    }
+  };
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      {/* コードヘッダー */}
+      <div className="flex flex-col gap-2 p-3">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm font-bold">{c.code}</span>
+              <Badge variant={c.isActive ? "default" : "secondary"}>
+                {c.isActive ? "有効" : "無効"}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {c.label && <span>{c.label} ・ </span>}
+              割引: <span className="font-bold text-orange-500">{discountPct}%OFF</span>
+              <span className="ml-2">フィー: <span className="font-bold text-green-600">{feePct}%</span></span>
+              {c.expiresAt && <span> ・ 期限: {formatDate(c.expiresAt)}</span>}
+            </p>
+          </div>
+          <div className="flex gap-2 items-center">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onToggleExpand}
+              className="flex items-center gap-1 text-xs"
+            >
+              <Users className="h-3 w-3" />
+              課金実績
+              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onToggleActive}
+              disabled={isPendingUpdate}
+            >
+              {c.isActive ? "無効化" : "有効化"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onDelete}
+              disabled={isPendingDelete}
+              className="text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
+            >
+              削除
+            </Button>
+          </div>
+        </div>
+        {lineUrlData && (
+          <div className="flex items-center gap-2 bg-muted/50 rounded px-2 py-1.5">
+            <span className="text-xs font-mono text-muted-foreground flex-1 break-all">
+              {lineUrlData.lineAddFriendUrl}?ref={c.code}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 h-7 text-xs"
+              onClick={() => {
+                const url = `${lineUrlData.lineAddFriendUrl}?ref=${c.code}`;
+                navigator.clipboard.writeText(url)
+                  .then(() => alert("URLをコピーしました"))
+                  .catch(() => alert("コピーに失敗しました"));
+              }}
+            >
+              コピー
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* 展開: 課金実績パネル */}
+      {isExpanded && (
+        <div className="border-t bg-muted/20 p-4 space-y-4">
+          {statsLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            </div>
+          ) : !stats ? (
+            <p className="text-sm text-muted-foreground text-center py-2">データ取得に失敗しました</p>
+          ) : (
+            <>
+              {/* サマリー */}
+              <div className="grid grid-cols-4 gap-3">
+                <div className="bg-background rounded-lg p-3 text-center border">
+                  <p className="text-xs text-muted-foreground">課金ユーザー数</p>
+                  <p className="text-xl font-bold text-primary">{stats.summary.totalUsers}名</p>
+                </div>
+                <div className="bg-background rounded-lg p-3 text-center border">
+                  <p className="text-xs text-muted-foreground">累計課金額</p>
+                  <p className="text-xl font-bold">¥{stats.summary.totalCharged.toLocaleString()}</p>
+                </div>
+                <div className="bg-background rounded-lg p-3 text-center border">
+                  <p className="text-xs text-muted-foreground">フィー率</p>
+                  <p className="text-xl font-bold text-green-600">{stats.summary.feePercent}%</p>
+                </div>
+                <div className="bg-background rounded-lg p-3 text-center border">
+                  <p className="text-xs text-muted-foreground">フィー合計</p>
+                  <p className="text-xl font-bold text-amber-600">¥{stats.summary.totalFee.toLocaleString()}</p>
+                </div>
+              </div>
+
+              {/* 課金ユーザー一覧 */}
+              {stats.users.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-2">課金ユーザーはまだいません</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 pr-3 font-medium text-muted-foreground">ユーザー名</th>
+                        <th className="text-left py-2 pr-3 font-medium text-muted-foreground">課金日</th>
+                        <th className="text-left py-2 pr-3 font-medium text-muted-foreground">次回課金予定日</th>
+                        <th className="text-right py-2 pr-3 font-medium text-muted-foreground">課金額</th>
+                        <th className="text-right py-2 pr-3 font-medium text-muted-foreground">割引%</th>
+                        <th className="text-left py-2 font-medium text-muted-foreground">ステータス</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.users.map((u) => {
+                        const sl = statusLabel(u.status);
+                        return (
+                          <tr key={u.userId} className="border-b last:border-0 hover:bg-muted/30">
+                            <td className="py-2 pr-3">
+                              <p className="font-medium">{u.userName}</p>
+                              {u.email && <p className="text-muted-foreground">{u.email}</p>}
+                            </td>
+                            <td className="py-2 pr-3 text-muted-foreground">{formatDate(u.chargedAt)}</td>
+                            <td className="py-2 pr-3 text-muted-foreground">{formatDate(u.nextChargeAt)}</td>
+                            <td className="py-2 pr-3 text-right font-medium">¥{u.chargeAmount.toLocaleString()}</td>
+                            <td className="py-2 pr-3 text-right text-orange-500 font-medium">{u.discountPercent}%OFF</td>
+                            <td className="py-2">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sl.color}`}>
+                                {sl.text}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── トーク履歴モーダル ────────────────────────────────────────────────────────
 function ConversationModal({
@@ -555,7 +759,10 @@ export default function Admin() {
   const [newCampaignCode, setNewCampaignCode] = useState("");
   const [newCampaignLabel, setNewCampaignLabel] = useState("");
   const [newCampaignDiscount, setNewCampaignDiscount] = useState(30);
+  const [newCampaignFee, setNewCampaignFee] = useState(0);
   const [newCampaignExpiry, setNewCampaignExpiry] = useState("");
+  // 展開中のキャンペーンコード
+  const [expandedCampaignCode, setExpandedCampaignCode] = useState<string | null>(null);
 
   const createCampaignCode = trpc.campaign.createCampaignCode.useMutation({
     onSuccess: () => {
@@ -563,6 +770,7 @@ export default function Admin() {
       setNewCampaignCode("");
       setNewCampaignLabel("");
       setNewCampaignDiscount(30);
+      setNewCampaignFee(0);
       setNewCampaignExpiry("");
       refetchCampaignCodes();
     },
@@ -1337,13 +1545,24 @@ export default function Admin() {
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">割引率（%）</Label>
+                    <Label className="text-xs">割引率（%）— ユーザーへの初回割引</Label>
                     <Input
                       type="number"
-                      min={1}
+                      min={0}
                       max={100}
                       value={newCampaignDiscount}
                       onChange={(e) => setNewCampaignDiscount(Number(e.target.value))}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">フィー率（%）— 紹介者への支払割合</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={newCampaignFee}
+                      onChange={(e) => setNewCampaignFee(Number(e.target.value))}
                       className="mt-1"
                     />
                   </div>
@@ -1362,6 +1581,7 @@ export default function Admin() {
                     code: newCampaignCode,
                     label: newCampaignLabel || undefined,
                     discountPercent: newCampaignDiscount,
+                    feePercent: newCampaignFee,
                     expiresAt: newCampaignExpiry || undefined,
                   })}
                   disabled={createCampaignCode.isPending || !newCampaignCode}
@@ -1382,67 +1602,19 @@ export default function Admin() {
                 {!campaignCodes || campaignCodes.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">コードがまだ登録されていません</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {campaignCodes.map((c) => (
-                      <div key={c.id} className="flex flex-col gap-2 p-3 border rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm font-bold">{c.code}</span>
-                              <Badge variant={c.isActive ? "default" : "secondary"}>
-                                {c.isActive ? "有効" : "無効"}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {c.label && <span>{c.label} ・ </span>}
-                              割引: <span className="font-bold text-orange-500">{c.discountPercent}%OFF</span>
-                              {c.expiresAt && <span> ・ 期限: {new Date(c.expiresAt).toLocaleDateString("ja-JP")}</span>}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateCampaignCode.mutate({ id: c.id, isActive: !c.isActive })}
-                              disabled={updateCampaignCode.isPending}
-                            >
-                              {c.isActive ? "無効化" : "有効化"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                if (confirm(`「${c.code}」を削除しますか？`))
-                                  deleteCampaignCode.mutate({ id: c.id });
-                              }}
-                              disabled={deleteCampaignCode.isPending}
-                              className="text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
-                            >
-                              削除
-                            </Button>
-                          </div>
-                        </div>
-                        {lineUrlData && (
-                          <div className="flex items-center gap-2 bg-muted/50 rounded px-2 py-1.5">
-                            <span className="text-xs font-mono text-muted-foreground flex-1 break-all">
-                              {lineUrlData.lineAddFriendUrl}?ref={c.code}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="shrink-0 h-7 text-xs"
-                              onClick={() => {
-                                const url = `${lineUrlData.lineAddFriendUrl}?ref=${c.code}`;
-                                navigator.clipboard.writeText(url)
-                                  .then(() => toast.success("URLをコピーしました"))
-                                  .catch(() => toast.error("コピーに失敗しました"));
-                              }}
-                            >
-                              コピー
-                            </Button>
-                          </div>
-                        )}
-                      </div>
+                      <CampaignCodeRow
+                        key={c.id}
+                        c={c}
+                        lineUrlData={lineUrlData}
+                        isExpanded={expandedCampaignCode === c.code}
+                        onToggleExpand={() => setExpandedCampaignCode(expandedCampaignCode === c.code ? null : c.code)}
+                        onToggleActive={() => updateCampaignCode.mutate({ id: c.id, isActive: !c.isActive })}
+                        onDelete={() => { if (confirm(`「${c.code}」を削除しますか？`)) deleteCampaignCode.mutate({ id: c.id }); }}
+                        isPendingUpdate={updateCampaignCode.isPending}
+                        isPendingDelete={deleteCampaignCode.isPending}
+                      />
                     ))}
                   </div>
                 )}

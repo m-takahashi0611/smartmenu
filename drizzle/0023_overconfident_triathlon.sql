@@ -1,0 +1,1 @@
+ALTER TABLE `campaign_codes` ADD `feePercent` decimal(5,2) DEFAULT '0' NOT NULL;

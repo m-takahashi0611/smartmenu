@@ -415,6 +415,7 @@ export const campaignCodes = mysqlTable("campaign_codes", {
   code: varchar("code", { length: 100 }).notNull().unique(), // 例: tanaka_youtube
   label: varchar("label", { length: 200 }), // 管理用ラベル（例: 田中チャンネル）
   discountPercent: decimal("discountPercent", { precision: 5, scale: 2 }).notNull(), // 割引率（例: 30.00 = 30%OFF）
+  feePercent: decimal("feePercent", { precision: 5, scale: 2 }).default("0").notNull(), // 紹介者へのフィー率（例: 10.00 = 10%）
   isActive: boolean("isActive").default(true).notNull(),
   usageCount: int("usageCount").default(0).notNull(), // 使用回数
   expiresAt: timestamp("expiresAt"), // 有効期限（NULLなら無期限）
