@@ -97,25 +97,23 @@ export default function Dashboard() {
     }
   };
 
-  // 献立ビュー切り替え（日・週）
+    // 献立ビュー切り替え（日・週）
   const [menuView, setMenuView] = useState<'day' | 'week'>('day');
   // 週ビューのポップアップ対象日
   const [weekPopupDate, setWeekPopupDate] = useState<string | null>(null);
-
-  // 週の開始日（月曜日）を計算
+  // 週ビュー：本日を起点として前後に表示する日数オフセット（0=本日が左端）
+  const [weekOffset, setWeekOffset] = useState(0); // -7=1週前, 7=1週後
+  // 週の開始日：本日 + weekOffset（T12:00:00でUTCズレ防止）
   const weekStart = (() => {
-    const d = new Date(today + 'T00:00:00+09:00');
-    const day = d.getDay(); // 0=日
-    const diff = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + diff);
-    return d.toISOString().split('T')[0];
+    const d = new Date(today + 'T12:00:00+09:00');
+    d.setDate(d.getDate() + weekOffset);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   })();
   const weekEnd = (() => {
-    const d = new Date(weekStart + 'T00:00:00+09:00');
+    const d = new Date(weekStart + 'T12:00:00+09:00');
     d.setDate(d.getDate() + 6);
-    return d.toISOString().split('T')[0];
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   })();
-
   // 週ビュー用データ
   const { data: weekMenus, isLoading: weekMenuLoading, refetch: refetchWeek } = trpc.menu.getByDateRange.useQuery(
     { startDate: weekStart, endDate: weekEnd },
@@ -784,16 +782,37 @@ export default function Dashboard() {
                       )}
                     </>
                   )}
-                  {menuView === 'week' && planData?.isPremium && planData?.status !== 'trial' && (
-                    <Button
-                      size="sm"
-                      onClick={() => generateWeekly.mutate({ startDate: weekStart, days: 7 })}
-                      disabled={generateWeekly.isPending}
-                      className="text-white text-xs rounded-xl"
-                      style={{ backgroundColor: '#B8860B' }}
-                    >
-                      {generateWeekly.isPending ? "生成中..." : "✨ 週間生成"}
-                    </Button>
+                  {menuView === 'week' && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => { setWeekOffset(o => o - 7); setWeekPopupDate(null); }}
+                        className="text-xs px-2 py-1 rounded-lg font-medium"
+                        style={{ backgroundColor: 'white', color: '#8a7060', border: '1px solid #F0D9C8' }}
+                      >◀</button>
+                      {weekOffset !== 0 && (
+                        <button
+                          onClick={() => { setWeekOffset(0); setWeekPopupDate(null); }}
+                          className="text-xs px-2 py-1 rounded-lg font-medium"
+                          style={{ backgroundColor: '#FFF0E8', color: '#FF7F50', border: '1px solid #FFB899' }}
+                        >今日</button>
+                      )}
+                      <button
+                        onClick={() => { setWeekOffset(o => o + 7); setWeekPopupDate(null); }}
+                        className="text-xs px-2 py-1 rounded-lg font-medium"
+                        style={{ backgroundColor: 'white', color: '#8a7060', border: '1px solid #F0D9C8' }}
+                      >▶</button>
+                      {planData?.isPremium && planData?.status !== 'trial' && (
+                        <Button
+                          size="sm"
+                          onClick={() => generateWeekly.mutate({ startDate: weekStart, days: 7 })}
+                          disabled={generateWeekly.isPending}
+                          className="text-white text-xs rounded-xl"
+                          style={{ backgroundColor: '#B8860B' }}
+                        >
+                          {generateWeekly.isPending ? "生成中..." : "✨ 週間生成"}
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -849,32 +868,45 @@ export default function Dashboard() {
                                 const isSelected = weekPopupDate === date;
                                 const isProtectedDay = menu?.isProtected;
                                 const dayColor = dayOfWeek === '日' ? '#E53E3E' : dayOfWeek === '土' ? '#3182CE' : '#3D2B1F';
+                                const hasBreakfast = !!(md?.breakfast);
+                                const hasLunch = !!(md?.lunch);
+                                const hasDinner = !!(md?.dinner || (md?.dinnerOptions && md?.dinnerOptions[0]));
                                 return (
-                                  <button
+                                  <div
                                     key={date}
+                                    role="button"
+                                    tabIndex={0}
                                     onClick={() => setWeekPopupDate(isSelected ? null : date)}
-                                    className="rounded-xl p-1.5 text-center transition-all"
+                                    onKeyDown={(e) => e.key === 'Enter' && setWeekPopupDate(isSelected ? null : date)}
+                                    className="rounded-xl p-1.5 text-center cursor-pointer select-none"
                                     style={{
                                       backgroundColor: isSelected ? '#FFF0E8' : isToday ? '#FFF8F2' : 'white',
                                       border: isSelected ? '2px solid #FF7F50' : isToday ? '1.5px solid #FFB899' : '1px solid #F0D9C8',
-                                      minHeight: '80px',
+                                      minHeight: '88px',
                                     }}
                                   >
                                     <div className="text-xs font-bold" style={{ color: dayColor }}>{dayOfWeek}</div>
-                                    <div className="text-xs font-medium mb-1" style={{ color: isToday ? '#FF7F50' : '#3D2B1F' }}>{label}</div>
-                                    {isProtectedDay && <div className="text-xs">🔒</div>}
+                                    <div className="text-xs font-medium" style={{ color: isToday ? '#FF7F50' : '#3D2B1F' }}>{label}</div>
+                                    {isProtectedDay && <div style={{ fontSize: '10px' }}>🔒</div>}
                                     {md ? (
-                                      <div className="space-y-0.5">
-                                        {md.breakfast && <div className="text-xs rounded px-0.5 truncate" style={{ backgroundColor: '#FFF8F2', color: '#8a7060', fontSize: '9px' }}>🌅{md.breakfast}</div>}
-                                        {md.lunch && <div className="text-xs rounded px-0.5 truncate" style={{ backgroundColor: '#FFF8F2', color: '#8a7060', fontSize: '9px' }}>☀️{md.lunch}</div>}
-                                        {(md.dinner || (md.dinnerOptions && md.dinnerOptions[0])) && (
-                                          <div className="text-xs rounded px-0.5 truncate" style={{ backgroundColor: '#FFF8F2', color: '#8a7060', fontSize: '9px' }}>🌙{md.dinner ?? md.dinnerOptions?.[0]?.name}</div>
-                                        )}
+                                      <div className="mt-1 space-y-0.5">
+                                        <div className="flex items-center gap-0.5 justify-start px-0.5">
+                                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: hasBreakfast ? '#F6AD55' : '#E2D9D0', display: 'inline-block', flexShrink: 0 }} />
+                                          <span className="truncate" style={{ fontSize: '9px', color: hasBreakfast ? '#6B5040' : '#C0A898', lineHeight: '1.2' }}>{hasBreakfast ? md.breakfast : '—'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-0.5 justify-start px-0.5">
+                                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: hasLunch ? '#68D391' : '#E2D9D0', display: 'inline-block', flexShrink: 0 }} />
+                                          <span className="truncate" style={{ fontSize: '9px', color: hasLunch ? '#6B5040' : '#C0A898', lineHeight: '1.2' }}>{hasLunch ? md.lunch : '—'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-0.5 justify-start px-0.5">
+                                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: hasDinner ? '#76E4F7' : '#E2D9D0', display: 'inline-block', flexShrink: 0 }} />
+                                          <span className="truncate" style={{ fontSize: '9px', color: hasDinner ? '#6B5040' : '#C0A898', lineHeight: '1.2' }}>{hasDinner ? (md.dinner ?? md.dinnerOptions?.[0]?.name) : '—'}</span>
+                                        </div>
                                       </div>
                                     ) : (
-                                      <div className="text-xs" style={{ color: '#C0A898', fontSize: '9px' }}>未生成</div>
+                                      <div className="mt-1" style={{ color: '#C0A898', fontSize: '9px' }}>未生成</div>
                                     )}
-                                  </button>
+                                  </div>
                                 );
                               })}
                             </div>
@@ -883,7 +915,7 @@ export default function Dashboard() {
                               <div className="rounded-xl p-3 space-y-2" style={{ backgroundColor: '#FFF8F2', border: '1px solid #F0D9C8' }}>
                                 <div className="flex items-center justify-between">
                                   <span className="text-sm font-bold" style={{ color: '#3D2B1F' }}>
-                                    {new Date(weekPopupDate + 'T00:00:00+09:00').toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
+                                    {new Date(weekPopupDate + 'T12:00:00+09:00').toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
                                   </span>
                                   <div className="flex items-center gap-2">
                                     {popupMenu && (
