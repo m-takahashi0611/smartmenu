@@ -17,6 +17,7 @@ import {
   updateMenuPlanProtect,
   upsertMenuPlanForDate,
   getMenuPlansByDateRange,
+  deleteMenuPlan,
 } from "../db";
 import { invokeLLM } from "../_core/llm";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -666,5 +667,13 @@ export const menuRouter = router({
       }
 
       return { success: true, message };
+    }),
+
+  // 献立削除（外食・作らない日用）
+  deleteMenuPlan: protectedProcedure
+    .input(z.object({ menuPlanId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      await deleteMenuPlan(input.menuPlanId, ctx.user.id);
+      return { success: true };
     }),
 });

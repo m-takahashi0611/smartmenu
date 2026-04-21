@@ -585,6 +585,15 @@ export async function checkLineUserProcessing(lineUserId: string): Promise<{ isP
 
 // ─── MenuPlan update helpers ────────────────────────────────────────────────
 /**
+ * 献立を削除する（外食・作らない日の献立削除用）
+ */
+export async function deleteMenuPlan(menuPlanId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(menuPlans).where(and(eq(menuPlans.id, menuPlanId), eq(menuPlans.userId, userId)));
+}
+
+/**
  * 献立のプロテクト状態を更新する
  */
 export async function updateMenuPlanProtect(menuPlanId: number, userId: number, isProtected: boolean) {

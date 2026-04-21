@@ -110,8 +110,8 @@ export default function Dashboard() {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   })();
   const weekEnd = (() => {
-    const d = new Date(weekStart + 'T12:00:00+09:00');
-    d.setDate(d.getDate() + 6);
+    const [y, mo, day0] = weekStart.split('-').map(Number);
+    const d = new Date(y, mo - 1, day0 + 13); // 14日分表示
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   })();
   // 週ビュー用データ
@@ -119,6 +119,12 @@ export default function Dashboard() {
     { startDate: weekStart, endDate: weekEnd },
     { enabled: menuView === 'week' }
   );
+
+  // 献立削除
+  const deleteMenuPlanMutation = trpc.menu.deleteMenuPlan.useMutation({
+    onSuccess: () => { refetchWeek(); setWeekPopupDate(null); toast.success('献立を削除しました'); },
+    onError: (err) => toast.error('削除に失敗しました', { description: err.message }),
+  });
 
   // プロテクト切り替え
   const toggleProtect = trpc.menu.toggleProtect.useMutation({
@@ -782,37 +788,16 @@ export default function Dashboard() {
                       )}
                     </>
                   )}
-                  {menuView === 'week' && (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => { setWeekOffset(o => o - 7); setWeekPopupDate(null); }}
-                        className="text-xs px-2 py-1 rounded-lg font-medium"
-                        style={{ backgroundColor: 'white', color: '#8a7060', border: '1px solid #F0D9C8' }}
-                      >◀</button>
-                      {weekOffset !== 0 && (
-                        <button
-                          onClick={() => { setWeekOffset(0); setWeekPopupDate(null); }}
-                          className="text-xs px-2 py-1 rounded-lg font-medium"
-                          style={{ backgroundColor: '#FFF0E8', color: '#FF7F50', border: '1px solid #FFB899' }}
-                        >今日</button>
-                      )}
-                      <button
-                        onClick={() => { setWeekOffset(o => o + 7); setWeekPopupDate(null); }}
-                        className="text-xs px-2 py-1 rounded-lg font-medium"
-                        style={{ backgroundColor: 'white', color: '#8a7060', border: '1px solid #F0D9C8' }}
-                      >▶</button>
-                      {planData?.isPremium && planData?.status !== 'trial' && (
-                        <Button
-                          size="sm"
-                          onClick={() => generateWeekly.mutate({ startDate: weekStart, days: 7 })}
-                          disabled={generateWeekly.isPending}
-                          className="text-white text-xs rounded-xl"
-                          style={{ backgroundColor: '#B8860B' }}
-                        >
-                          {generateWeekly.isPending ? "生成中..." : "✨ 週間生成"}
-                        </Button>
-                      )}
-                    </div>
+                  {menuView === 'week' && planData?.isPremium && planData?.status !== 'trial' && (
+                    <Button
+                      size="sm"
+                      onClick={() => generateWeekly.mutate({ startDate: weekStart, days: 7 })}
+                      disabled={generateWeekly.isPending}
+                      className="text-white text-xs rounded-xl"
+                      style={{ backgroundColor: '#B8860B' }}
+                    >
+                      {generateWeekly.isPending ? "生成中..." : "✨ 週間生成"}
+                    </Button>
                   )}
                 </div>
               </div>
@@ -835,10 +820,11 @@ export default function Dashboard() {
                     }
                     // 週ビューのカレンダーグリッド
                     const weekDays: { date: string; label: string; dayOfWeek: string }[] = [];
-                    for (let i = 0; i < 7; i++) {
-                      const d = new Date(weekStart + 'T00:00:00+09:00');
-                      d.setDate(d.getDate() + i);
-                      const dateStr = d.toISOString().split('T')[0];
+                    for (let i = 0; i < 14; i++) {
+                      // UTCズレ防止：T12:00:00+09:00で日付を固定し、ローカル時間ベースで文字列化
+                      const [y, mo, day0] = weekStart.split('-').map(Number);
+                      const d = new Date(y, mo - 1, day0 + i);
+                      const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                       const dayNames = ['日','月','火','水','木','金','土'];
                       weekDays.push({
                         date: dateStr,
@@ -859,8 +845,8 @@ export default function Dashboard() {
                           <div className="text-center py-6" style={{ color: '#8a7060' }}>読み込み中...</div>
                         ) : (
                           <>
-                            {/* 7日グリッド */}
-                            <div className="grid grid-cols-7 gap-1">
+                            {/* 横スクロールカード列 */}
+                            <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
                               {weekDays.map(({ date, label, dayOfWeek }) => {
                                 const menu = menuByDate.get(date);
                                 const md = menu?.menuData as any;
@@ -878,11 +864,12 @@ export default function Dashboard() {
                                     tabIndex={0}
                                     onClick={() => setWeekPopupDate(isSelected ? null : date)}
                                     onKeyDown={(e) => e.key === 'Enter' && setWeekPopupDate(isSelected ? null : date)}
-                                    className="rounded-xl p-1.5 text-center cursor-pointer select-none"
+                                    className="rounded-xl p-2 text-center cursor-pointer select-none flex-shrink-0"
                                     style={{
                                       backgroundColor: isSelected ? '#FFF0E8' : isToday ? '#FFF8F2' : 'white',
-                                      border: isSelected ? '2px solid #FF7F50' : isToday ? '1.5px solid #FFB899' : '1px solid #F0D9C8',
-                                      minHeight: '88px',
+                                      border: isSelected ? '2px solid #FF7F50' : isToday ? '2px solid #FFB899' : '1px solid #F0D9C8',
+                                      minHeight: '96px',
+                                      width: '72px',
                                     }}
                                   >
                                     <div className="text-xs font-bold" style={{ color: dayColor }}>{dayOfWeek}</div>
@@ -910,70 +897,98 @@ export default function Dashboard() {
                                 );
                               })}
                             </div>
-                            {/* 選択日の詳細パネル */}
+                            {/* モーダルオーバーレイ */}
                             {weekPopupDate && (
-                              <div className="rounded-xl p-3 space-y-2" style={{ backgroundColor: '#FFF8F2', border: '1px solid #F0D9C8' }}>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-bold" style={{ color: '#3D2B1F' }}>
-                                    {new Date(weekPopupDate + 'T12:00:00+09:00').toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
-                                  </span>
-                                  <div className="flex items-center gap-2">
-                                    {popupMenu && (
-                                      <label className="flex items-center gap-1 text-xs cursor-pointer" style={{ color: '#8a7060' }}>
-                                        <input
-                                          type="checkbox"
-                                          checked={!!popupMenu.isProtected}
-                                          onChange={(e) => toggleProtect.mutate({ menuPlanId: popupMenu.id, isProtected: e.target.checked })}
-                                          className="rounded"
-                                        />
-                                        🔒 確定
-                                      </label>
-                                    )}
-                                    <button onClick={() => setWeekPopupDate(null)} className="text-xs" style={{ color: '#8a7060' }}>✕</button>
+                              <div
+                                className="fixed inset-0 z-50 flex items-end justify-center"
+                                style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+                                onClick={() => setWeekPopupDate(null)}
+                              >
+                                <div
+                                  className="w-full max-w-md rounded-t-2xl p-4 space-y-3"
+                                  style={{ backgroundColor: 'white', maxHeight: '80vh', overflowY: 'auto' }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {/* モーダルヘッダー */}
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-base font-bold" style={{ color: '#3D2B1F' }}>
+                                      {(() => {
+                                        const [y, mo, d] = weekPopupDate.split('-').map(Number);
+                                        const dt = new Date(y, mo - 1, d);
+                                        return dt.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+                                      })()}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      {popupMenu && (
+                                        <label className="flex items-center gap-1 text-xs cursor-pointer" style={{ color: '#8a7060' }}>
+                                          <input
+                                            type="checkbox"
+                                            checked={!!popupMenu.isProtected}
+                                            onChange={(e) => toggleProtect.mutate({ menuPlanId: popupMenu.id, isProtected: e.target.checked })}
+                                            className="rounded"
+                                          />
+                                          🔒 確定
+                                        </label>
+                                      )}
+                                      <button onClick={() => setWeekPopupDate(null)} className="text-sm font-bold" style={{ color: '#8a7060' }}>✕</button>
+                                    </div>
                                   </div>
+                                  {/* 献立内容 */}
+                                  {popupMenuData ? (
+                                    <div className="space-y-2">
+                                      {popupMenuData.dinnerOptions && popupMenuData.dinnerOptions.length > 0 ? (
+                                        <div className="space-y-2">
+                                          <p className="text-xs font-medium" style={{ color: '#8a7060' }}>🌙 夕食候補</p>
+                                          {popupMenuData.dinnerOptions.map((opt: any, i: number) => (
+                                            <div key={i} className="flex items-center gap-2 rounded-xl p-2" style={{ backgroundColor: '#FFF8F2', border: '1px solid #F0D9C8' }}>
+                                              <span className="text-sm">{['1️⃣','2️⃣','3️⃣'][i]}</span>
+                                              <span className="text-sm font-medium" style={{ color: '#3D2B1F' }}>{opt.name}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div className="space-y-2">
+                                          {[
+                                            { label: '🌅 朝食', value: popupMenuData.breakfast },
+                                            { label: '☀️ 昼食', value: popupMenuData.lunch },
+                                            { label: '🌙 夕食', value: popupMenuData.dinner },
+                                          ].filter(m => m.value).map(({ label, value }) => (
+                                            <div key={label} className="flex items-center gap-2 rounded-xl p-2" style={{ backgroundColor: '#FFF8F2', border: '1px solid #F0D9C8' }}>
+                                              <span className="text-sm">{label}</span>
+                                              <span className="text-sm font-medium" style={{ color: '#3D2B1F' }}>{value}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {popupMenuData.tips && (
+                                        <p className="text-xs" style={{ color: '#6B5040' }}>💡 {popupMenuData.tips}</p>
+                                      )}
+                                      {popupMenuData.estimatedCost && (
+                                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FFF0E8', color: '#FF7F50', border: '1px solid #FFB899' }}>💰 約{popupMenuData.estimatedCost.toLocaleString()}円</span>
+                                      )}
+                                      {/* 献立削除ボタン */}
+                                      <button
+                                        className="w-full mt-2 py-2 rounded-xl text-sm font-medium"
+                                        style={{ backgroundColor: '#FFF0F0', color: '#E53E3E', border: '1px solid #FEB2B2' }}
+                                        onClick={() => {
+                                          if (window.confirm('この日の献立を削除しますか？（外食・作らない日用）')) {
+                                            deleteMenuPlanMutation.mutate({ menuPlanId: popupMenu!.id });
+                                          }
+                                        }}
+                                        disabled={deleteMenuPlanMutation.isPending}
+                                      >
+                                        {deleteMenuPlanMutation.isPending ? '削除中...' : '🗑️ この日の献立を削除（外食・作らない日）'}
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="text-center py-4">
+                                      <p className="text-sm mb-2" style={{ color: '#8a7060' }}>この日の献立はまだ生成されていません</p>
+                                      {planData?.isPremium && (
+                                        <p className="text-xs" style={{ color: '#8a7060' }}>「✨ 週間生成」ボタンで一括生成できます</p>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
-                                {popupMenuData ? (
-                                  <div className="space-y-2">
-                                    {/* 夕食候補（新形式）または朝昼夜 */}
-                                    {popupMenuData.dinnerOptions && popupMenuData.dinnerOptions.length > 0 ? (
-                                      <div className="space-y-1">
-                                        <p className="text-xs font-medium" style={{ color: '#8a7060' }}>🌙 夕食候補</p>
-                                        {popupMenuData.dinnerOptions.map((opt: any, i: number) => (
-                                          <div key={i} className="flex items-center gap-1">
-                                            <span className="text-xs">{['1️⃣','2️⃣','3️⃣'][i]}</span>
-                                            <span className="text-xs font-medium" style={{ color: '#3D2B1F' }}>{opt.name}</span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <div className="grid grid-cols-3 gap-1">
-                                        {[
-                                          { label: '🌅 朝', value: popupMenuData.breakfast },
-                                          { label: '☀️ 昼', value: popupMenuData.lunch },
-                                          { label: '🌙 夜', value: popupMenuData.dinner },
-                                        ].map(({ label, value }) => (
-                                          <div key={label} className="rounded-lg p-2 text-center" style={{ backgroundColor: 'white', border: '1px solid #F0D9C8' }}>
-                                            <p className="text-xs" style={{ color: '#8a7060' }}>{label}</p>
-                                            <p className="text-xs font-medium mt-0.5" style={{ color: '#3D2B1F' }}>{value ?? '—'}</p>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {popupMenuData.tips && (
-                                      <p className="text-xs" style={{ color: '#6B5040' }}>💡 {popupMenuData.tips}</p>
-                                    )}
-                                    {popupMenuData.estimatedCost && (
-                                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FFF0E8', color: '#FF7F50', border: '1px solid #FFB899' }}>💰 約{popupMenuData.estimatedCost.toLocaleString()}円</span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="text-center py-4">
-                                    <p className="text-xs mb-2" style={{ color: '#8a7060' }}>この日の献立はまだ生成されていません</p>
-                                    {planData?.isPremium ? (
-                                      <p className="text-xs" style={{ color: '#8a7060' }}>「✨ 週間生成」ボタンで一括生成できます</p>
-                                    ) : null}
-                                  </div>
-                                )}
                               </div>
                             )}
                           </>
