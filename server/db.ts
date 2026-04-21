@@ -583,6 +583,49 @@ export async function checkLineUserProcessing(lineUserId: string): Promise<{ isP
   return { isProcessing: true, isTimedOut };
 }
 
+// ─── MenuPlan update helpers ────────────────────────────────────────────────
+/**
+ * 献立のプロテクト状態を更新する
+ */
+export async function updateMenuPlanProtect(menuPlanId: number, userId: number, isProtected: boolean) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(menuPlans)
+    .set({ isProtected, updatedAt: new Date() })
+    .where(and(eq(menuPlans.id, menuPlanId), eq(menuPlans.userId, userId)));
+}
+
+/**
+ * 指定日の献立を作成または更新する（週間生成用、プロテクト済みはスキップ）
+ */
+export async function upsertMenuPlanForDate(
+  userId: number,
+  planDate: string,
+  menuData: object,
+  messageText: string,
+): Promise<{ skipped: boolean; id?: number }> {
+  const db = await getDb();
+  if (!db) return { skipped: false };
+  const existing = await getMenuPlanByDate(userId, planDate);
+  if (existing) {
+    if (existing.isProtected) return { skipped: true, id: existing.id };
+    await db.update(menuPlans)
+      .set({ menuData: JSON.stringify(menuData), messageText, updatedAt: new Date() })
+      .where(eq(menuPlans.id, existing.id));
+    return { skipped: false, id: existing.id };
+  } else {
+    const result = await db.insert(menuPlans).values({
+      userId,
+      planDate: new Date(planDate + 'T00:00:00'),
+      menuData: JSON.stringify(menuData),
+      messageText,
+      isDelivered: false,
+      isProtected: false,
+    });
+    return { skipped: false, id: (result as any)[0]?.insertId };
+  }
+}
+
 // ─── 買い物リスト → 冷蔵庫移行 ───────────────────────────────────────────────
 /**
  * 買い物リストのアイテムを冷蔵庫に移行して、リストから削除する

@@ -175,6 +175,8 @@ export const menuPlans = mysqlTable("menu_plans", {
   actualStatusBreakfast: mysqlEnum("actualStatusBreakfast", ["cooked", "other", "eating_out", "not_eaten", "skipped"]),
   actualStatusLunch: mysqlEnum("actualStatusLunch", ["cooked", "other", "eating_out", "not_eaten", "skipped"]),
   actualStatusDinner: mysqlEnum("actualStatusDinner", ["cooked", "other", "eating_out", "not_eaten", "skipped"]),
+  // スケジュール管理
+  isProtected: boolean("isProtected").default(false).notNull(), // プロテクト（再生成でスキップ）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -169,6 +169,13 @@
       "when": 1776662258473,
       "tag": "0023_overconfident_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1776768206841,
+      "tag": "0024_heavy_night_thrasher",
+      "breakpoints": true
     }
   ]
 }

@@ -127,6 +127,19 @@ export const adminAuthRouter = router({
         }
       }
 
+      // LINE IDが見つからない場合はオーナー（高橋導成）のLINE IDにフォールバック
+      if (!lineUserId) {
+        const ownerLineRows = await db
+          .select()
+          .from(lineUsers)
+          .where(eq(lineUsers.lineUserId, "U3a978d44ad16e83f704e5130e7e3298f"))
+          .limit(1);
+        if (ownerLineRows.length > 0) {
+          lineUserId = ownerLineRows[0].lineUserId;
+          console.log(`[AdminAuth] Falling back to owner LINE ID for OTP`);
+        }
+      }
+
       if (lineUserId) {
         try {
           await sendLineMessage(lineUserId, [

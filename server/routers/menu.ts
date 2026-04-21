@@ -14,6 +14,9 @@ import {
   insertMenuPlan,
   insertShoppingListItems,
   markMenuPlanDelivered,
+  updateMenuPlanProtect,
+  upsertMenuPlanForDate,
+  getMenuPlansByDateRange,
 } from "../db";
 import { invokeLLM } from "../_core/llm";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -546,6 +549,84 @@ export const menuRouter = router({
         })(),
         messageText: plan.messageText,
       };
+    }),
+
+  // 日付範囲の献立を取得（週ビュー用）
+  getByDateRange: protectedProcedure
+    .input(z.object({ startDate: z.string(), endDate: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const plans = await getMenuPlansByDateRange(ctx.user.id, input.startDate, input.endDate);
+      return plans.map((p) => ({
+        id: p.id,
+        planDate: p.planDate instanceof Date ? p.planDate.toISOString().split('T')[0] : String(p.planDate),
+        isDelivered: p.isDelivered,
+        isProtected: p.isProtected ?? false,
+        menuData: (() => {
+          try {
+            return typeof p.menuData === "string" ? JSON.parse(p.menuData) : p.menuData;
+          } catch { return null; }
+        })(),
+        messageText: p.messageText,
+        actualStatusBreakfast: p.actualStatusBreakfast,
+        actualStatusLunch: p.actualStatusLunch,
+        actualStatusDinner: p.actualStatusDinner,
+        actualMealBreakfast: p.actualMealBreakfast,
+        actualMealLunch: p.actualMealLunch,
+        actualMealDinner: p.actualMealDinner,
+      }));
+    }),
+
+  // 献立のプロテクト状態を切り替え（全プラン共通）
+  toggleProtect: protectedProcedure
+    .input(z.object({ menuPlanId: z.number(), isProtected: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      await updateMenuPlanProtect(input.menuPlanId, ctx.user.id, input.isProtected);
+      return { success: true };
+    }),
+
+  // 週間献立を一括生成（プレミアム・課金無料期間のみ）
+  generateWeekly: protectedProcedure
+    .input(z.object({ startDate: z.string(), days: z.number().min(2).max(7).default(7) }))
+    .mutation(async ({ ctx, input }) => {
+      const [isPremium, isTrial] = await Promise.all([
+        getUserIsPremium(ctx.user.id),
+        getUserIsTrial(ctx.user.id),
+      ]);
+      if (!isPremium || isTrial) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "週間献立生成はプレミアムプラン限定の機能です" });
+      }
+
+      const results: Array<{ date: string; skipped: boolean; success: boolean }> = [];
+      const start = new Date(input.startDate + "T00:00:00+09:00");
+
+      for (let i = 0; i < input.days; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        const dateStr = d.toISOString().split("T")[0];
+
+        try {
+          // 朝・昼・夜それぞれ生成
+          const mealTypes: MealType[] = ["breakfast", "lunch", "dinner"];
+          let combinedMenuData: Record<string, any> = {};
+          let combinedMessage = "";
+
+          for (const mealType of mealTypes) {
+            const result = await generateMenuPlan(ctx.user.id, dateStr, mealType, undefined, undefined, false);
+            const menuData = {
+              mealType,
+              ...(typeof result.message === "string" ? {} : {}),
+            };
+            combinedMenuData[mealType] = { message: result.message, menuPlanId: result.menuPlanId };
+            if (!combinedMessage) combinedMessage = result.message;
+          }
+
+          results.push({ date: dateStr, skipped: false, success: true });
+        } catch (err) {
+          results.push({ date: dateStr, skipped: false, success: false });
+        }
+      }
+
+      return { results, totalDays: input.days, successCount: results.filter(r => r.success).length };
     }),
 
   // LINEに手動送信

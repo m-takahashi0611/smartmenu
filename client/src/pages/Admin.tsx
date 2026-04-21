@@ -187,7 +187,7 @@ function CampaignCodeRow({
                       </tr>
                     </thead>
                     <tbody>
-                      {stats.users.map((u) => {
+                      {stats.users.map((u: any) => {
                         const sl = statusLabel(u.status);
                         return (
                           <tr key={u.userId} className="border-b last:border-0 hover:bg-muted/30">
@@ -1581,7 +1581,6 @@ export default function Admin() {
                     code: newCampaignCode,
                     label: newCampaignLabel || undefined,
                     discountPercent: newCampaignDiscount,
-                    feePercent: newCampaignFee,
                     expiresAt: newCampaignExpiry || undefined,
                   })}
                   disabled={createCampaignCode.isPending || !newCampaignCode}
