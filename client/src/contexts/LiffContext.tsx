@@ -154,7 +154,7 @@ export function LiffProvider({ children }: { children: ReactNode }) {
 
       if (!liff.isLoggedIn()) {
         // 未ログイン → LINE認証画面へリダイレクト
-        const endpointOrigin = "https://www.kondatebiyori.com";
+        const endpointOrigin = window.location.origin; // 現在のオリジンを使用（app.kondatebiyori.com対応）
         const redirectUri = endpointOrigin + "/";
         console.log("[LIFF] Not logged in, redirecting to LINE login... redirectUri:", redirectUri);
         liff.login({ redirectUri });
