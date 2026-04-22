@@ -3330,40 +3330,58 @@ ${itemList}
       }
     }
 
-    // ─── 週間献立キーワードを優先処理（献立キーワードマッチより前に分岐） ──────────────────────────────────────────────
+    // ─── 週間予定表キーワードを優先処理（献立提案フローより前に分岐） ──────────────────────────────────────────────
     {
-      const _weeklyKw = ['週間献立', '献立予定表', '週間献立を見る', '週間献立を確認', '今週の献立を見せて', '今週の献立を確認'];
+      const _weeklyKw = ['週間献立', '週間予定表', '献立予定表', '週間献立を見る', '週間献立を確認', '今週の献立を見せて', '今週の献立を確認', '予定表を確認', '予定表確認', '週間予定表を確認', '今週の予定表を確認', '新しく生成'];
       const _isWeeklyKw = _weeklyKw.some(kw => text === kw || text.includes(kw));
       if (_isWeeklyKw) {
-        // 週間献立フローへジャンプ（献立キーワードマッチをスキップ）
+        // 週間予定表フロー
         const _isPremiumW = userId ? await getUserIsPremium(userId) : false;
         const _isTrialW = userId ? await getUserIsTrial(userId) : false;
         if (!userId || _isTrialW) {
-          await replyAndSave(replyToken, [{ type: 'text', text: `📅 週間献立確認はプレミアムプランの機能です
-
-プレミアムプランにアップグレードすると、今週の献立をPNG画像で確認できます😊` }]);
+          await replyAndSave(replyToken, [{ type: 'text', text: '📅 週間予定表はプレミアムプランの機能です\n\nプレミアムプランにアップグレードすると、今週の献立表をPNG画像で確認できます😊' }]);
           return;
         }
         if (!_isPremiumW) {
-          await replyAndSave(replyToken, [{ type: 'text', text: `📅 今週の献立はダッシュボードで確認できます！
-
-https://app.kondatebiyori.com` }]);
+          await replyAndSave(replyToken, [{ type: 'text', text: '📅 今週の予定表はダッシュボードで確認できます！\nhttps://app.kondatebiyori.com' }]);
           return;
         }
-        await replyAndSave(replyToken, [{ type: 'text', text: '📅 今週の献立表を作成中です...少々お待ちください🍽' }]);
-        try {
-          const _pngUrl = await generateWeeklyMenuPng(userId!);
-          await sendLineMessage(lineUserId, [{ type: 'image', originalContentUrl: _pngUrl, previewImageUrl: _pngUrl }]);
-        } catch (_err) {
-          console.error('[LINE] Weekly menu PNG generation failed (early):', _err);
-          await sendLineMessage(lineUserId, [{ type: 'text', text: '献立表の生成に失敗しました。しばらくしてからお試しください。' }]);
+        // 「予定表を確認」→ PNG表示、「新しく生成」→ PNG生成、それ以外 → 選択肢を提示
+        const _isViewReq = ['予定表を確認', '予定表確認', '週間予定表を確認', '今週の予定表を確認'].some(kw => text === kw || text.includes(kw));
+        const _isGenReq = ['新しく生成', '生成する', '週間献立を生成', '献立を生成'].some(kw => text === kw || text.includes(kw));
+        if (_isViewReq || _isGenReq) {
+          await replyAndSave(replyToken, [{ type: 'text', text: '📅 今週の献立表を取得中です...少々お待ちください🍽' }]);
+          try {
+            const _pngUrl = await generateWeeklyMenuPng(userId!);
+            await sendLineMessage(lineUserId, [{ type: 'image', originalContentUrl: _pngUrl, previewImageUrl: _pngUrl }]);
+          } catch (_err) {
+            console.error('[LINE] Weekly menu PNG generation failed:', _err);
+            await sendLineMessage(lineUserId, [{ type: 'text', text: '献立表の取得に失敗しました。しばらくしてからお試しください。' }]);
+          }
+          return;
         }
+        // 「週間献立」「週間予定表」単体 → 生成 or 確認の選択肢を提示
+        await replyAndSave(replyToken, [{
+          type: 'text',
+          text: '📅 週間予定表について何をしますか？',
+          quickReply: { items: [
+            { type: 'action' as const, action: { type: 'message' as const, label: '📋 今週の予定表を確認', text: '予定表を確認' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🔄 新しく生成する', text: '新しく生成' } },
+          ]},
+        }]);
         return;
       }
     }
 
     // ─── キーワードマッチング（優先） ───────────────────────────────────────────────────────────────────────────────────────
-    if (/献立/.test(text) || /今日何(作|つく)ろ/.test(text) || /ご飯(何|なに)(作|つく)/.test(text)) {
+    // 献立提案フロー：明示的に献立提案を意図したキーワードのみマッチ（週間予定表・予定確認系は除外）
+    const _isMenuProposalKw =
+      /^(献立|今日の献立|今夜の献立|明日の献立|献立を|献立お願い|献立提案|献立して|献立考えて|献立作って|ご飯作って|ご飯提案|おすすめ献立)$/.test(text.trim()) ||
+      /今日何(作|つく)ろ/.test(text) ||
+      /ご飯(何|なに)(作|つく)/.test(text) ||
+      /今夜何(作|つく)ろ/.test(text) ||
+      /今日のご飯/.test(text);
+    if (_isMenuProposalKw) {
       // 週間献立キーワードは後続の週間献立処理に委ねる（献立提案フローをスキップ）
       const _weeklyKwCheck = ['週間献立', '献立予定表', '週間献立を見る', '週間献立を確認', '今週の献立を見せて', '今週の献立を確認'];
       if (_weeklyKwCheck.some(kw => text === kw || text.includes(kw))) {
