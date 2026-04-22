@@ -1272,9 +1272,28 @@ async function handleFridgeRegistration(
     const selectedType = choices[trimmed];
 
     if (!selectedType) {
-      // 不明な入力→再度聴く
+      // 不明な入力→再度聴く（クイックリプライ付き）
+      const _nowJST2 = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const _hourJST2 = _nowJST2.getUTCHours();
+      const _retryQR = _hourJST2 >= 5 && _hourJST2 < 15
+        ? [
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 朝食・昼食', text: '今日の朝食・昼食' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕飯', text: '今夜の夕飯' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
+          ]
+        : _hourJST2 >= 15 && _hourJST2 < 22
+        ? [
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜だけ', text: '今夜の夕飯だけ' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日朝食も', text: '今夜＋明日の朝食まで' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
+          ]
+        : [
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 明日まとめて', text: '明日の夕飯まで' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
+          ];
       await replyLineMessage(replyToken, [
-        { type: 'text', text: '番号か「夕飯」「朝食」などで教えてください😊\n\nキャンセルする場合は「キャンセル」と送ってください' }
+        { type: 'text', text: '番号か「夕飯」「朝食」などで教えてください😊\n\nキャンセルする場合は「キャンセル」と送ってください', quickReply: { items: _retryQR } }
       ], lineUserId);
       return true;
     }
@@ -3535,12 +3554,20 @@ https://app.kondatebiyori.com` }]);
         await replyAndSave(replyToken, [{
           type: "text",
           text: "冷蔵庫に食材が登録されていません。\n\n「冷蔵庫に　を追加」と送ると登録できます！\n例：「冷蔵庫に豚肉、キャベツ、卵を追加」",
+          quickReply: { items: [
+            { type: 'action', action: { type: 'message', label: '➕ 食材を追加する', text: '冷蔵庫に追加' } },
+            { type: 'action', action: { type: 'message', label: '🍽️ 献立を提案', text: '献立' } },
+          ]},
         }]);
       } else {
         const itemList = items.map((f) => `・${f.name}${f.quantity ? "（" + f.quantity + "）" : ""}`).join("\n");
         await replyAndSave(replyToken, [{
           type: "text",
           text: `${familyGuidePrefix}❄️ 現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください`,
+          quickReply: { items: [
+            { type: 'action', action: { type: 'message', label: '🍽️ 献立を提案', text: '献立' } },
+            { type: 'action', action: { type: 'message', label: '➕ 食材を追加', text: '冷蔵庫に追加' } },
+          ]},
         }]);
       }
       return;
@@ -4102,12 +4129,20 @@ https://app.kondatebiyori.com` }]);
         await replyAndSave(replyToken, [{
           type: "text",
           text: "冷蔵庫に食材が登録されていません。\n\n「冷蔵庫に　を追加」と送ると登録できます！\n例：「冷蔵庫に豚肉、キャベツ、卵を追加」",
+          quickReply: { items: [
+            { type: 'action', action: { type: 'message', label: '➕ 食材を追加する', text: '冷蔵庫に追加' } },
+            { type: 'action', action: { type: 'message', label: '🍽️ 献立を提案', text: '献立' } },
+          ]},
         }]);
       } else {
         const itemList = items.map((f) => `・${f.name}${f.quantity ? "（" + f.quantity + "）" : ""}`).join("\n");
         await replyAndSave(replyToken, [{
           type: "text",
           text: `${familyGuidePrefix}❄️ 現在の冷蔵庫の食材：\n${itemList}\n\nこれらを使った献立を提案しましょうか？「献立」と送ってください`,
+          quickReply: { items: [
+            { type: 'action', action: { type: 'message', label: '🍽️ 献立を提案', text: '献立' } },
+            { type: 'action', action: { type: 'message', label: '➕ 食材を追加', text: '冷蔵庫に追加' } },
+          ]},
         }]);
       }
       return;
