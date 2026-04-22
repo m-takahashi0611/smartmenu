@@ -182,7 +182,7 @@ export async function updateLineUserDeliveryTime(userId: number, hour: number, m
 export async function getFamilyProfile(userId: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(familyProfiles).where(eq(familyProfiles.userId, userId)).limit(1);
+  const result = await db.select().from(familyProfiles).where(eq(familyProfiles.userId, userId)).orderBy(desc(familyProfiles.id)).limit(1);
   return result[0];
 }
 
@@ -717,6 +717,7 @@ export async function upsertUserBaseTheme(data: InsertUserBaseTheme): Promise<vo
       lifestageThemes: data.lifestageThemes ?? null,
       economyTheme: data.economyTheme ?? null,
       styleTheme: data.styleTheme ?? null,
+      dishCountTheme: data.dishCountTheme ?? null,
       updatedAt: new Date(),
     },
   });

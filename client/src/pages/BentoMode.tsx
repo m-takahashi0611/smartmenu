@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Lock, Crown, Check, ChevronDown } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -74,8 +75,10 @@ export default function BentoMode() {
   const saveMutation = trpc.bento.saveSettings.useMutation({
     onSuccess: () => {
       setSaved(true);
+      toast.success("お弁当モード設定を保存しました");
       setTimeout(() => setSaved(false), 2000);
     },
+    onError: (err) => toast.error("保存に失敗しました", { description: err.message }),
   });
 
   // 家族メンバーを実データから取得

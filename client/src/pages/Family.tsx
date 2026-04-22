@@ -56,6 +56,9 @@ export default function Family() {
   const [preferences, setPreferences] = useState("");
   const [portionSize, setPortionSize] = useState<PortionSize>("normal");
 
+  // 家族名・備考 state
+  const [familyName, setFamilyName] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
   // 買い物・自炊プロフィール state
   const [shoppingFrequency, setShoppingFrequency] = useState<number>(2);
   const [shoppingDayMode, setShoppingDayMode] = useState<ShoppingDayMode>("weekdays");
@@ -75,6 +78,8 @@ export default function Family() {
   useEffect(() => {
     if (familyData?.profile) {
       const p = familyData.profile;
+      setFamilyName(p.familyName ?? "");
+      setNotes(p.notes ?? "");
       setShoppingFrequency(p.shoppingFrequency ?? 2);
       setBreakfastCookCount(p.breakfastCookCount ?? 0);
       setLunchCookCount(p.lunchCookCount ?? 0);
@@ -154,8 +159,8 @@ export default function Family() {
 
   const handleSaveProfile = () => {
     upsertProfile.mutate({
-      familyName: familyData?.profile?.familyName ?? undefined,
-      notes: familyData?.profile?.notes ?? undefined,
+      familyName: familyName || undefined,
+      notes: notes || undefined,
       shoppingFrequency,
       shoppingDays: computeShoppingDays(),
       breakfastCookCount,
@@ -272,7 +277,7 @@ export default function Family() {
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
-        {/* ── 買い物・自炊プロフィール ── */}
+           {/* 買い物・自炊プロフィール */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">🛒 買い物・自炊プロフィール</CardTitle>
@@ -280,7 +285,33 @@ export default function Family() {
           </CardHeader>
           <CardContent className="space-y-5">
 
-            {/* 買い物回数 */}
+            {/* 家族名 */}
+            <div>
+              <Label htmlFor="family-name" className="text-sm font-medium">家族名（任意）</Label>
+              <Input
+                id="family-name"
+                placeholder="例：ヤマダ家、うちの家族"
+                value={familyName}
+                onChange={(e) => setFamilyName(e.target.value)}
+                className="mt-1"
+                maxLength={100}
+              />
+            </div>
+
+            {/* 備考 */}
+            <div>
+              <Label htmlFor="family-notes" className="text-sm font-medium">備考・特記事項（任意）</Label>
+              <Textarea
+                id="family-notes"
+                placeholder="例：アレルギー情報、好き嫌いな食べ物など"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="mt-1"
+                rows={2}
+              />
+            </div>
+
+             {/* 買い物回数 */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm font-medium">週の買い物回数</Label>
