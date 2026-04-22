@@ -854,6 +854,14 @@ export default function Admin() {
     onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
   });
 
+  const createPremiumMenu = trpc.richMenu.createPremiumMenu.useMutation({
+    onSuccess: (result) => {
+      toast.success("プレミアムメニューを作成しました", { description: `ID: ${result.richMenuId}` });
+      refetchRichMenu();
+    },
+    onError: (err) => toast.error("プレミアムメニュー作成に失敗しました", { description: err.message }),
+  });
+
   const utils = trpc.useUtils();
 
   const broadcast = trpc.admin.broadcastMenus.useMutation({
@@ -1452,6 +1460,15 @@ export default function Admin() {
                       <p className="text-xs text-muted-foreground">⚠️ 未登録—下のボタンで登録してください</p>
                     )}
                   </div>
+                  {/* プレミアムメニューの状態 */}
+                  <div className="bg-amber-50 dark:bg-amber-950/20 rounded-lg p-4">
+                    <p className="text-sm font-medium mb-1">⭐ プレミアムメニュー（週間献立・今日だけ特別等）</p>
+                    {richMenuData?.cachedPremiumMenuId ? (
+                      <p className="text-xs text-green-600">✅ 登録済み（ID: {richMenuData.cachedPremiumMenuId}）</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">⚠️ 未登録—下のボタンで作成してください</p>
+                    )}
+                  </div>
 
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -1483,6 +1500,22 @@ export default function Admin() {
                         <><Loader2 className="h-4 w-4 animate-spin mr-2" />登録中...</>
                       ) : (
                         "🔢 数字メニューを登録"
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (confirm("プレミアムリッチメニューを新規作成しますか？\n「週間献立」ボタンが反映されます。")) {
+                          createPremiumMenu.mutate({});
+                        }
+                      }}
+                      disabled={createPremiumMenu.isPending}
+                      className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                    >
+                      {createPremiumMenu.isPending ? (
+                        <><Loader2 className="h-4 w-4 animate-spin mr-2" />作成中...</>
+                      ) : (
+                        "⭐ プレミアムメニューを作成"
                       )}
                     </Button>
                     {richMenuData?.defaultId && (
