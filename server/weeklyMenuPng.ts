@@ -2,7 +2,7 @@
  * 週間献立PNG生成ヘルパー
  * @napi-rs/canvas を使ってPNG画像を直接生成し、S3にアップロードする
  */
-import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
+import { createCanvas, GlobalFonts, loadImage } from "@napi-rs/canvas";
 import path from "path";
 import { fileURLToPath } from "url";
 import { storagePut } from "./storage";
@@ -19,25 +19,34 @@ try {
   console.warn("[weeklyMenuPng] Font registration failed:", e);
 }
 
+// キャラクター画像URL
+const MASCOT_COOKING_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_cooking-2kPVJfknvoFLpXHRLPVvVs.png";
+const MASCOT_WAVE_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_wave-SJFFFGGiajefS9Vh7cqFQF.png";
+
 const DAYS_JA = ["日", "月", "火", "水", "木", "金", "土"];
 
-/** 日付文字列(YYYY-MM-DD)を「M月D日(曜)」形式に変換 */
-function formatDateLabel(dateStr: string): string {
+/** 日付文字列(YYYY-MM-DD)を「M/D」と「(曜)」に分けて返す */
+function formatDateParts(dateStr: string): { mmdd: string; dow: string; isWeekend: boolean } {
   const d = new Date(dateStr + "T00:00:00+09:00");
   const m = d.getMonth() + 1;
   const day = d.getDate();
-  const dow = DAYS_JA[d.getDay()];
-  return `${m}/${day}(${dow})`;
+  const dowIdx = d.getDay();
+  const dow = DAYS_JA[dowIdx];
+  const isWeekend = dowIdx === 0 || dowIdx === 6;
+  return { mmdd: `${m}/${day}`, dow: `(${dow})`, isWeekend };
 }
 
-/** menuDataから朝・昼・晩のテキストを取得 */
-function extractMeals(menuData: any): { breakfast: string; lunch: string; dinner: string } {
-  if (!menuData) return { breakfast: "", lunch: "", dinner: "" };
+/** menuDataから朝・昼・晩のテキストを取得（dinnerOptions対応） */
+function extractMeals(menuData: any): { breakfast: string; lunch: string; dinner: string; dinnerOptions: string[] | null } {
+  if (!menuData) return { breakfast: "", lunch: "", dinner: "", dinnerOptions: null };
   const breakfast = menuData.breakfast || "";
   const lunch = menuData.lunch || "";
-  // 夕食は選択済み or 候補1番目 or dinnerフィールド
   let dinner = "";
-  if (menuData.selectedDinnerIndex != null && menuData.dinnerOptions?.length > 0) {
+  let dinnerOptions: string[] | null = null;
+  if (menuData.dinnerOptions && menuData.dinnerOptions.length > 1) {
+    // 複数提案がある場合はリスト表示
+    dinnerOptions = menuData.dinnerOptions.map((o: any, idx: number) => `[${idx + 1}] ${o.name || o}`);
+  } else if (menuData.selectedDinnerIndex != null && menuData.dinnerOptions?.length > 0) {
     const idx = Number(menuData.selectedDinnerIndex);
     dinner = menuData.dinnerOptions[idx]?.name || menuData.dinnerOptions[0]?.name || "";
   } else if (menuData.dinner) {
@@ -45,7 +54,7 @@ function extractMeals(menuData: any): { breakfast: string; lunch: string; dinner
   } else if (menuData.dinnerOptions?.length > 0) {
     dinner = menuData.dinnerOptions[0]?.name || "";
   }
-  return { breakfast, lunch, dinner };
+  return { breakfast, lunch, dinner, dinnerOptions };
 }
 
 /** テキストを指定幅に収まるよう折り返す */
@@ -66,153 +75,19 @@ function wrapText(ctx: any, text: string, maxWidth: number): string[] {
   return lines;
 }
 
-/** 週間献立HTMLを生成（未使用・削除予定） */
-function buildWeeklyMenuHtml(days: Array<{ date: string; menuData: any }>): string {
-  const rows = days.map(({ date, menuData }) => {
-    const { breakfast, lunch, dinner } = extractMeals(menuData);
-    const hasData = breakfast || lunch || dinner;
-    const dateLabel = formatDateLabel(date);
-
-    const mealRow = (icon: string, label: string, meal: string, color: string) => {
-      const isEmpty = !meal;
-      return `
-        <div class="meal-row">
-          <span class="meal-icon" style="color:${color}">${icon}</span>
-          <span class="meal-label" style="color:${color}">${label}</span>
-          <span class="meal-text ${isEmpty ? 'empty' : ''}">${isEmpty ? "未定" : truncate(meal)}</span>
-        </div>
-      `;
-    };
-
-    return `
-      <div class="day-card ${!hasData ? 'no-data' : ''}">
-        <div class="day-header">
-          <span class="day-label">${dateLabel}</span>
-          ${!hasData ? '<span class="undecided-badge">未定</span>' : ''}
-        </div>
-        <div class="meals">
-          ${mealRow("🌅", "朝", breakfast, "#E8A838")}
-          ${mealRow("☀️", "昼", lunch, "#4CAF50")}
-          ${mealRow("🌙", "夜", dinner, "#5C7CFA")}
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: 'Hiragino Kaku Gothic Pro', 'Noto Sans JP', sans-serif;
-    background: #FFF8F0;
-    padding: 24px 20px 28px;
-    width: 750px;
-  }
-  .header {
-    text-align: center;
-    margin-bottom: 20px;
-  }
-  .header h1 {
-    font-size: 26px;
-    font-weight: bold;
-    color: #5C3D2E;
-    letter-spacing: 0.05em;
-  }
-  .header .subtitle {
-    font-size: 14px;
-    color: #9E7B5A;
-    margin-top: 4px;
-  }
-  .grid {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .day-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 12px 16px;
-    border: 1.5px solid #F0DFC8;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-  }
-  .day-card.no-data {
-    background: #F9F5F0;
-    border-color: #E8DDD0;
-    opacity: 0.75;
-  }
-  .day-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid #F0DFC8;
-  }
-  .day-label {
-    font-size: 17px;
-    font-weight: bold;
-    color: #5C3D2E;
-    min-width: 72px;
-  }
-  .undecided-badge {
-    font-size: 11px;
-    background: #E8DDD0;
-    color: #9E7B5A;
-    padding: 2px 8px;
-    border-radius: 20px;
-  }
-  .meals {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-  .meal-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 14px;
-  }
-  .meal-icon {
-    font-size: 15px;
-    width: 20px;
-    text-align: center;
-  }
-  .meal-label {
-    font-size: 12px;
-    font-weight: bold;
-    min-width: 18px;
-  }
-  .meal-text {
-    color: #3D2B1F;
-    flex: 1;
-    font-size: 14px;
-    line-height: 1.4;
-  }
-  .meal-text.empty {
-    color: #C4B0A0;
-    font-style: italic;
-    font-size: 13px;
-  }
-  .footer {
-    text-align: center;
-    margin-top: 16px;
-    font-size: 12px;
-    color: #B09070;
-  }
-</style>
-</head>
-<body>
-  <div class="header">
-    <h1>🍽 今週の献立</h1>
-    <div class="subtitle">献立日和〜coto coto〜</div>
-  </div>
-  <div class="grid">${rows}</div>
-  <div class="footer">ダッシュボードから詳細を確認・編集できます</div>
-</body>
-</html>`;
+/** 角丸矩形を描画 */
+function roundRect(ctx: any, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 /**
@@ -269,126 +144,281 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
     days.push({ date: dateStr, label: `${mmdd}(${dayLabelsArr[i]})`, menuData: byDate.get(dateStr) || null });
   }
 
-  // ─── Canvas描画 ───────────────────────────────────────────────────────────
-  const WIDTH = 640;
-  const PADDING = 16;
-  const HEADER_H = 72;
-  const ROW_LABEL_W = 76;
-  const CELL_PAD = 10;
+  // キャラクター画像を事前ロード
+  let mascotCooking: any = null;
+  let mascotWave: any = null;
+  try {
+    mascotCooking = await loadImage(MASCOT_COOKING_URL);
+  } catch (e) {
+    console.warn("[weeklyMenuPng] Failed to load mascot cooking image:", e);
+  }
+  try {
+    mascotWave = await loadImage(MASCOT_WAVE_URL);
+  } catch (e) {
+    console.warn("[weeklyMenuPng] Failed to load mascot wave image:", e);
+  }
+
+  // ─── レイアウト定数 ───────────────────────────────────────────────────────
+  const WIDTH = 680;
+  const PADDING = 14;
+  const HEADER_H = 90;
+  const FOOTER_H = 50;
   const FONT_FAMILY = "NotoSansJP, sans-serif";
-  const LINE_H = 20;
-  const MEAL_ICON_W = 22;
-  const CELL_INNER_W = WIDTH - PADDING * 2 - ROW_LABEL_W - CELL_PAD * 2;
+
+  // 日付列幅・食事列幅
+  const DATE_COL_W = 68;
+  const MEAL_COL_W = WIDTH - PADDING * 2 - DATE_COL_W - 8;
+  const MEAL_BADGE_W = 32;
+  const MEAL_TEXT_MAX_W = MEAL_COL_W - MEAL_BADGE_W - 10;
+  const LINE_H = 22;
+  const MEAL_ROW_GAP = 4;
+  const CARD_PAD_V = 12;
+  const CARD_RADIUS = 10;
 
   // 仮canvasでテキスト幅を測定して各行の高さを計算
   const tempCanvas = createCanvas(WIDTH, 100);
   const tempCtx = tempCanvas.getContext("2d");
-  tempCtx.font = `13px ${FONT_FAMILY}`;
-  const maxTextW = CELL_INNER_W - MEAL_ICON_W - 6;
+  tempCtx.font = `14px ${FONT_FAMILY}`;
 
   const rowHeights: number[] = [];
   for (const day of days) {
-    const { breakfast, lunch, dinner } = extractMeals(day.menuData);
-    let totalLines = 0;
-    if (breakfast) totalLines += wrapText(tempCtx, breakfast, maxTextW).length;
-    if (lunch) totalLines += wrapText(tempCtx, lunch, maxTextW).length;
-    if (dinner) totalLines += wrapText(tempCtx, dinner, maxTextW).length;
-    if (!breakfast && !lunch && !dinner) totalLines = 1;
-    const rowH = Math.max(64, CELL_PAD * 2 + totalLines * LINE_H + 8);
-    rowHeights.push(rowH);
+    const { breakfast, lunch, dinner, dinnerOptions } = extractMeals(day.menuData);
+    let totalH = CARD_PAD_V * 2;
+    const meals = [breakfast, lunch].filter(Boolean);
+    if (meals.length === 0 && !dinner && (!dinnerOptions || dinnerOptions.length === 0)) {
+      totalH += LINE_H;
+    } else {
+      for (const meal of meals) {
+        const lines = wrapText(tempCtx, meal, MEAL_TEXT_MAX_W);
+        totalH += Math.max(1, lines.length) * LINE_H + MEAL_ROW_GAP;
+      }
+      if (dinnerOptions && dinnerOptions.length > 0) {
+        // 複数提案の行数を合計
+        let optH = 0;
+        for (const optText of dinnerOptions) {
+          const lines = wrapText(tempCtx, optText, MEAL_TEXT_MAX_W);
+          optH += Math.max(1, lines.length) * LINE_H + 2;
+        }
+        totalH += optH + MEAL_ROW_GAP;
+      } else if (dinner) {
+        const lines = wrapText(tempCtx, dinner, MEAL_TEXT_MAX_W);
+        totalH += Math.max(1, lines.length) * LINE_H + MEAL_ROW_GAP;
+      }
+    }
+    rowHeights.push(Math.max(72, totalH));
   }
 
-  const FOOTER_H = 36;
-  const totalH = HEADER_H + rowHeights.reduce((a, b) => a + b, 0) + PADDING + FOOTER_H;
+  const totalH = HEADER_H + rowHeights.reduce((a, b) => a + b, 0) + PADDING * 2 + FOOTER_H + 8 * 7; // 8px gap per card
 
   const canvas = createCanvas(WIDTH, totalH);
   const ctx = canvas.getContext("2d");
 
-  // 背景
-  ctx.fillStyle = "#FFF8F0";
+  // ─── 背景 ───────────────────────────────────────────────────────────────
+  // グラデーション背景
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, totalH);
+  bgGrad.addColorStop(0, "#FFF8F0");
+  bgGrad.addColorStop(1, "#FFF3E8");
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, WIDTH, totalH);
 
-  // ヘッダー
-  ctx.fillStyle = "#9E7B5A";
+  // ─── ヘッダー ─────────────────────────────────────────────────────────────
+  // ヘッダー背景（角丸なし）
+  const headerGrad = ctx.createLinearGradient(0, 0, WIDTH, HEADER_H);
+  headerGrad.addColorStop(0, "#FF7F50");
+  headerGrad.addColorStop(1, "#FF9966");
+  ctx.fillStyle = headerGrad;
   ctx.fillRect(0, 0, WIDTH, HEADER_H);
-  ctx.fillStyle = "#FFFFFF";
-  ctx.font = `bold 22px ${FONT_FAMILY}`;
-  ctx.fillText("今週の献立", PADDING + 4, 40);
-  ctx.font = `13px ${FONT_FAMILY}`;
-  ctx.fillStyle = "#F5E6D3";
-  ctx.fillText("献立日和〜coto coto〜", PADDING + 4, 60);
 
-  // 各行
-  let y = HEADER_H;
+  // ヘッダー装飾ライン（下部）
+  ctx.fillStyle = "rgba(255,255,255,0.2)";
+  ctx.fillRect(0, HEADER_H - 3, WIDTH, 3);
+
+  // キャラクター（料理中）をヘッダー右端に配置
+  if (mascotCooking) {
+    const charH = 80;
+    const charW = (mascotCooking.width / mascotCooking.height) * charH;
+    ctx.drawImage(mascotCooking, WIDTH - charW - 10, HEADER_H - charH, charW, charH);
+  }
+
+  // キャラクター（手を振る）をヘッダー左端に配置
+  if (mascotWave) {
+    const charH = 70;
+    const charW = (mascotWave.width / mascotWave.height) * charH;
+    ctx.drawImage(mascotWave, 10, HEADER_H - charH, charW, charH);
+  }
+
+  // タイトルテキスト（中央）
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = `bold 24px ${FONT_FAMILY}`;
+  ctx.fillText("今週の献立", WIDTH / 2, 42);
+  ctx.font = `13px ${FONT_FAMILY}`;
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.fillText("献立日和〜coto coto〜", WIDTH / 2, 64);
+
+  // 週の日付範囲
+  const weekStart = days[0]?.label?.split("(")[0] ?? "";
+  const weekEnd = days[6]?.label?.split("(")[0] ?? "";
+  ctx.font = `11px ${FONT_FAMILY}`;
+  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  ctx.fillText(`${weekStart} 〜 ${weekEnd}`, WIDTH / 2, 80);
+
+  ctx.textAlign = "left";
+
+  // ─── 各日カード ────────────────────────────────────────────────────────────
+  let y = HEADER_H + PADDING;
+
   for (let i = 0; i < days.length; i++) {
     const day = days[i];
     const rowH = rowHeights[i];
-    const { breakfast, lunch, dinner } = extractMeals(day.menuData);
-    const hasData = breakfast || lunch || dinner;
+    const { breakfast, lunch, dinner, dinnerOptions } = extractMeals(day.menuData);
+    const hasData = breakfast || lunch || dinner || (dinnerOptions && dinnerOptions.length > 0);
+    const { mmdd, dow, isWeekend } = formatDateParts(day.date);
 
-    // 行背景
-    ctx.fillStyle = i % 2 === 0 ? "#FFFFFF" : "#FDF5EC";
-    ctx.fillRect(PADDING, y, WIDTH - PADDING * 2, rowH);
+    const cardX = PADDING;
+    const cardW = WIDTH - PADDING * 2;
 
-    // 枠線
+    // カード背景（白・角丸・影）
+    ctx.shadowColor = "rgba(0,0,0,0.08)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = hasData ? "#FFFFFF" : "#FAF6F2";
+    roundRect(ctx, cardX, y, cardW, rowH, CARD_RADIUS);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    // カード枠線
     ctx.strokeStyle = "#F0DFC8";
     ctx.lineWidth = 1;
-    ctx.strokeRect(PADDING, y, WIDTH - PADDING * 2, rowH);
+    roundRect(ctx, cardX, y, cardW, rowH, CARD_RADIUS);
+    ctx.stroke();
 
-    // 日付列背景
-    ctx.fillStyle = "#F5E6D3";
-    ctx.fillRect(PADDING, y, ROW_LABEL_W, rowH);
-
-    // 日付テキスト
-    ctx.fillStyle = "#9E7B5A";
-    ctx.font = `bold 13px ${FONT_FAMILY}`;
-    const parts = day.label.split("(");
-    ctx.fillText(parts[0], PADDING + 6, y + rowH / 2 - 4);
-    if (parts[1]) {
-      ctx.font = `12px ${FONT_FAMILY}`;
-      ctx.fillText("(" + parts[1], PADDING + 6, y + rowH / 2 + 14);
+    // 日付列背景（左側の色帯）
+    const dateColX = cardX;
+    const dateColGrad = ctx.createLinearGradient(dateColX, y, dateColX + DATE_COL_W, y);
+    if (isWeekend) {
+      // 土日はアクセントカラー
+      dateColGrad.addColorStop(0, "#FFF0E8");
+      dateColGrad.addColorStop(1, "#FFE4D0");
+    } else {
+      dateColGrad.addColorStop(0, "#FFF5EE");
+      dateColGrad.addColorStop(1, "#FDEEE2");
     }
+    ctx.fillStyle = dateColGrad;
+    // 左側のみ角丸
+    ctx.beginPath();
+    ctx.moveTo(dateColX + CARD_RADIUS, y);
+    ctx.lineTo(dateColX + DATE_COL_W, y);
+    ctx.lineTo(dateColX + DATE_COL_W, y + rowH);
+    ctx.lineTo(dateColX + CARD_RADIUS, y + rowH);
+    ctx.quadraticCurveTo(dateColX, y + rowH, dateColX, y + rowH - CARD_RADIUS);
+    ctx.lineTo(dateColX, y + CARD_RADIUS);
+    ctx.quadraticCurveTo(dateColX, y, dateColX + CARD_RADIUS, y);
+    ctx.closePath();
+    ctx.fill();
 
-    // 食事内容
-    const textX = PADDING + ROW_LABEL_W + CELL_PAD;
-    let textY = y + CELL_PAD + LINE_H;
-    ctx.font = `13px ${FONT_FAMILY}`;
+    // 日付列の縦区切り線
+    ctx.strokeStyle = "#F0DFC8";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cardX + DATE_COL_W, y);
+    ctx.lineTo(cardX + DATE_COL_W, y + rowH);
+    ctx.stroke();
+
+    // 日付テキスト（中央揃え）
+    ctx.textAlign = "center";
+    const dateCenterX = cardX + DATE_COL_W / 2;
+    // 日付の色（土=青、日=赤、平日=茶）
+    const dowText = dow.replace(/[()]/g, "");
+    const dateColor = dowText === "日" ? "#E05050" : dowText === "土" ? "#5080D0" : "#9E7B5A";
+    ctx.fillStyle = dateColor;
+    ctx.font = `bold 16px ${FONT_FAMILY}`;
+    ctx.fillText(mmdd, dateCenterX, y + rowH / 2 - 8);
+    ctx.font = `bold 13px ${FONT_FAMILY}`;
+    ctx.fillText(dow, dateCenterX, y + rowH / 2 + 12);
+    ctx.textAlign = "left";
+
+    // 食事内容エリア
+    const mealAreaX = cardX + DATE_COL_W + 10;
+    let textY = y + CARD_PAD_V + LINE_H - 4;
 
     if (!hasData) {
       ctx.fillStyle = "#C4B0A0";
-      ctx.fillText("未設定", textX, y + rowH / 2 + 5);
+      ctx.font = `13px ${FONT_FAMILY}`;
+      ctx.fillText("未設定", mealAreaX, y + rowH / 2 + 5);
     } else {
-      const meals = [
-        { icon: "[朝]", text: breakfast },
-        { icon: "[昼]", text: lunch },
-        { icon: "[夜]", text: dinner },
+      const mealDefs = [
+        { text: breakfast, label: "朝", bgColor: "#FFF3E0", textColor: "#E8A838", options: null as string[] | null },
+        { text: lunch,     label: "昼", bgColor: "#E8F5E9", textColor: "#4CAF50", options: null as string[] | null },
+        { text: dinner,    label: "夜", bgColor: "#E8EAF6", textColor: "#5C7CFA", options: dinnerOptions },
       ];
-      for (const meal of meals) {
-        if (!meal.text) continue;
-        ctx.fillStyle = "#9E7B5A";
-        ctx.font = `bold 12px ${FONT_FAMILY}`;
-        ctx.fillText(meal.icon, textX, textY);
+
+      for (const meal of mealDefs) {
+        const hasOptions = meal.options && meal.options.length > 0;
+        if (!meal.text && !hasOptions) continue;
+
+        // バッジ背景（角丸）
+        const badgeX = mealAreaX;
+        const badgeY = textY - LINE_H + 3;
+        const badgeH = LINE_H - 2;
+        ctx.fillStyle = meal.bgColor;
+        roundRect(ctx, badgeX, badgeY, MEAL_BADGE_W, badgeH, 4);
+        ctx.fill();
+
+        // バッジテキスト
+        ctx.fillStyle = meal.textColor;
+        ctx.font = `bold 11px ${FONT_FAMILY}`;
+        ctx.textAlign = "center";
+        ctx.fillText(meal.label, badgeX + MEAL_BADGE_W / 2, badgeY + badgeH - 4);
+        ctx.textAlign = "left";
+
+        // 料理名テキスト
         ctx.fillStyle = "#3D2B1F";
-        ctx.font = `13px ${FONT_FAMILY}`;
-        const lines = wrapText(ctx, meal.text, maxTextW);
-        for (const line of lines) {
-          ctx.fillText(line, textX + MEAL_ICON_W + 4, textY);
-          textY += LINE_H;
+        ctx.font = `14px ${FONT_FAMILY}`;
+        if (hasOptions) {
+          // 複数提案を各行に表示
+          for (const optText of meal.options!) {
+            const lines = wrapText(ctx, optText, MEAL_TEXT_MAX_W);
+            for (let li = 0; li < lines.length; li++) {
+              ctx.fillText(lines[li], mealAreaX + MEAL_BADGE_W + 8, textY + li * LINE_H);
+            }
+            textY += lines.length * LINE_H + 2;
+          }
+          textY += MEAL_ROW_GAP;
+        } else {
+          const lines = wrapText(ctx, meal.text, MEAL_TEXT_MAX_W);
+          for (let li = 0; li < lines.length; li++) {
+            ctx.fillText(lines[li], mealAreaX + MEAL_BADGE_W + 8, textY + li * LINE_H);
+          }
+          textY += lines.length * LINE_H + MEAL_ROW_GAP;
         }
-        textY += 2;
       }
     }
 
-    y += rowH;
+    y += rowH + 8;
   }
 
-  // フッター
-  ctx.fillStyle = "#F5E6D3";
-  ctx.fillRect(0, y, WIDTH, FOOTER_H);
-  ctx.fillStyle = "#9E7B5A";
-  ctx.font = `12px ${FONT_FAMILY}`;
+  // ─── フッター ────────────────────────────────────────────────────────────
+  const footerY = y;
+
+  // フッター背景
+  ctx.fillStyle = "#FF7F50";
+  ctx.fillRect(0, footerY, WIDTH, FOOTER_H);
+
+  // フッターキャラクター（手を振る）を右端に
+  if (mascotWave) {
+    const charH = 44;
+    const charW = (mascotWave.width / mascotWave.height) * charH;
+    ctx.drawImage(mascotWave, WIDTH - charW - 12, footerY + (FOOTER_H - charH) / 2, charW, charH);
+  }
+
   ctx.textAlign = "center";
-  ctx.fillText("ダッシュボードから詳細を確認・編集できます", WIDTH / 2, y + 24);
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.font = `12px ${FONT_FAMILY}`;
+  ctx.fillText("ダッシュボードから詳細を確認・編集できます", WIDTH / 2, footerY + FOOTER_H / 2 + 5);
+  ctx.textAlign = "left";
 
   // PNG バッファ生成
   const pngBuffer = canvas.toBuffer("image/png") as Buffer;
@@ -538,4 +568,3 @@ export async function generateWeeklyMenuFlex(userId: number): Promise<any> {
 
   return flexMessage;
 }
-
