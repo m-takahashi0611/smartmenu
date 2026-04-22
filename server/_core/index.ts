@@ -39,7 +39,7 @@ async function startServer() {
 
   // デバッグ用バージョン確認エンドポイント
   app.get("/api/debug/version", (req, res) => {
-    res.json({ version: "4caac01f", timestamp: new Date().toISOString(), fix: "express.json-after-webhook" });
+    res.json({ version: "9499755a", timestamp: new Date().toISOString(), fix: "liff-redirecturi-richmenu-v4" });
   });
 
   // ❗重要: LINE Webhookは express.json() より先に登録することで raw body を保持し、署名検証を正確に行う
