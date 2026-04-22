@@ -3314,7 +3314,7 @@ ${itemList}
     // ─── 週間献立キーワードを優先処理（献立キーワードマッチより前に分岐） ──────────────────────────────────────────────
     {
       const _weeklyKw = ['週間献立', '献立予定表', '週間献立を見る', '週間献立を確認', '今週の献立を見せて', '今週の献立を確認'];
-      const _isWeeklyKw = _weeklyKw.some(kw => normalizedText === kw || normalizedText.includes(kw));
+      const _isWeeklyKw = _weeklyKw.some(kw => text === kw || text.includes(kw));
       if (_isWeeklyKw) {
         // 週間献立フローへジャンプ（献立キーワードマッチをスキップ）
         const _isPremiumW = userId ? await getUserIsPremium(userId) : false;
