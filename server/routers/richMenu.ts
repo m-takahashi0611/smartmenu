@@ -220,10 +220,10 @@ function buildPremiumRichMenuBody(){
         bounds: { x: 833, y: 843, width: 834, height: 843 },
         action: { type: "message", label: "今日だけ特別", text: "今日だけ特別" },
       },
-      // 家計簿（右下）
+      // 週間献立確認（右下）
       {
         bounds: { x: 1667, y: 843, width: 833, height: 843 },
-        action: { type: "message", label: "家計簿", text: "家計簿" },
+        action: { type: "message", label: "週間献立", text: "週間献立" },
       },
     ],
   };

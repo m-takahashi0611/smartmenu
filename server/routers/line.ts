@@ -35,8 +35,8 @@ import { invokeLLM } from "../_core/llm";
 import { getWeatherInfo, formatWeatherForPrompt } from "../weather";
 import { transcribeAudio } from "../_core/voiceTranscription";
 import { switchToPremiumMenu, switchToNormalMenu } from "./richMenu";
-
-// ─── LINE API helper ──────────────────────────────────────────────────────────
+import { generateWeeklyMenuPng } from "../weeklyMenuPng";
+// ─── LINE API helper ───────────────────────────────────────────────────────────
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "";
 const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET ?? "";
@@ -3863,11 +3863,68 @@ ${itemList}
       }
     }
 
-    // ─── リッチメニュー「家計簿」ボタン（課金ユーザー専用・開発中）──────────────────────────
-    if (normalizedText === "家計簿" || text.includes("家計簿を見る") || text.includes("家計簿を開く")) {
+    // ─── リッチメニュー「週間献立確認」ボタン（プレミアムユーザー専用）──────────────────────────
+    const isWeeklyMenuRequest = normalizedText === "週間献立" || normalizedText === "献立予定表" ||
+      text.includes("週間献立を見る") || text.includes("週間献立を確認") || text.includes("今週の献立を見せて") ||
+      text.includes("今週の献立を確認");
+    const isWeeklyMenuAmbiguous = !isWeeklyMenuRequest && (
+      text.includes("週間献立") || text.includes("週の献立") || text.includes("献立予定") ||
+      (text.includes("週") && text.includes("献立"))
+    );
+    if (isWeeklyMenuRequest) {
+      const isPremium = userId ? await getUserIsPremium(userId) : false;
+      const isTrial = userId ? await getUserIsTrial(userId) : false;
+      if (!userId || isTrial) {
+        await replyAndSave(replyToken, [{
+          type: "text",
+          text: "📅 週間献立確認はプレミアムプランの機能です\n\nプレミアムプランにアップグレードすると、今週の献立をPNG画像で確認できます😊",
+        }]);
+        return;
+      }
+      if (!isPremium) {
+        // 無課金ユーザー → ダッシュボードリンクを返す
+        await replyAndSave(replyToken, [{
+          type: "text",
+          text: "📅 今週の献立はダッシュボードで確認できます！\n\nhttps://app.kondatebiyori.com",
+        }]);
+        return;
+      }
+      // プレミアムユーザー → PNG画像を生成して返す
+      await replyAndSave(replyToken, [{ type: "text", text: "📅 今週の献立表を作成中です...少々お待ちください🍽" }]);
+      try {
+        const pngUrl = await generateWeeklyMenuPng(userId);
+        await sendLineMessage(lineUserId, [{
+          type: "image",
+          originalContentUrl: pngUrl,
+          previewImageUrl: pngUrl,
+        }]);
+      } catch (err) {
+        console.error("[LINE] Weekly menu PNG generation failed:", err);
+        await sendLineMessage(lineUserId, [{ type: "text", text: "献立表の生成に失敗しました。しばらくしてからお試しください。" }]);
+      }
+      return;
+    }
+    if (isWeeklyMenuAmbiguous) {
+      // 曖昧なキーワード → 3択クイックリプライで確認
       await replyAndSave(replyToken, [{
         type: "text",
-        text: "📒 家計簿機能は現在開発中です🔧\n\nもうしばらくお待ちください！\nリリース時にはお知らせします😊",
+        text: "週間献立について何をしますか？",
+        quickReply: {
+          items: [
+            {
+              type: "action",
+              action: { type: "message", label: "📅 今週の献立を確認", text: "週間献立" },
+            },
+            {
+              type: "action",
+              action: { type: "message", label: "🤖 今週の献立を生成", text: "今週の献立をまとめて生成して" },
+            },
+            {
+              type: "action",
+              action: { type: "message", label: "❌ キャンセル", text: "キャンセル" },
+            },
+          ],
+        },
       }]);
       return;
     }
