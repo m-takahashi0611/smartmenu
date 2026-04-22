@@ -2,7 +2,7 @@
  * 週間献立PNG生成ヘルパー
  * puppeteer-coreを使ってHTMLをPNG画像に変換し、S3にアップロードする
  */
-import puppeteer from "puppeteer-core";
+import puppeteer from "puppeteer";
 import { storagePut } from "./storage";
 import { getMenuPlansByDateRange } from "./db";
 
@@ -247,22 +247,8 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
   const html = buildWeeklyMenuHtml(days);
 
   // puppeteer-coreでPNG生成
-  // chromiumのパスを動的に解決（本番環境・開発環境の両方に対応）
-  const _chromiumPaths = [
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-    "/usr/bin/google-chrome",
-    "/usr/bin/google-chrome-stable",
-    "/snap/bin/chromium",
-  ];
-  const { execSync } = await import("child_process");
-  let _executablePath = "/usr/bin/chromium";
-  for (const _p of _chromiumPaths) {
-    try { execSync(`ls ${_p}`); _executablePath = _p; break; } catch { /* not found */ }
-  }
   const browser = await puppeteer.launch({
-    executablePath: _executablePath,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--single-process"],
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
     headless: true,
   });
   let pngBuffer: Buffer;
