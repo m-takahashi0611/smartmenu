@@ -3340,10 +3340,12 @@ ${itemList}
         const _isTrialW = userId ? await getUserIsTrial(userId) : false;
         if (!userId || _isTrialW) {
           await replyAndSave(replyToken, [{ type: 'text', text: '📅 週間予定表はプレミアムプランの機能です\n\nプレミアムプランにアップグレードすると、今週の献立表をPNG画像で確認できます😊' }]);
+          if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
           return;
         }
         if (!_isPremiumW) {
           await replyAndSave(replyToken, [{ type: 'text', text: '📅 今週の予定表はダッシュボードで確認できます！\nhttps://app.kondatebiyori.com' }]);
+          if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
           return;
         }
         // 「予定表を確認」→ PNG表示、「新しく生成」→ PNG生成、それ以外 → 選択肢を提示
@@ -3359,6 +3361,7 @@ ${itemList}
             const _msg = (_err?.message ?? String(_err)).slice(0, 150);
             await sendLineMessage(lineUserId, [{ type: 'text', text: 'PNG生成エラー: ' + _msg }]);
           }
+          if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
           return;
         }
         // 「週間献立」「週間予定表」単体 → 生成 or 確認の選択肢を提示
@@ -3370,6 +3373,7 @@ ${itemList}
             { type: 'action' as const, action: { type: 'message' as const, label: '🔄 新しく生成する', text: '新しく生成' } },
           ]},
         }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
     }
