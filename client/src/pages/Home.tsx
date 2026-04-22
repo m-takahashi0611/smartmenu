@@ -4,12 +4,14 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLiffContext } from "@/contexts/LiffContext";
 import { getLoginUrl } from "@/const";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 
 const MASCOT_COOKING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_cooking-2kPVJfknvoFLpXHRLPVvVs.png";
 const MASCOT_STANDING = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_wave-SJFFFGGiajefS9Vh7cqFQF.png";
 const MASCOT_HAPPY = "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/chara_wave-SJFFFGGiajefS9Vh7cqFQF.png";
+
+const LINE_ADD_FRIEND_BASE_URL = "https://line.me/R/ti/p/@073ajwtq";
 
 const features = [
   { icon: "🍽️", title: "AI献立提案", description: "家族構成・冷蔵庫在庫・近隣スーパーの特売情報を組み合わせて、毎日最適な献立をAIが自動生成します。" },
@@ -24,6 +26,16 @@ export default function Home() {
   const { user, loading: authLoading } = useAuth();
   const { isLiff, isLoggingIn, liffError, clearLiffError, loginWithLine, buildContactUrl } = useLiffContext();
   const reportErrorMutation = trpc.errorLog.report.useMutation();
+
+  // URLの?refパラメータを取得してLINE友達追加URLに付与
+  const lineAddFriendUrl = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (ref) {
+      return `${LINE_ADD_FRIEND_BASE_URL}?ref=${encodeURIComponent(ref)}`;
+    }
+    return LINE_ADD_FRIEND_BASE_URL;
+  }, []);
 
   useEffect(() => {
     console.log("[Home] isLiff:", isLiff, "isLoggingIn:", isLoggingIn, "user:", !!user);
@@ -84,6 +96,16 @@ export default function Home() {
     if (authLoading) return <Button size={size} disabled className="opacity-60">読み込み中...</Button>;
     if (user) return <Link href="/dashboard"><Button size={size} className="bg-primary text-primary-foreground w-full font-bold rounded-xl shadow-md">ダッシュボードへ →</Button></Link>;
     if (isLiff) return <LineLoginButton size={size} />;
+    // refパラメータがある場合はLINE友達追加ボタンを表示
+    if (lineAddFriendUrl !== LINE_ADD_FRIEND_BASE_URL) {
+      return (
+        <a href={lineAddFriendUrl} target="_blank" rel="noopener noreferrer">
+          <Button size={size} className="w-full font-bold rounded-xl shadow-md" style={{ backgroundColor: '#06C755', color: 'white' }}>
+            🟢 LINEで友達追加する
+          </Button>
+        </a>
+      );
+    }
     return <a href={getLoginUrl()}><Button size={size} className="bg-primary text-primary-foreground w-full font-bold rounded-xl shadow-md">無料で始める →</Button></a>;
   };
 
