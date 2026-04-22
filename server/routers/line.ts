@@ -3311,9 +3311,40 @@ ${itemList}
       }
     }
 
-    // ─── キーワードマッチング（優先） ─────────────────────────────────────────────────────
+    // ─── 週間献立キーワードを優先処理（献立キーワードマッチより前に分岐） ──────────────────────────────────────────────
+    {
+      const _weeklyKw = ['週間献立', '献立予定表', '週間献立を見る', '週間献立を確認', '今週の献立を見せて', '今週の献立を確認'];
+      const _isWeeklyKw = _weeklyKw.some(kw => normalizedText === kw || normalizedText.includes(kw));
+      if (_isWeeklyKw) {
+        // 週間献立フローへジャンプ（献立キーワードマッチをスキップ）
+        const _isPremiumW = userId ? await getUserIsPremium(userId) : false;
+        const _isTrialW = userId ? await getUserIsTrial(userId) : false;
+        if (!userId || _isTrialW) {
+          await replyAndSave(replyToken, [{ type: 'text', text: `📅 週間献立確認はプレミアムプランの機能です
+
+プレミアムプランにアップグレードすると、今週の献立をPNG画像で確認できます😊` }]);
+          return;
+        }
+        if (!_isPremiumW) {
+          await replyAndSave(replyToken, [{ type: 'text', text: `📅 今週の献立はダッシュボードで確認できます！
+
+https://app.kondatebiyori.com` }]);
+          return;
+        }
+        await replyAndSave(replyToken, [{ type: 'text', text: '📅 今週の献立表を作成中です...少々お待ちください🍽' }]);
+        try {
+          const _pngUrl = await generateWeeklyMenuPng(userId!);
+          await sendLineMessage(lineUserId, [{ type: 'image', originalContentUrl: _pngUrl, previewImageUrl: _pngUrl }]);
+        } catch (_err) {
+          console.error('[LINE] Weekly menu PNG generation failed (early):', _err);
+          await sendLineMessage(lineUserId, [{ type: 'text', text: '献立表の生成に失敗しました。しばらくしてからお試しください。' }]);
+        }
+        return;
+      }
+    }
+
+    // ─── キーワードマッチング（優先） ───────────────────────────────────────────────────────────────────────────────────────
     if (/献立/.test(text) || /今日何(作|つく)ろ/.test(text) || /ご飯(何|なに)(作|つく)/.test(text)) {
-      // pendingActionがすでにある場合はキーワードマッチをスキップ（handleFridgeRegistrationで処理される）
       const pendingBeforeKeyword = await getLineUserPendingAction(lineUserId);
       if (pendingBeforeKeyword) {
         // pendingAction処理へ委譲
