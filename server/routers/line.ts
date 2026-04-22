@@ -3354,9 +3354,10 @@ ${itemList}
           try {
             const _pngUrl = await generateWeeklyMenuPng(userId!);
             await sendLineMessage(lineUserId, [{ type: 'image', originalContentUrl: _pngUrl, previewImageUrl: _pngUrl }]);
-          } catch (_err) {
+          } catch (_err: any) {
             console.error('[LINE] Weekly menu PNG generation failed:', _err);
-            await sendLineMessage(lineUserId, [{ type: 'text', text: '献立表の生成に失敗しました。しばらくしてからお試しください。' }]);
+            const _msg = (_err?.message ?? String(_err)).slice(0, 150);
+            await sendLineMessage(lineUserId, [{ type: 'text', text: 'PNG生成エラー: ' + _msg }]);
           }
           return;
         }
