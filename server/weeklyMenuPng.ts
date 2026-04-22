@@ -246,9 +246,31 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
 
   const html = buildWeeklyMenuHtml(days);
 
-  // puppeteer-coreでPNG生成
+  // puppeteerでPNG生成（本番環境のChromiumパスを動的解決）
+  const { existsSync, readdirSync } = await import('fs');
+  const candidatePaths: string[] = [
+    puppeteer.executablePath(),
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/usr/bin/google-chrome',
+  ];
+  // /app/.cache/puppeteer/chrome/ 以下を動的スキャン（本番環境）
+  try {
+    const baseDir = '/app/.cache/puppeteer/chrome';
+    if (existsSync(baseDir)) {
+      for (const ver of readdirSync(baseDir)) {
+        candidatePaths.unshift(`${baseDir}/${ver}/chrome-linux64/chrome`);
+      }
+    }
+  } catch {}
+  const executablePath = candidatePaths.find(p => existsSync(p));
+  console.log('[PNG] Chromium executablePath:', executablePath ?? 'NOT FOUND');
+  if (!executablePath) {
+    throw new Error('Chromium not found. Checked: ' + candidatePaths.slice(0, 5).join(', '));
+  }
   const browser = await puppeteer.launch({
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+    executablePath,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--single-process"],
     headless: true,
   });
   let pngBuffer: Buffer;

@@ -4376,17 +4376,19 @@ ${itemList}
       const fallbackMsg = "「献立」と送ると今日の献立を提案します";
       await replyAndSave(replyToken, [{ type: "text", text: fallbackMsg }]);
       await addConversationMessage({ lineUserId, role: 'assistant', content: fallbackMsg }).catch(() => {});
-    }
-    }
-    catch (_outerErr) {
-    console.error('[LINE] Unhandled error in message handler:', _outerErr);
     } finally {
-    // 外側のtry/finally: どのreturnパスでもprocessingフラグを確実にリセット
+    // どのreturnパスでもprocessingフラグを確実にリセット
     if (!_skipHistory) {
       await setLineUserProcessing(lineUserId, false).catch(() => {});
     }
     }
+  } catch (_outerErr) {
+    console.error('[LINE] Unhandled error in message handler:', _outerErr);
+    if (!_skipHistory) {
+      await setLineUserProcessing(lineUserId, false).catch(() => {});
+    }
   }
+}
 }
 
 // ─── tRPC router ──────────────────────────────────────────────────────────────
