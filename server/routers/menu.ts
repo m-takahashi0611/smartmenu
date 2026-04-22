@@ -594,6 +594,8 @@ export const menuRouter = router({
         } else if (mealType === 'dinner' || mealType === 'tomorrow_breakfast') {
           entry.menuData.dinnerOptions = md?.dinnerOptions ?? [];
           entry.menuData.dinner = md?.dinner || (md?.dinnerOptions?.[0]?.name ?? '');
+          // selectedDinnerIndexを必ず含める（選択済み候補のUI表示に必要）
+          entry.menuData.selectedDinnerIndex = md?.selectedDinnerIndex != null ? Number(md.selectedDinnerIndex) : null;
           entry.menuData.dinnerShoppingList = md?.shoppingList ?? [];
           entry.menuData.tips = md?.tips;
           entry.menuData.estimatedCost = md?.estimatedCost;
