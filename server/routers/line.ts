@@ -3354,9 +3354,10 @@ ${itemList}
           try {
             const _flexMsg = await generateWeeklyMenuFlex(userId!);
             await sendLineMessage(lineUserId, [_flexMsg]);
-          } catch (_err) {
-            console.error('[LINE] Weekly menu PNG generation failed:', _err);
-            await sendLineMessage(lineUserId, [{ type: 'text', text: '献立表の取得に失敗しました。しばらくしてからお試しください。' }]);
+          } catch (_err: any) {
+            console.error('[LINE] Weekly menu Flex generation failed:', _err);
+            const _errMsg = _err?.message ?? String(_err);
+            await sendLineMessage(lineUserId, [{ type: 'text', text: '献立表の取得に失敗しました。エラー: ' + _errMsg.slice(0, 100) }]);
           }
           return;
         }
