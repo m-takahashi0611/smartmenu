@@ -1016,43 +1016,59 @@ export default function Dashboard() {
                                             </label>
                                           )}
                                         </div>
-                                        {popupMenuData?.dinnerOptions && popupMenuData.dinnerOptions.length > 0 ? (
-                                          <div className="space-y-2">
-                                            {popupMenuData.dinnerOptions.map((opt: any, i: number) => {
-                                              const isSelected = popupMenuData.selectedDinnerIndex === i;
-                                              return (
-                                              <button
-                                                key={i}
-                                                className="w-full rounded-xl px-3 py-2 text-left"
-                                                style={{
-                                                  backgroundColor: isSelected ? '#E8F5E9' : '#F0FEFF',
-                                                  border: isSelected ? '2px solid #81C784' : '1px solid #B2EBF2',
-                                                  cursor: 'pointer',
-                                                }}
-                                                onClick={() => {
-                                                  if (popupMenu) selectDinnerOption.mutate({ menuPlanId: popupMenu.id, optionIndex: i });
-                                                }}
-                                                disabled={selectDinnerOption.isPending}
-                                              >
-                                                <div className="flex items-start gap-2">
-                                                  <span className="text-sm flex-shrink-0">{['1️⃣','2️⃣','3️⃣'][i]}</span>
-                                                  <div className="flex-1">
-                                                    <div className="text-sm font-medium" style={{ color: '#3D2B1F' }}>{opt.name}</div>
-                                                    {opt.mainIngredients && opt.mainIngredients.length > 0 && (
-                                                      <div className="text-xs mt-0.5" style={{ color: '#8a7060' }}>主材料：{opt.mainIngredients.join('・')}</div>
-                                                    )}
-                                                    {opt.usedFridgeItems && opt.usedFridgeItems.length > 0 && (
-                                                      <div className="text-xs mt-0.5" style={{ color: '#6B9E6B' }}>冷蔵庫：{opt.usedFridgeItems.join('・')}</div>
-                                                    )}
-                                                    {isSelected && <div className="text-xs font-bold mt-1" style={{ color: '#388E3C' }}>✅ 選択中</div>}
-                                                  </div>
-                                                </div>
-                                              </button>
-                                              );
-                                            })}
-                                            <p className="text-xs text-center" style={{ color: '#8a7060' }}>タップして夕食候補を選択できます</p>
-                                          </div>
-                                        ) : popupMenuData?.dinner ? (
+                                        {popupMenuData?.dinnerOptions && popupMenuData.dinnerOptions.length > 0 ? (() => {
+                                            // selectedDinnerIndexを数値として正規化
+                                            const selIdx = popupMenuData.selectedDinnerIndex != null ? Number(popupMenuData.selectedDinnerIndex) : null;
+                                            const hasSelection = selIdx !== null && selIdx >= 0;
+                                            return (
+                                              <div className="space-y-2">
+                                                {popupMenuData.dinnerOptions.map((opt: any, i: number) => {
+                                                  const isSelected = hasSelection && selIdx === i;
+                                                  const isUnselected = hasSelection && !isSelected;
+                                                  return (
+                                                  <button
+                                                    key={i}
+                                                    className="w-full rounded-xl px-3 py-2 text-left"
+                                                    style={{
+                                                      backgroundColor: isSelected ? '#D4EDDA' : isUnselected ? '#F5F5F5' : '#F0FEFF',
+                                                      border: isSelected ? '2.5px solid #28A745' : isUnselected ? '1px solid #E0E0E0' : '1px solid #B2EBF2',
+                                                      opacity: isUnselected ? 0.55 : 1,
+                                                      cursor: selectDinnerOption.isPending ? 'wait' : 'pointer',
+                                                    }}
+                                                    onClick={() => {
+                                                      if (popupMenu) selectDinnerOption.mutate({ menuPlanId: popupMenu.id, optionIndex: i });
+                                                    }}
+                                                    disabled={selectDinnerOption.isPending}
+                                                  >
+                                                    <div className="flex items-start gap-2">
+                                                      {isSelected ? (
+                                                        <span className="text-base flex-shrink-0">✅</span>
+                                                      ) : (
+                                                        <span className="text-sm flex-shrink-0" style={{ opacity: isUnselected ? 0.5 : 1 }}>{['①','②','③'][i]}</span>
+                                                      )}
+                                                      <div className="flex-1">
+                                                        <div className="text-sm font-medium" style={{ color: isSelected ? '#1B5E20' : isUnselected ? '#999' : '#3D2B1F', fontWeight: isSelected ? 700 : 500 }}>{opt.name}</div>
+                                                        {opt.mainIngredients && opt.mainIngredients.length > 0 && (
+                                                          <div className="text-xs mt-0.5" style={{ color: isUnselected ? '#bbb' : '#8a7060' }}>主材料：{opt.mainIngredients.join('・')}</div>
+                                                        )}
+                                                        {opt.usedFridgeItems && opt.usedFridgeItems.length > 0 && (
+                                                          <div className="text-xs mt-0.5" style={{ color: isUnselected ? '#bbb' : '#6B9E6B' }}>冷蔵庫：{opt.usedFridgeItems.join('・')}</div>
+                                                        )}
+                                                        {isSelected && (
+                                                          <div className="text-xs font-bold mt-1" style={{ color: '#28A745' }}>✔ 選択済み（確定）</div>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  </button>
+                                                  );
+                                                })}
+                                                {!hasSelection && (
+                                                  <p className="text-xs text-center" style={{ color: '#8a7060' }}>タップして夕食候補を選択できます</p>
+                                                )}
+                                              </div>
+                                            );
+                                          })()
+                                        : popupMenuData?.dinner ? (
                                           <div className="rounded-xl px-3 py-2" style={{ backgroundColor: '#F0FEFF', border: '1px solid #B2EBF2' }}>
                                             {formatMealText(popupMenuData.dinner)}
                                           </div>
