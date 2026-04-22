@@ -2,9 +2,22 @@
  * 週間献立PNG生成ヘルパー
  * @napi-rs/canvas を使ってPNG画像を直接生成し、S3にアップロードする
  */
-import { createCanvas } from "@napi-rs/canvas";
+import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
+import path from "path";
+import { fileURLToPath } from "url";
 import { storagePut } from "./storage";
 import { getMenuPlansByDateRange } from "./db";
+
+// NotoSansJP フォントを登録（本番環境でも日本語テキストを描画できるようにする）
+const _weeklyMenuDirname = path.dirname(fileURLToPath(import.meta.url));
+const FONT_DIR = path.join(_weeklyMenuDirname, "assets", "fonts");
+try {
+  GlobalFonts.registerFromPath(path.join(FONT_DIR, "NotoSansJP-Regular.woff2"), "NotoSansJP");
+  GlobalFonts.registerFromPath(path.join(FONT_DIR, "NotoSansJP-Bold.woff2"), "NotoSansJP");
+  console.log("[weeklyMenuPng] NotoSansJP font registered from:", FONT_DIR);
+} catch (e) {
+  console.warn("[weeklyMenuPng] Font registration failed:", e);
+}
 
 const DAYS_JA = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -262,7 +275,7 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
   const HEADER_H = 72;
   const ROW_LABEL_W = 76;
   const CELL_PAD = 10;
-  const FONT_FAMILY = "sans-serif";
+  const FONT_FAMILY = "NotoSansJP, sans-serif";
   const LINE_H = 20;
   const MEAL_ICON_W = 22;
   const CELL_INNER_W = WIDTH - PADDING * 2 - ROW_LABEL_W - CELL_PAD * 2;
