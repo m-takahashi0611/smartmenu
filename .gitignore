@@ -111,6 +111,10 @@ temp/
 
 # Server-side static assets (uploaded to CDN, not needed in deployment)
 server/assets/
+# Fonts are needed in deployment for Canvas rendering
+!server/assets/fonts/
+!server/assets/fonts/*.woff2
+!server/assets/fonts/*.ttf
 
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
