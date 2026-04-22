@@ -35,7 +35,7 @@ import { invokeLLM } from "../_core/llm";
 import { getWeatherInfo, formatWeatherForPrompt } from "../weather";
 import { transcribeAudio } from "../_core/voiceTranscription";
 import { switchToPremiumMenu, switchToNormalMenu } from "./richMenu";
-import { generateWeeklyMenuFlex } from "../weeklyMenuPng";
+import { generateWeeklyMenuPng } from "../weeklyMenuPng";
 // ─── LINE API helper ───────────────────────────────────────────────────────────
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "";
@@ -3352,13 +3352,14 @@ ${itemList}
         const _isViewReq = ['予定表を確認', '予定表確認', '週間予定表を確認', '今週の予定表を確認'].some(kw => text === kw || text.includes(kw));
         const _isGenReq = ['新しく生成', '生成する', '週間献立を生成', '献立を生成'].some(kw => text === kw || text.includes(kw));
         if (_isViewReq || _isGenReq) {
+          await replyAndSave(replyToken, [{ type: 'text', text: '📅 今週の献立表を作成中です...少々お待ちください🍽' }]);
           try {
-            const _flexMsg = await generateWeeklyMenuFlex(userId!);
-            await replyAndSave(replyToken, [_flexMsg]);
+            const _pngUrl = await generateWeeklyMenuPng(userId!);
+            await sendLineMessage(lineUserId, [{ type: 'image', originalContentUrl: _pngUrl, previewImageUrl: _pngUrl }]);
           } catch (_err: any) {
-            console.error('[LINE] Weekly menu Flex generation failed:', _err);
+            console.error('[LINE] Weekly menu PNG generation failed:', _err);
             const _msg = (_err?.message ?? String(_err)).slice(0, 150);
-            await replyAndSave(replyToken, [{ type: 'text', text: '献立表の取得に失敗しました: ' + _msg }]);
+            await sendLineMessage(lineUserId, [{ type: 'text', text: 'PNG生成エラー: ' + _msg }]);
           }
           if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
           return;
@@ -3982,13 +3983,14 @@ ${itemList}
         }]);
         return;
       }
-      // プレミアムユーザー → Flexメッセージで返す
+      // プレミアムユーザー → PNG画像を生成して返す
+      await replyAndSave(replyToken, [{ type: "text", text: "📅 今週の献立表を作成中です...少々お待ちください🍽" }]);
       try {
-        const flexMsg = await generateWeeklyMenuFlex(userId);
-        await replyAndSave(replyToken, [flexMsg]);
+        const pngUrl = await generateWeeklyMenuPng(userId);
+        await sendLineMessage(lineUserId, [{ type: 'image', originalContentUrl: pngUrl, previewImageUrl: pngUrl }]);
       } catch (err) {
-        console.error("[LINE] Weekly menu Flex generation failed:", err);
-        await replyAndSave(replyToken, [{ type: "text", text: "献立表の生成に失敗しました。しばらくしてからお試しください。" }]);
+        console.error("[LINE] Weekly menu PNG generation failed:", err);
+        await sendLineMessage(lineUserId, [{ type: "text", text: "献立表の生成に失敗しました。しばらくしてからお試しください。" }]);
       }
       return;
     }

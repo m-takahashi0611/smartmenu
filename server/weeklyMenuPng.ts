@@ -1,8 +1,8 @@
 /**
  * 週間献立PNG生成ヘルパー
- * puppeteer-coreを使ってHTMLをPNG画像に変換し、S3にアップロードする
+ * @napi-rs/canvas を使ってPNG画像を直接生成し、S3にアップロードする
  */
-import puppeteer from "puppeteer";
+import { createCanvas } from "@napi-rs/canvas";
 import { storagePut } from "./storage";
 import { getMenuPlansByDateRange } from "./db";
 
@@ -35,13 +35,25 @@ function extractMeals(menuData: any): { breakfast: string; lunch: string; dinner
   return { breakfast, lunch, dinner };
 }
 
-/** 料理名を短縮（長すぎる場合は省略） */
-function truncate(text: string, maxLen = 18): string {
-  if (!text) return "";
-  return text.length > maxLen ? text.slice(0, maxLen) + "…" : text;
+/** テキストを指定幅に収まるよう折り返す */
+function wrapText(ctx: any, text: string, maxWidth: number): string[] {
+  if (!text) return [];
+  const lines: string[] = [];
+  let current = "";
+  for (const char of text) {
+    const test = current + char;
+    if (ctx.measureText(test).width > maxWidth && current.length > 0) {
+      lines.push(current);
+      current = char;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
 }
 
-/** 週間献立HTMLを生成 */
+/** 週間献立HTMLを生成（未使用・削除予定） */
 function buildWeeklyMenuHtml(days: Array<{ date: string; menuData: any }>): string {
   const rows = days.map(({ date, menuData }) => {
     const { breakfast, lunch, dinner } = extractMeals(menuData);
@@ -192,26 +204,24 @@ function buildWeeklyMenuHtml(days: Array<{ date: string; menuData: any }>): stri
 
 /**
  * ユーザーの今週の献立をPNG画像として生成し、S3にアップロードしてURLを返す
+ * @napi-rs/canvas を使用（Puppeteer不要）
  */
 export async function generateWeeklyMenuPng(userId: number): Promise<string> {
   // 今週月曜〜日曜の日付範囲を計算（JST）
   const now = new Date();
   const jstOffset = 9 * 60 * 60 * 1000;
   const jstNow = new Date(now.getTime() + jstOffset);
-  const dayOfWeek = jstNow.getUTCDay(); // 0=Sun
+  const dayOfWeek = jstNow.getUTCDay();
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const monday = new Date(jstNow);
   monday.setUTCDate(jstNow.getUTCDate() + mondayOffset);
   const sunday = new Date(monday);
   sunday.setUTCDate(monday.getUTCDate() + 6);
-
   const startDate = monday.toISOString().split("T")[0];
   const endDate = sunday.toISOString().split("T")[0];
 
   // DBから献立データを取得
   const plans = await getMenuPlansByDateRange(userId, startDate, endDate);
-
-  // 日付ごとにmenuDataを統合（menu.tsのgetByDateRangeと同じロジック）
   const byDate = new Map<string, any>();
   for (const p of plans) {
     const dateStr = p.planDate instanceof Date
@@ -229,62 +239,146 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
     } else if (mealType === "lunch") {
       entry.lunch = md?.lunch || md?.name || "";
     } else {
-      entry.dinnerOptions = md?.dinnerOptions ?? [];
       entry.dinner = md?.dinner || (md?.dinnerOptions?.[0]?.name ?? "");
       entry.selectedDinnerIndex = md?.selectedDinnerIndex != null ? Number(md.selectedDinnerIndex) : null;
+      entry.dinnerOptions = md?.dinnerOptions ?? [];
     }
   }
 
   // 月〜日の7日分の配列を作成
-  const days: Array<{ date: string; menuData: any }> = [];
+  const dayLabelsArr = ["月", "火", "水", "木", "金", "土", "日"];
+  const days: Array<{ date: string; label: string; menuData: any }> = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday);
     d.setUTCDate(monday.getUTCDate() + i);
     const dateStr = d.toISOString().split("T")[0];
-    days.push({ date: dateStr, menuData: byDate.get(dateStr) || null });
+    const mmdd = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+    days.push({ date: dateStr, label: `${mmdd}(${dayLabelsArr[i]})`, menuData: byDate.get(dateStr) || null });
   }
 
-  const html = buildWeeklyMenuHtml(days);
+  // ─── Canvas描画 ───────────────────────────────────────────────────────────
+  const WIDTH = 640;
+  const PADDING = 16;
+  const HEADER_H = 72;
+  const ROW_LABEL_W = 76;
+  const CELL_PAD = 10;
+  const FONT_FAMILY = "sans-serif";
+  const LINE_H = 20;
+  const MEAL_ICON_W = 22;
+  const CELL_INNER_W = WIDTH - PADDING * 2 - ROW_LABEL_W - CELL_PAD * 2;
 
-  // puppeteerでPNG生成（本番環境のChromiumパスを動的解決）
-  const { existsSync, readdirSync } = await import('fs');
-  const candidatePaths: string[] = [
-    puppeteer.executablePath(),
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium',
-    '/usr/bin/google-chrome',
-  ];
-  // /app/.cache/puppeteer/chrome/ 以下を動的スキャン（本番環境）
-  try {
-    const baseDir = '/app/.cache/puppeteer/chrome';
-    if (existsSync(baseDir)) {
-      for (const ver of readdirSync(baseDir)) {
-        candidatePaths.unshift(`${baseDir}/${ver}/chrome-linux64/chrome`);
+  // 仮canvasでテキスト幅を測定して各行の高さを計算
+  const tempCanvas = createCanvas(WIDTH, 100);
+  const tempCtx = tempCanvas.getContext("2d");
+  tempCtx.font = `13px ${FONT_FAMILY}`;
+  const maxTextW = CELL_INNER_W - MEAL_ICON_W - 6;
+
+  const rowHeights: number[] = [];
+  for (const day of days) {
+    const { breakfast, lunch, dinner } = extractMeals(day.menuData);
+    let totalLines = 0;
+    if (breakfast) totalLines += wrapText(tempCtx, breakfast, maxTextW).length;
+    if (lunch) totalLines += wrapText(tempCtx, lunch, maxTextW).length;
+    if (dinner) totalLines += wrapText(tempCtx, dinner, maxTextW).length;
+    if (!breakfast && !lunch && !dinner) totalLines = 1;
+    const rowH = Math.max(64, CELL_PAD * 2 + totalLines * LINE_H + 8);
+    rowHeights.push(rowH);
+  }
+
+  const FOOTER_H = 36;
+  const totalH = HEADER_H + rowHeights.reduce((a, b) => a + b, 0) + PADDING + FOOTER_H;
+
+  const canvas = createCanvas(WIDTH, totalH);
+  const ctx = canvas.getContext("2d");
+
+  // 背景
+  ctx.fillStyle = "#FFF8F0";
+  ctx.fillRect(0, 0, WIDTH, totalH);
+
+  // ヘッダー
+  ctx.fillStyle = "#9E7B5A";
+  ctx.fillRect(0, 0, WIDTH, HEADER_H);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = `bold 22px ${FONT_FAMILY}`;
+  ctx.fillText("今週の献立", PADDING + 4, 40);
+  ctx.font = `13px ${FONT_FAMILY}`;
+  ctx.fillStyle = "#F5E6D3";
+  ctx.fillText("献立日和〜coto coto〜", PADDING + 4, 60);
+
+  // 各行
+  let y = HEADER_H;
+  for (let i = 0; i < days.length; i++) {
+    const day = days[i];
+    const rowH = rowHeights[i];
+    const { breakfast, lunch, dinner } = extractMeals(day.menuData);
+    const hasData = breakfast || lunch || dinner;
+
+    // 行背景
+    ctx.fillStyle = i % 2 === 0 ? "#FFFFFF" : "#FDF5EC";
+    ctx.fillRect(PADDING, y, WIDTH - PADDING * 2, rowH);
+
+    // 枠線
+    ctx.strokeStyle = "#F0DFC8";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PADDING, y, WIDTH - PADDING * 2, rowH);
+
+    // 日付列背景
+    ctx.fillStyle = "#F5E6D3";
+    ctx.fillRect(PADDING, y, ROW_LABEL_W, rowH);
+
+    // 日付テキスト
+    ctx.fillStyle = "#9E7B5A";
+    ctx.font = `bold 13px ${FONT_FAMILY}`;
+    const parts = day.label.split("(");
+    ctx.fillText(parts[0], PADDING + 6, y + rowH / 2 - 4);
+    if (parts[1]) {
+      ctx.font = `12px ${FONT_FAMILY}`;
+      ctx.fillText("(" + parts[1], PADDING + 6, y + rowH / 2 + 14);
+    }
+
+    // 食事内容
+    const textX = PADDING + ROW_LABEL_W + CELL_PAD;
+    let textY = y + CELL_PAD + LINE_H;
+    ctx.font = `13px ${FONT_FAMILY}`;
+
+    if (!hasData) {
+      ctx.fillStyle = "#C4B0A0";
+      ctx.fillText("未設定", textX, y + rowH / 2 + 5);
+    } else {
+      const meals = [
+        { icon: "[朝]", text: breakfast },
+        { icon: "[昼]", text: lunch },
+        { icon: "[夜]", text: dinner },
+      ];
+      for (const meal of meals) {
+        if (!meal.text) continue;
+        ctx.fillStyle = "#9E7B5A";
+        ctx.font = `bold 12px ${FONT_FAMILY}`;
+        ctx.fillText(meal.icon, textX, textY);
+        ctx.fillStyle = "#3D2B1F";
+        ctx.font = `13px ${FONT_FAMILY}`;
+        const lines = wrapText(ctx, meal.text, maxTextW);
+        for (const line of lines) {
+          ctx.fillText(line, textX + MEAL_ICON_W + 4, textY);
+          textY += LINE_H;
+        }
+        textY += 2;
       }
     }
-  } catch {}
-  const executablePath = candidatePaths.find(p => existsSync(p));
-  console.log('[PNG] Chromium executablePath:', executablePath ?? 'NOT FOUND');
-  if (!executablePath) {
-    throw new Error('Chromium not found. Checked: ' + candidatePaths.slice(0, 5).join(', '));
+
+    y += rowH;
   }
-  const browser = await puppeteer.launch({
-    executablePath,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--single-process"],
-    headless: true,
-  });
-  let pngBuffer: Buffer;
-  try {
-    const page = await browser.newPage();
-    await page.setViewport({ width: 750, height: 1200 });
-    await page.setContent(html, { waitUntil: "networkidle0" });
-    pngBuffer = await page.screenshot({
-      type: "png",
-      fullPage: true,
-    }) as Buffer;
-  } finally {
-    await browser.close();
-  }
+
+  // フッター
+  ctx.fillStyle = "#F5E6D3";
+  ctx.fillRect(0, y, WIDTH, FOOTER_H);
+  ctx.fillStyle = "#9E7B5A";
+  ctx.font = `12px ${FONT_FAMILY}`;
+  ctx.textAlign = "center";
+  ctx.fillText("ダッシュボードから詳細を確認・編集できます", WIDTH / 2, y + 24);
+
+  // PNG バッファ生成
+  const pngBuffer = canvas.toBuffer("image/png") as Buffer;
 
   // S3にアップロード
   const key = `weekly-menu/${userId}-${Date.now()}.png`;
