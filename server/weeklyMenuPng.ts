@@ -109,6 +109,12 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
   const endDate = sunday.toISOString().split("T")[0];
 
   // DBから献立データを取得
+  // 文字列から最初の料理名（読点・中点の前）だけを取り出す
+  function extractMainDishFromStr(str: string): string {
+    if (!str) return "";
+    return str.split(/[、・,]/)[0].trim();
+  }
+
   const plans = await getMenuPlansByDateRange(userId, startDate, endDate);
   const byDate = new Map<string, any>();
   for (const p of plans) {
@@ -119,17 +125,39 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
       try { return typeof p.menuData === "string" ? JSON.parse(p.menuData) : p.menuData; }
       catch { return null; }
     })();
-    const mealType: string = md?.mealType ?? "dinner";
+    if (!md) continue;
+    const mealType: string = md?.mealType ?? "";
     if (!byDate.has(dateStr)) byDate.set(dateStr, {});
     const entry = byDate.get(dateStr)!;
+
     if (mealType === "breakfast") {
-      entry.breakfast = md?.breakfast || md?.name || "";
+      // 新形式：朝食専用レコード
+      entry.breakfast = md?.name || md?.mainDish || extractMainDishFromStr(md?.breakfast || "");
     } else if (mealType === "lunch") {
-      entry.lunch = md?.lunch || md?.name || "";
-    } else {
-      entry.dinner = md?.dinner || (md?.dinnerOptions?.[0]?.name ?? "");
+      // 新形式：昼食専用レコード
+      entry.lunch = md?.name || md?.mainDish || extractMainDishFromStr(md?.lunch || "");
+    } else if (mealType === "dinner") {
+      // 新形式：夕食専用レコード（dinnerOptionsあり）
       entry.selectedDinnerIndex = md?.selectedDinnerIndex != null ? Number(md.selectedDinnerIndex) : null;
-      entry.dinnerOptions = md?.dinnerOptions ?? [];
+      if (md?.dinnerOptions && md.dinnerOptions.length > 0) {
+        entry.dinnerOptions = md.dinnerOptions.map((o: any) => ({ name: o.name || o.mainDish || String(o) }));
+        entry.dinner = "";
+      } else {
+        entry.dinner = md?.dinner || md?.mainDish || "";
+        entry.dinnerOptions = [];
+      }
+    } else {
+      // 旧形式：1レコードに朝・昼・夜まとめて（mealTypeなし）
+      // 各フィールドから読点前の主菜のみ抽出
+      if (md?.breakfast) entry.breakfast = extractMainDishFromStr(md.breakfast);
+      if (md?.lunch) entry.lunch = extractMainDishFromStr(md.lunch);
+      if (md?.dinnerOptions && md.dinnerOptions.length > 0) {
+        entry.dinnerOptions = md.dinnerOptions.map((o: any) => ({ name: o.name || o.mainDish || String(o) }));
+        entry.dinner = "";
+      } else if (md?.dinner) {
+        entry.dinner = extractMainDishFromStr(md.dinner);
+        entry.dinnerOptions = [];
+      }
     }
   }
 
