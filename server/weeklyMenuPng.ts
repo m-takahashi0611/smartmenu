@@ -283,3 +283,144 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
   const { url } = await storagePut(key, pngBuffer, "image/png");
   return url;
 }
+
+/**
+ * 週間献立をLINE Flexメッセージとして構築する（puppeteer不要）
+ */
+export async function generateWeeklyMenuFlex(userId: number): Promise<any> {
+  // 今週月曜〜日曜の日付範囲を計算（JST）
+  const now = new Date();
+  const jstOffset = 9 * 60 * 60 * 1000;
+  const jstNow = new Date(now.getTime() + jstOffset);
+  const dayOfWeek = jstNow.getUTCDay(); // 0=Sun
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(jstNow);
+  monday.setUTCDate(jstNow.getUTCDate() + mondayOffset);
+  const sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  const startDate = monday.toISOString().split("T")[0];
+  const endDate = sunday.toISOString().split("T")[0];
+
+  // DBから献立データを取得
+  const plans = await getMenuPlansByDateRange(userId, startDate, endDate);
+
+  // 日付ごとにmenuDataを統合
+  const byDate = new Map<string, any>();
+  for (const p of plans) {
+    const dateStr = p.planDate instanceof Date
+      ? p.planDate.toISOString().split("T")[0]
+      : String(p.planDate);
+    const md = (() => {
+      try { return typeof p.menuData === "string" ? JSON.parse(p.menuData) : p.menuData; }
+      catch { return null; }
+    })();
+    const mealType: string = md?.mealType ?? "dinner";
+    if (!byDate.has(dateStr)) byDate.set(dateStr, {});
+    const entry = byDate.get(dateStr)!;
+    if (mealType === "breakfast") {
+      entry.breakfast = md?.breakfast || md?.name || "";
+    } else if (mealType === "lunch") {
+      entry.lunch = md?.lunch || md?.name || "";
+    } else {
+      entry.dinner = md?.dinner || (md?.dinnerOptions?.[0]?.name ?? "");
+    }
+  }
+
+  // 月〜日の7日分の配列を作成
+  const dayLabels = ["月", "火", "水", "木", "金", "土", "日"];
+  const days: Array<{ date: string; label: string; menuData: any }> = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setUTCDate(monday.getUTCDate() + i);
+    const dateStr = d.toISOString().split("T")[0];
+    const mmdd = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+    days.push({ date: dateStr, label: `${mmdd}(${dayLabels[i]})`, menuData: byDate.get(dateStr) || null });
+  }
+
+  // Flexメッセージのbody contentsを構築
+  const rows: any[] = [];
+  for (const day of days) {
+    const md = day.menuData;
+    const breakfast = md?.breakfast || "";
+    const lunch = md?.lunch || "";
+    const dinner = md?.dinner || "";
+    const hasData = breakfast || lunch || dinner;
+
+    const mealLines: any[] = [];
+    if (breakfast) mealLines.push({ type: "text", text: `🌅 ${breakfast}`, size: "xs", color: "#5C3D2E", wrap: true });
+    if (lunch) mealLines.push({ type: "text", text: `☀️ ${lunch}`, size: "xs", color: "#5C3D2E", wrap: true });
+    if (dinner) mealLines.push({ type: "text", text: `🌙 ${dinner}`, size: "xs", color: "#5C3D2E", wrap: true });
+    if (!hasData) mealLines.push({ type: "text", text: "未設定", size: "xs", color: "#C4B0A0", style: "italic" });
+
+    rows.push({
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        {
+          type: "box",
+          layout: "vertical",
+          contents: [{ type: "text", text: day.label, size: "xs", weight: "bold", color: "#9E7B5A" }],
+          width: "72px",
+          justifyContent: "center",
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          contents: mealLines,
+          flex: 1,
+        },
+      ],
+      paddingTop: "8px",
+      paddingBottom: "8px",
+      borderWidth: "1px",
+      borderColor: "#F0DFC8",
+      cornerRadius: "8px",
+      backgroundColor: hasData ? "#FFFFFF" : "#F9F5F0",
+      margin: "4px",
+    });
+  }
+
+  const flexMessage = {
+    type: "flex",
+    altText: "今週の献立表",
+    contents: {
+      type: "bubble",
+      size: "giga",
+      header: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          { type: "text", text: "🍽 今週の献立", weight: "bold", size: "lg", color: "#5C3D2E" },
+          { type: "text", text: "献立日和〜coto coto〜", size: "xs", color: "#9E7B5A" },
+        ],
+        backgroundColor: "#FFF8F0",
+        paddingAll: "16px",
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        contents: rows,
+        backgroundColor: "#FFF8F0",
+        paddingAll: "8px",
+        spacing: "none",
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          { type: "text", text: "ダッシュボードから詳細を確認・編集できます", size: "xxs", color: "#B09070", align: "center" },
+        ],
+        backgroundColor: "#FFF8F0",
+        paddingAll: "8px",
+      },
+      styles: {
+        header: { backgroundColor: "#FFF8F0" },
+        body: { backgroundColor: "#FFF8F0" },
+        footer: { backgroundColor: "#FFF8F0" },
+      },
+    },
+  };
+
+  return flexMessage;
+}
+

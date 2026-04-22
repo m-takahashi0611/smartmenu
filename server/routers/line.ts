@@ -35,7 +35,7 @@ import { invokeLLM } from "../_core/llm";
 import { getWeatherInfo, formatWeatherForPrompt } from "../weather";
 import { transcribeAudio } from "../_core/voiceTranscription";
 import { switchToPremiumMenu, switchToNormalMenu } from "./richMenu";
-import { generateWeeklyMenuPng } from "../weeklyMenuPng";
+import { generateWeeklyMenuFlex } from "../weeklyMenuPng";
 // ─── LINE API helper ───────────────────────────────────────────────────────────
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "";
@@ -3352,8 +3352,8 @@ ${itemList}
         if (_isViewReq || _isGenReq) {
           await replyAndSave(replyToken, [{ type: 'text', text: '📅 今週の献立表を取得中です...少々お待ちください🍽' }]);
           try {
-            const _pngUrl = await generateWeeklyMenuPng(userId!);
-            await sendLineMessage(lineUserId, [{ type: 'image', originalContentUrl: _pngUrl, previewImageUrl: _pngUrl }]);
+            const _flexMsg = await generateWeeklyMenuFlex(userId!);
+            await sendLineMessage(lineUserId, [_flexMsg]);
           } catch (_err) {
             console.error('[LINE] Weekly menu PNG generation failed:', _err);
             await sendLineMessage(lineUserId, [{ type: 'text', text: '献立表の取得に失敗しました。しばらくしてからお試しください。' }]);
@@ -3981,12 +3981,8 @@ ${itemList}
       // プレミアムユーザー → PNG画像を生成して返す
       await replyAndSave(replyToken, [{ type: "text", text: "📅 今週の献立表を作成中です...少々お待ちください🍽" }]);
       try {
-        const pngUrl = await generateWeeklyMenuPng(userId);
-        await sendLineMessage(lineUserId, [{
-          type: "image",
-          originalContentUrl: pngUrl,
-          previewImageUrl: pngUrl,
-        }]);
+        const flexMsg = await generateWeeklyMenuFlex(userId);
+        await sendLineMessage(lineUserId, [flexMsg]);
       } catch (err) {
         console.error("[LINE] Weekly menu PNG generation failed:", err);
         await sendLineMessage(lineUserId, [{ type: "text", text: "献立表の生成に失敗しました。しばらくしてからお試しください。" }]);
