@@ -132,6 +132,11 @@ export default function Dashboard() {
     onError: (err) => toast.error('変更に失敗しました', { description: err.message }),
   });
 
+  // 夕食候補選択
+  const selectDinnerOption = trpc.menu.selectDinnerOption.useMutation({
+    onSuccess: (data) => { refetchWeek(); toast.success(`「${data.dinner}」を選択しました！`); },
+    onError: (err) => toast.error('選択に失敗しました', { description: err.message }),
+  });
   // 週間献立一括生成
   const generateWeekly = trpc.menu.generateWeekly.useMutation({
     onSuccess: (data) => {
@@ -928,6 +933,16 @@ export default function Dashboard() {
                                     </div>
                                     {/* ヘッダー */}
                                     <div className="flex items-center justify-between px-4 pb-2" style={{ borderBottom: '1px solid #F0D9C8' }}>
+                                      {/* 前日ボタン */}
+                                      <button
+                                        onClick={() => {
+                                          const idx = weekDays.findIndex(d => d.date === weekPopupDate);
+                                          if (idx > 0) setWeekPopupDate(weekDays[idx - 1].date);
+                                        }}
+                                        disabled={weekDays.findIndex(d => d.date === weekPopupDate) <= 0}
+                                        className="text-lg px-2 py-1 rounded-lg disabled:opacity-30"
+                                        style={{ color: '#8a7060' }}
+                                      >◄</button>
                                       <span className="text-base font-bold" style={{ color: '#3D2B1F' }}>
                                         {(() => {
                                           const [y, mo, d] = weekPopupDate.split('-').map(Number);
@@ -935,7 +950,19 @@ export default function Dashboard() {
                                           return dt.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
                                         })()}
                                       </span>
-                                      <button onClick={() => setWeekPopupDate(null)} className="text-lg font-bold" style={{ color: '#8a7060' }}>✕</button>
+                                      <div className="flex items-center gap-1">
+                                        {/* 翌日ボタン */}
+                                        <button
+                                          onClick={() => {
+                                            const idx = weekDays.findIndex(d => d.date === weekPopupDate);
+                                            if (idx < weekDays.length - 1) setWeekPopupDate(weekDays[idx + 1].date);
+                                          }}
+                                          disabled={weekDays.findIndex(d => d.date === weekPopupDate) >= weekDays.length - 1}
+                                          className="text-lg px-2 py-1 rounded-lg disabled:opacity-30"
+                                          style={{ color: '#8a7060' }}
+                                        >►</button>
+                                        <button onClick={() => setWeekPopupDate(null)} className="text-lg font-bold px-2" style={{ color: '#8a7060' }}>✕</button>
+                                      </div>
                                     </div>
                                     {/* スクロール可能なコンテンツ */}
                                     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
@@ -991,8 +1018,22 @@ export default function Dashboard() {
                                         </div>
                                         {popupMenuData?.dinnerOptions && popupMenuData.dinnerOptions.length > 0 ? (
                                           <div className="space-y-2">
-                                            {popupMenuData.dinnerOptions.map((opt: any, i: number) => (
-                                              <div key={i} className="rounded-xl px-3 py-2" style={{ backgroundColor: '#F0FEFF', border: '1px solid #B2EBF2' }}>
+                                            {popupMenuData.dinnerOptions.map((opt: any, i: number) => {
+                                              const isSelected = popupMenuData.selectedDinnerIndex === i;
+                                              return (
+                                              <button
+                                                key={i}
+                                                className="w-full rounded-xl px-3 py-2 text-left"
+                                                style={{
+                                                  backgroundColor: isSelected ? '#E8F5E9' : '#F0FEFF',
+                                                  border: isSelected ? '2px solid #81C784' : '1px solid #B2EBF2',
+                                                  cursor: 'pointer',
+                                                }}
+                                                onClick={() => {
+                                                  if (popupMenu) selectDinnerOption.mutate({ menuPlanId: popupMenu.id, optionIndex: i });
+                                                }}
+                                                disabled={selectDinnerOption.isPending}
+                                              >
                                                 <div className="flex items-start gap-2">
                                                   <span className="text-sm flex-shrink-0">{['1️⃣','2️⃣','3️⃣'][i]}</span>
                                                   <div className="flex-1">
@@ -1003,10 +1044,13 @@ export default function Dashboard() {
                                                     {opt.usedFridgeItems && opt.usedFridgeItems.length > 0 && (
                                                       <div className="text-xs mt-0.5" style={{ color: '#6B9E6B' }}>冷蔵庫：{opt.usedFridgeItems.join('・')}</div>
                                                     )}
+                                                    {isSelected && <div className="text-xs font-bold mt-1" style={{ color: '#388E3C' }}>✅ 選択中</div>}
                                                   </div>
                                                 </div>
-                                              </div>
-                                            ))}
+                                              </button>
+                                              );
+                                            })}
+                                            <p className="text-xs text-center" style={{ color: '#8a7060' }}>タップして夕食候補を選択できます</p>
                                           </div>
                                         ) : popupMenuData?.dinner ? (
                                           <div className="rounded-xl px-3 py-2" style={{ backgroundColor: '#F0FEFF', border: '1px solid #B2EBF2' }}>

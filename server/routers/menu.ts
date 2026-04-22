@@ -19,6 +19,9 @@ import {
   getMenuPlansByDateRange,
   deleteMenuPlan,
 } from "../db";
+import { menuPlans } from "../../drizzle/schema";
+import { eq, and } from "drizzle-orm";
+import { getDb } from "../db";
 import { invokeLLM } from "../_core/llm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { sendLineMessage } from "./line";
@@ -700,6 +703,31 @@ export const menuRouter = router({
       }
 
       return { success: true, message };
+    }),
+
+  // 夕食候補を選択して確定する
+  selectDinnerOption: protectedProcedure
+    .input(z.object({ menuPlanId: z.number(), optionIndex: z.number().min(0).max(2) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB接続エラー' });
+      const rows = await db.select().from(menuPlans)
+        .where(and(eq(menuPlans.id, input.menuPlanId), eq(menuPlans.userId, ctx.user.id)))
+        .limit(1);
+      const plan = rows[0];
+      if (!plan) throw new TRPCError({ code: 'NOT_FOUND', message: '献立が見つかりません' });
+      const menuData = plan.menuData ? JSON.parse(plan.menuData as string) : {};
+      const dinnerOptions = menuData.dinnerOptions as Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }> | undefined;
+      if (!dinnerOptions || dinnerOptions.length <= input.optionIndex) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: '選択肢が見つかりません' });
+      }
+      const selected = dinnerOptions[input.optionIndex];
+      // 選択した候補をdinnerフィールドに保存し、menuDataにも反映
+      const updatedMenuData = { ...menuData, dinner: selected.name, selectedDinnerIndex: input.optionIndex };
+      await db.update(menuPlans)
+        .set({ dinner: selected.name, menuData: JSON.stringify(updatedMenuData), isProtected: true, updatedAt: new Date() })
+        .where(and(eq(menuPlans.id, input.menuPlanId), eq(menuPlans.userId, ctx.user.id)));
+      return { success: true, dinner: selected.name };
     }),
 
   // 献立削除（外食・作らない日用）

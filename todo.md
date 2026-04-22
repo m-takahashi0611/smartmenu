@@ -295,3 +295,7 @@
 - [x] **FIX-1**: Family.tsxに家族名・備考の入力フォームを追加（保存時にstateから送信するよう修正）
 - [x] **FIX-2**: db.tsのupsertUserBaseThemeのonDuplicateKeyUpdateにdishCountThemeを追加（食卓イメージ設定が保存されないバグ修正）
 - [x] **FIX-3**: BentoMode.tsxにonErrorハンドリングとtoastを追加
+
+## 週ビューポップアップ改修2（2026-04-22）
+- [x] **WEEK-6**: ポップアップのヘッダーに◄▶ボタンを追加（前日・翌日に移動）
+- [x] **WEEK-7**: 夕食候補の①②③カードをタップして選択できるようにする（選択後に確定チェックボックスが有効になる）
