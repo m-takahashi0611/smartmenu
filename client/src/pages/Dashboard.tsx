@@ -897,100 +897,162 @@ export default function Dashboard() {
                                 );
                               })}
                             </div>
-                            {/* モーダルオーバーレイ */}
-                            {weekPopupDate && (
-                              <div
-                                className="fixed inset-0 z-50 flex items-end justify-center"
-                                style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
-                                onClick={() => setWeekPopupDate(null)}
-                              >
+                            {/* モーダルオーバーレイ（背景タップでは閉じない→カードタップで日付切り替え可能） */}
+                            {weekPopupDate && (() => {
+                              // 料理名を主菜/副菜/汁物で改行表示するヘルパー
+                              const formatMealText = (text: string) => {
+                                if (!text) return null;
+                                // 「主菜：〇〇、副菜：〇〇、汁物：〇〇」形式を改行に変換
+                                const parts = text.split(/[、,]\s*(?=主菜|副菜|副々菜|汁物|デザート|おやつ)/);
+                                if (parts.length > 1) {
+                                  return parts.map((p, i) => <div key={i} className="text-sm" style={{ color: '#3D2B1F' }}>{p.trim()}</div>);
+                                }
+                                // 「主菜：」「副菜：」が含まれる場合も改行
+                                const labeled = text.replace(/[、,]\s*(副菜|副々菜|汁物|デザート)/g, '\n$1');
+                                return <span className="text-sm whitespace-pre-line" style={{ color: '#3D2B1F' }}>{labeled}</span>;
+                              };
+                              const skipBreakfast = (familyData?.profile?.breakfastCookCount ?? 0) === 0;
+                              const skipLunch = (familyData?.profile?.lunchCookCount ?? 0) === 0;
+                              return (
                                 <div
-                                  className="w-full max-w-md rounded-t-2xl p-4 space-y-3"
-                                  style={{ backgroundColor: 'white', maxHeight: '80vh', overflowY: 'auto' }}
-                                  onClick={(e) => e.stopPropagation()}
+                                  className="fixed inset-0 z-50 flex items-end justify-center"
+                                  style={{ backgroundColor: 'rgba(0,0,0,0.3)', pointerEvents: 'none' }}
                                 >
-                                  {/* モーダルヘッダー */}
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-base font-bold" style={{ color: '#3D2B1F' }}>
-                                      {(() => {
-                                        const [y, mo, d] = weekPopupDate.split('-').map(Number);
-                                        const dt = new Date(y, mo - 1, d);
-                                        return dt.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
-                                      })()}
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                      {popupMenu && (
-                                        <label className="flex items-center gap-1 text-xs cursor-pointer" style={{ color: '#8a7060' }}>
-                                          <input
-                                            type="checkbox"
-                                            checked={!!popupMenu.isProtected}
-                                            onChange={(e) => toggleProtect.mutate({ menuPlanId: popupMenu.id, isProtected: e.target.checked })}
-                                            className="rounded"
-                                          />
-                                          🔒 確定
-                                        </label>
-                                      )}
-                                      <button onClick={() => setWeekPopupDate(null)} className="text-sm font-bold" style={{ color: '#8a7060' }}>✕</button>
+                                  <div
+                                    className="w-full max-w-md rounded-t-2xl"
+                                    style={{ backgroundColor: 'white', maxHeight: '75vh', display: 'flex', flexDirection: 'column', pointerEvents: 'auto' }}
+                                  >
+                                    {/* ハンドル */}
+                                    <div className="flex justify-center pt-2 pb-1">
+                                      <div style={{ width: '36px', height: '4px', borderRadius: '2px', backgroundColor: '#E2D9D0' }} />
                                     </div>
-                                  </div>
-                                  {/* 献立内容 */}
-                                  {popupMenuData ? (
-                                    <div className="space-y-2">
-                                      {popupMenuData.dinnerOptions && popupMenuData.dinnerOptions.length > 0 ? (
-                                        <div className="space-y-2">
-                                          <p className="text-xs font-medium" style={{ color: '#8a7060' }}>🌙 夕食候補</p>
-                                          {popupMenuData.dinnerOptions.map((opt: any, i: number) => (
-                                            <div key={i} className="flex items-center gap-2 rounded-xl p-2" style={{ backgroundColor: '#FFF8F2', border: '1px solid #F0D9C8' }}>
-                                              <span className="text-sm">{['1️⃣','2️⃣','3️⃣'][i]}</span>
-                                              <span className="text-sm font-medium" style={{ color: '#3D2B1F' }}>{opt.name}</span>
-                                            </div>
-                                          ))}
+                                    {/* ヘッダー */}
+                                    <div className="flex items-center justify-between px-4 pb-2" style={{ borderBottom: '1px solid #F0D9C8' }}>
+                                      <span className="text-base font-bold" style={{ color: '#3D2B1F' }}>
+                                        {(() => {
+                                          const [y, mo, d] = weekPopupDate.split('-').map(Number);
+                                          const dt = new Date(y, mo - 1, d);
+                                          return dt.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+                                        })()}
+                                      </span>
+                                      <button onClick={() => setWeekPopupDate(null)} className="text-lg font-bold" style={{ color: '#8a7060' }}>✕</button>
+                                    </div>
+                                    {/* スクロール可能なコンテンツ */}
+                                    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+                                      {/* ── 朝食セクション ── */}
+                                      <div>
+                                        <p className="text-xs font-bold mb-1" style={{ color: '#F6AD55' }}>🌅 朝食</p>
+                                        {skipBreakfast ? (
+                                          <div className="rounded-xl px-3 py-2" style={{ backgroundColor: '#F5F5F5', border: '1px solid #E2D9D0' }}>
+                                            <span className="text-xs" style={{ color: '#C0A898' }}>スキップ（家族設定：朝食なし）</span>
+                                          </div>
+                                        ) : popupMenuData?.breakfast ? (
+                                          <div className="rounded-xl px-3 py-2" style={{ backgroundColor: '#FFFBF0', border: '1px solid #F6E8C8' }}>
+                                            {formatMealText(popupMenuData.breakfast)}
+                                          </div>
+                                        ) : (
+                                          <div className="rounded-xl px-3 py-2" style={{ backgroundColor: '#F5F5F5', border: '1px solid #E2D9D0' }}>
+                                            <span className="text-xs" style={{ color: '#C0A898' }}>未生成</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      {/* ── 昼食セクション ── */}
+                                      <div>
+                                        <p className="text-xs font-bold mb-1" style={{ color: '#68D391' }}>☀️ 昼食</p>
+                                        {skipLunch ? (
+                                          <div className="rounded-xl px-3 py-2" style={{ backgroundColor: '#F5F5F5', border: '1px solid #E2D9D0' }}>
+                                            <span className="text-xs" style={{ color: '#C0A898' }}>スキップ（家族設定：昼食なし）</span>
+                                          </div>
+                                        ) : popupMenuData?.lunch ? (
+                                          <div className="rounded-xl px-3 py-2" style={{ backgroundColor: '#F0FFF4', border: '1px solid #C6F6D5' }}>
+                                            {formatMealText(popupMenuData.lunch)}
+                                          </div>
+                                        ) : (
+                                          <div className="rounded-xl px-3 py-2" style={{ backgroundColor: '#F5F5F5', border: '1px solid #E2D9D0' }}>
+                                            <span className="text-xs" style={{ color: '#C0A898' }}>未生成</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      {/* ── 夕食セクション ── */}
+                                      <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                          <p className="text-xs font-bold" style={{ color: '#76E4F7' }}>🌙 夕食候補</p>
+                                          {popupMenu && (
+                                            <label className="flex items-center gap-1 text-xs cursor-pointer" style={{ color: '#8a7060' }}>
+                                              <input
+                                                type="checkbox"
+                                                checked={!!popupMenu.isProtected}
+                                                onChange={(e) => toggleProtect.mutate({ menuPlanId: popupMenu.id, isProtected: e.target.checked })}
+                                                className="rounded"
+                                              />
+                                              🔒 確定
+                                            </label>
+                                          )}
                                         </div>
-                                      ) : (
-                                        <div className="space-y-2">
-                                          {[
-                                            { label: '🌅 朝食', value: popupMenuData.breakfast },
-                                            { label: '☀️ 昼食', value: popupMenuData.lunch },
-                                            { label: '🌙 夕食', value: popupMenuData.dinner },
-                                          ].filter(m => m.value).map(({ label, value }) => (
-                                            <div key={label} className="flex items-center gap-2 rounded-xl p-2" style={{ backgroundColor: '#FFF8F2', border: '1px solid #F0D9C8' }}>
-                                              <span className="text-sm">{label}</span>
-                                              <span className="text-sm font-medium" style={{ color: '#3D2B1F' }}>{value}</span>
-                                            </div>
-                                          ))}
+                                        {popupMenuData?.dinnerOptions && popupMenuData.dinnerOptions.length > 0 ? (
+                                          <div className="space-y-2">
+                                            {popupMenuData.dinnerOptions.map((opt: any, i: number) => (
+                                              <div key={i} className="rounded-xl px-3 py-2" style={{ backgroundColor: '#F0FEFF', border: '1px solid #B2EBF2' }}>
+                                                <div className="flex items-start gap-2">
+                                                  <span className="text-sm flex-shrink-0">{['1️⃣','2️⃣','3️⃣'][i]}</span>
+                                                  <div className="flex-1">
+                                                    <div className="text-sm font-medium" style={{ color: '#3D2B1F' }}>{opt.name}</div>
+                                                    {opt.mainIngredients && opt.mainIngredients.length > 0 && (
+                                                      <div className="text-xs mt-0.5" style={{ color: '#8a7060' }}>主材料：{opt.mainIngredients.join('・')}</div>
+                                                    )}
+                                                    {opt.usedFridgeItems && opt.usedFridgeItems.length > 0 && (
+                                                      <div className="text-xs mt-0.5" style={{ color: '#6B9E6B' }}>冷蔵庫：{opt.usedFridgeItems.join('・')}</div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : popupMenuData?.dinner ? (
+                                          <div className="rounded-xl px-3 py-2" style={{ backgroundColor: '#F0FEFF', border: '1px solid #B2EBF2' }}>
+                                            {formatMealText(popupMenuData.dinner)}
+                                          </div>
+                                        ) : (
+                                          <div className="rounded-xl px-3 py-2" style={{ backgroundColor: '#F5F5F5', border: '1px solid #E2D9D0' }}>
+                                            <span className="text-xs" style={{ color: '#C0A898' }}>未生成</span>
+                                          </div>
+                                        )}
+                                        {popupMenuData?.tips && (
+                                          <p className="text-xs mt-1" style={{ color: '#6B5040' }}>💡 {popupMenuData.tips}</p>
+                                        )}
+                                        {popupMenuData?.estimatedCost && (
+                                          <span className="text-xs px-2 py-0.5 rounded-full inline-block mt-1" style={{ backgroundColor: '#FFF0E8', color: '#FF7F50', border: '1px solid #FFB899' }}>💰 約{popupMenuData.estimatedCost.toLocaleString()}円</span>
+                                        )}
+                                      </div>
+                                      {/* 献立未生成の場合 */}
+                                      {!popupMenuData && (
+                                        <div className="text-center py-4">
+                                          <p className="text-sm mb-2" style={{ color: '#8a7060' }}>この日の献立はまだ生成されていません</p>
+                                          {planData?.isPremium && (
+                                            <p className="text-xs" style={{ color: '#8a7060' }}>「✨ 週間生成」ボタンで一括生成できます</p>
+                                          )}
                                         </div>
-                                      )}
-                                      {popupMenuData.tips && (
-                                        <p className="text-xs" style={{ color: '#6B5040' }}>💡 {popupMenuData.tips}</p>
-                                      )}
-                                      {popupMenuData.estimatedCost && (
-                                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FFF0E8', color: '#FF7F50', border: '1px solid #FFB899' }}>💰 約{popupMenuData.estimatedCost.toLocaleString()}円</span>
                                       )}
                                       {/* 献立削除ボタン */}
-                                      <button
-                                        className="w-full mt-2 py-2 rounded-xl text-sm font-medium"
-                                        style={{ backgroundColor: '#FFF0F0', color: '#E53E3E', border: '1px solid #FEB2B2' }}
-                                        onClick={() => {
-                                          if (window.confirm('この日の献立を削除しますか？（外食・作らない日用）')) {
-                                            deleteMenuPlanMutation.mutate({ menuPlanId: popupMenu!.id });
-                                          }
-                                        }}
-                                        disabled={deleteMenuPlanMutation.isPending}
-                                      >
-                                        {deleteMenuPlanMutation.isPending ? '削除中...' : '🗑️ この日の献立を削除（外食・作らない日）'}
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="text-center py-4">
-                                      <p className="text-sm mb-2" style={{ color: '#8a7060' }}>この日の献立はまだ生成されていません</p>
-                                      {planData?.isPremium && (
-                                        <p className="text-xs" style={{ color: '#8a7060' }}>「✨ 週間生成」ボタンで一括生成できます</p>
+                                      {popupMenuData && (
+                                        <button
+                                          className="w-full py-2 rounded-xl text-sm font-medium"
+                                          style={{ backgroundColor: '#FFF0F0', color: '#E53E3E', border: '1px solid #FEB2B2' }}
+                                          onClick={() => {
+                                            if (window.confirm('この日の献立を削除しますか？（外食・作らない日用）')) {
+                                              deleteMenuPlanMutation.mutate({ menuPlanId: popupMenu!.id });
+                                            }
+                                          }}
+                                          disabled={deleteMenuPlanMutation.isPending}
+                                        >
+                                          {deleteMenuPlanMutation.isPending ? '削除中...' : '🗑️ この日の献立を削除（外食・作らない日）'}
+                                        </button>
                                       )}
                                     </div>
-                                  )}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })()}
                           </>
                         )}
                       </div>

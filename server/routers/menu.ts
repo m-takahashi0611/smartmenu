@@ -557,23 +557,56 @@ export const menuRouter = router({
     .input(z.object({ startDate: z.string(), endDate: z.string() }))
     .query(async ({ ctx, input }) => {
       const plans = await getMenuPlansByDateRange(ctx.user.id, input.startDate, input.endDate);
-      return plans.map((p) => ({
-        id: p.id,
-        planDate: p.planDate instanceof Date ? p.planDate.toISOString().split('T')[0] : String(p.planDate),
-        isDelivered: p.isDelivered,
-        isProtected: p.isProtected ?? false,
-        menuData: (() => {
-          try {
-            return typeof p.menuData === "string" ? JSON.parse(p.menuData) : p.menuData;
-          } catch { return null; }
-        })(),
-        messageText: p.messageText,
-        actualStatusBreakfast: p.actualStatusBreakfast,
-        actualStatusLunch: p.actualStatusLunch,
-        actualStatusDinner: p.actualStatusDinner,
-        actualMealBreakfast: p.actualMealBreakfast,
-        actualMealLunch: p.actualMealLunch,
-        actualMealDinner: p.actualMealDinner,
+      // 同じplanDateの複数レコード（朝・昼・夜が別々に保存されている場合）を1日1件に統合する
+      const byDate = new Map<string, {
+        id: number; planDate: string; isDelivered: boolean; isProtected: boolean;
+        menuData: any; messageText: string | null;
+        actualStatusBreakfast: any; actualStatusLunch: any; actualStatusDinner: any;
+        actualMealBreakfast: string | null; actualMealLunch: string | null; actualMealDinner: string | null;
+        ids: number[];
+      }>();
+      for (const p of plans) {
+        const dateStr = p.planDate instanceof Date ? p.planDate.toISOString().split('T')[0] : String(p.planDate);
+        const md = (() => { try { return typeof p.menuData === 'string' ? JSON.parse(p.menuData) : p.menuData; } catch { return null; } })();
+        const mealType: string = md?.mealType ?? 'dinner';
+        if (!byDate.has(dateStr)) {
+          byDate.set(dateStr, {
+            id: p.id, planDate: dateStr,
+            isDelivered: p.isDelivered, isProtected: p.isProtected ?? false,
+            menuData: {}, messageText: p.messageText,
+            actualStatusBreakfast: p.actualStatusBreakfast, actualStatusLunch: p.actualStatusLunch, actualStatusDinner: p.actualStatusDinner,
+            actualMealBreakfast: p.actualMealBreakfast ?? null, actualMealLunch: p.actualMealLunch ?? null, actualMealDinner: p.actualMealDinner ?? null,
+            ids: [p.id],
+          });
+        }
+        const entry = byDate.get(dateStr)!;
+        entry.ids.push(p.id);
+        // 食事タイプ別にmenuDataを統合
+        if (mealType === 'breakfast') {
+          entry.menuData.breakfast = md?.breakfast || md?.name || '';
+          entry.menuData.breakfastShoppingList = md?.shoppingList ?? [];
+        } else if (mealType === 'lunch') {
+          entry.menuData.lunch = md?.lunch || md?.name || '';
+          entry.menuData.lunchShoppingList = md?.shoppingList ?? [];
+        } else if (mealType === 'dinner' || mealType === 'tomorrow_breakfast') {
+          entry.menuData.dinnerOptions = md?.dinnerOptions ?? [];
+          entry.menuData.dinner = md?.dinner || (md?.dinnerOptions?.[0]?.name ?? '');
+          entry.menuData.dinnerShoppingList = md?.shoppingList ?? [];
+          entry.menuData.tips = md?.tips;
+          entry.menuData.estimatedCost = md?.estimatedCost;
+          entry.id = p.id; // 夕食レコードのIDをメインIDとして使用
+        }
+        // isProtectedは1つでもtrueならtrue
+        if (p.isProtected) entry.isProtected = true;
+      }
+      return Array.from(byDate.values()).map(e => ({
+        id: e.id, planDate: e.planDate,
+        isDelivered: e.isDelivered, isProtected: e.isProtected,
+        menuData: e.menuData,
+        messageText: e.messageText,
+        actualStatusBreakfast: e.actualStatusBreakfast, actualStatusLunch: e.actualStatusLunch, actualStatusDinner: e.actualStatusDinner,
+        actualMealBreakfast: e.actualMealBreakfast, actualMealLunch: e.actualMealLunch, actualMealDinner: e.actualMealDinner,
+        ids: e.ids,
       }));
     }),
 
