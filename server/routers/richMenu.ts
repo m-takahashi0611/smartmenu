@@ -11,7 +11,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
-import { systemSettings } from "../../drizzle/schema";
+import { systemSettings, lineUsers, subscriptions } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "";
@@ -283,7 +283,7 @@ export async function createPremiumRichMenu(imageUrl?: string): Promise<string> 
   const richMenuId: string = createRes.data.richMenuId;
 
   // 画像をアップロード（URLから取得）
-  const imgUrl = imageUrl ?? "https://d2xsxph8kpxj0f.cloudfront.net/310519663223584738/cX9NcQmb35cA4KMDW3eQdK/rich_menu_dashboard_2500x1686_42be9ca0.jpg";
+  const imgUrl = imageUrl ?? "https://files.manuscdn.com/user_upload_by_module/session_file/310519663223584738/QShcJkoXxojdYlAQ.jpg";
   const imageBuffer = await fetchImageBuffer(imgUrl);
   const contentType = imgUrl.endsWith(".jpg") || imgUrl.endsWith(".jpeg") ? "image/jpeg" : "image/png";
   await uploadRichMenuImage(richMenuId, imageBuffer, contentType);
@@ -588,7 +588,28 @@ export const richMenuRouter = router({
       }
       try {
         const richMenuId = await createPremiumRichMenu(input.imageUrl);
-        return { richMenuId, message: `課金メニューを作成しました（ID: ${richMenuId}）` };
+        // 全プレミアムユーザーへ一括適用
+        let appliedCount = 0;
+        try {
+          const db = await getDb();
+          if (db) {
+            const premiumUsers = await db
+              .select({ lineUserId: lineUsers.lineUserId, displayName: lineUsers.displayName })
+              .from(lineUsers)
+              .innerJoin(subscriptions, eq(lineUsers.userId, subscriptions.userId))
+              .where(eq(subscriptions.status, "active"));
+            for (const u of premiumUsers) {
+              if (u.lineUserId) {
+                await switchToPremiumMenu(u.lineUserId);
+                appliedCount++;
+                console.log(`[RichMenu] プレミアムメニュー適用: ${u.displayName} (${u.lineUserId})`);
+              }
+            }
+          }
+        } catch (applyErr) {
+          console.error("[RichMenu] 一括適用エラー:", applyErr);
+        }
+        return { richMenuId, message: `課金メニューを作成し、${appliedCount}名に適用しました（ID: ${richMenuId}）` };
       } catch (e: any) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `エラー: ${e?.message ?? String(e)}` });
       }
