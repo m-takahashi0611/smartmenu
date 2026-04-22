@@ -109,9 +109,19 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
   const endDate = sunday.toISOString().split("T")[0];
 
   // DBから献立データを取得
-  // 文字列から最初の料理名（読点・中点の前）だけを取り出す
+  // 文字列から主菜名のみを取り出す
+  // 「主菜：〇〇、副菜：...」形式の場合は主菜の値だけを抽出
+  // それ以外は読点・中点前の最初の料理名を返す
   function extractMainDishFromStr(str: string): string {
     if (!str) return "";
+    // 「主菜：〇〇」パターンを検出
+    const mainMatch = str.match(/主菜[：:](.*?)(?:[、,](?:副菜|汁物|サラダ)|$)/);
+    if (mainMatch) return mainMatch[1].trim();
+    // 「主菜：」で始まる場合はその後ろを取り出して読点前まで
+    if (str.startsWith("主菜：") || str.startsWith("主菜:")) {
+      return str.replace(/^主菜[：:]/, "").split(/[、・,]/)[0].trim();
+    }
+    // 通常は読点・中点前の最初の料理名
     return str.split(/[、・,]/)[0].trim();
   }
 
