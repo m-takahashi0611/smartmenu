@@ -3364,6 +3364,11 @@ https://app.kondatebiyori.com` }]);
 
     // ─── キーワードマッチング（優先） ───────────────────────────────────────────────────────────────────────────────────────
     if (/献立/.test(text) || /今日何(作|つく)ろ/.test(text) || /ご飯(何|なに)(作|つく)/.test(text)) {
+      // 週間献立キーワードは後続の週間献立処理に委ねる（献立提案フローをスキップ）
+      const _weeklyKwCheck = ['週間献立', '献立予定表', '週間献立を見る', '週間献立を確認', '今週の献立を見せて', '今週の献立を確認'];
+      if (_weeklyKwCheck.some(kw => text === kw || text.includes(kw))) {
+        // 週間献立処理へ（このifブロックをスキップして後続の週間献立処理に流す）
+      } else {
       const pendingBeforeKeyword = await getLineUserPendingAction(lineUserId);
       if (pendingBeforeKeyword) {
         // pendingAction処理へ委譲
@@ -3519,6 +3524,7 @@ https://app.kondatebiyori.com` }]);
           ];
       await replyAndSave(replyToken, [{ type: "text", text: questionText, quickReply: { items: qrItemsAfterShopping } }]);
       return;
+      } // end else (non-weekly menu)
     }
 
     if (text === "ヘルプ" || text === "help") {
