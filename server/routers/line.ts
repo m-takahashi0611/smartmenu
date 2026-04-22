@@ -1262,6 +1262,13 @@ async function handleFridgeRegistration(
       return true;
     }
 
+    // 週間献立・リッチメニューボタンなど特定キーワードは状態を無視して優先処理
+    const weeklyMenuKeywords = ['週間献立', '献立予定表', '週間献立を見る', '週間献立を確認', '今週の献立を見せて', '今週の献立を確認'];
+    if (weeklyMenuKeywords.some(kw => trimmed === kw || trimmed.includes(kw))) {
+      await setLineUserPendingAction(lineUserId, null);
+      return false; // 通常フローに戻して週間献立処理に委ねる
+    }
+
     const selectedType = choices[trimmed];
 
     if (!selectedType) {
