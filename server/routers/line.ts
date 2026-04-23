@@ -3352,7 +3352,7 @@ ${itemList}
         const _isViewReq = ['予定表を確認', '予定表確認', '週間予定表を確認', '今週の予定表を確認'].some(kw => text === kw || text.includes(kw));
         const _isGenReq = ['新しく生成', '生成する', '週間献立を生成', '献立を生成'].some(kw => text === kw || text.includes(kw));
         if (_isViewReq || _isGenReq) {
-          await replyAndSave(replyToken, [{ type: 'text', text: '📅 今週の献立1週間予定表を作成中です...少々お待ちください🍽\n※週間表には朝・昼・夜の主菜のみ表示されます。副菜・汁物の詳細はダッシュボードでご確認ください。' }]);
+          await replyAndSave(replyToken, [{ type: 'text', text: '📅 今週の献立1週間予定表を作成中です...４〜5分かかります🍽\n※週間表には朝・昼・夜の主菜のみ表示されます。副菜・汁物の詳細はダッシュボードでご確認ください。' }]);
           try {
             const _pngUrl = await generateWeeklyMenuPng(userId!);
             await sendLineMessage(lineUserId, [{ type: 'image', originalContentUrl: _pngUrl, previewImageUrl: _pngUrl }]);
@@ -3984,7 +3984,7 @@ ${itemList}
         return;
       }
       // プレミアムユーザー → PNG画像を生成して返す
-      await replyAndSave(replyToken, [{ type: "text", text: "📅 今週の献立表を作成中です...少々お待ちください🍽" }]);
+      await replyAndSave(replyToken, [{ type: "text", text: "📅 今週の献立表を作成中です...４〜5分かかります🍽" }]);
       try {
         const pngUrl = await generateWeeklyMenuPng(userId);
         await sendLineMessage(lineUserId, [{ type: 'image', originalContentUrl: pngUrl, previewImageUrl: pngUrl }]);
