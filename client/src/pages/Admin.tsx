@@ -1094,9 +1094,7 @@ export default function Admin() {
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm">← 戻る</Button>
-            </Link>
+            <Button variant="ghost" size="sm" onClick={() => window.history.back()}>← 戻る</Button>
             <h1 className="font-bold text-lg">⚙️ 管理画面</h1>
           </div>
           <div className="flex items-center gap-2">
