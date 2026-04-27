@@ -3134,7 +3134,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
               {
                 type: "uri",
                 label: "⚙️ 設定を始める →",
-                uri: "https://app.kondatebiyori.com",
+                uri: "https://liff.line.me/2009630713-AotlJytF",
               },
             ],
           },
@@ -3217,7 +3217,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
                   action: {
                     type: "uri",
                     label: "✨ 今すぐ無料で始める →",
-                    uri: "https://app.kondatebiyori.com/plan",
+                    uri: "https://liff.line.me/2009630713-AotlJytF?liff.state=%2Fplan",
                   },
                   style: "primary",
                   color: "#FF6B35",
@@ -4065,7 +4065,7 @@ ${itemList}
                 action: {
                   type: "uri",
                   label: "📋 個別に選ぶ",
-                  uri: "https://app.kondatebiyori.com/dashboard",
+                  uri: "https://liff.line.me/2009630713-AotlJytF?liff.state=%2Fdashboard",
                 },
               },
             ],
@@ -4431,7 +4431,7 @@ ${itemList}
                 action: {
                   type: "uri",
                   label: "📋 個別に選ぶ",
-                  uri: "https://app.kondatebiyori.com/dashboard",
+                  uri: "https://liff.line.me/2009630713-AotlJytF?liff.state=%2Fdashboard",
                 },
               },
             ],
@@ -4548,7 +4548,7 @@ ${itemList}
       }));
       todayQR.push({
         type: 'action' as const,
-        action: { type: 'uri' as const, label: '⭐ プレミアムを見る', uri: 'https://app.kondatebiyori.com/dashboard' } as any,
+        action: { type: 'uri' as const, label: '⭐ プレミアムを見る', uri: 'https://liff.line.me/2009630713-AotlJytF?liff.state=%2Fdashboard' } as any,
       });
       const todayDishList = todayDishNames.length > 0
         ? `\n\n今日の献立のレシピはこちらから見られます👇\n${todayDishNames.map((n, i) => `${i + 1}️⃣ ${n}`).join('\n')}`
