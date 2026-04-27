@@ -1077,7 +1077,7 @@ async function handleIntentAction(
       await setLineUserPendingAction(lineUserId, { type: 'mood_theme_action', theme: themeText, text });
       await replyLineMessage(replyToken, [{ type: 'text', text: `「${themeText}」の気分ですね！\n\nどうしますか？\n\n1️⃣ 今日の献立テーマに設定して提案\n2️⃣ キャンセル\n\n`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '🍽️ テーマに設定して提案', text: '1' } },
-        { type: 'action', action: { type: 'message', label: '❌ キャンセル', text: '2' } },
+        { type: 'action', action: { type: 'message', label: '❌ キャンセル', text: 'キャンセル' } },
       ] } }], lineUserId);
       return true;
     }
@@ -1087,7 +1087,7 @@ async function handleIntentAction(
       await setLineUserPendingAction(lineUserId, { type: 'family_preference_action', memberName: member, preference: pref, items, text });
       await replyLineMessage(replyToken, [{ type: 'text', text: `「${member}が${pref}」ですね！\n\nどうしますか？\n\n1️⃣ 好み・嫌いとして登録\n2️⃣ キャンセル\n\n`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '✅ 好み・嫌いを登録', text: '1' } },
-        { type: 'action', action: { type: 'message', label: '❌ キャンセル', text: '2' } },
+        { type: 'action', action: { type: 'message', label: '❌ キャンセル', text: 'キャンセル' } },
       ] } }], lineUserId);
       return true;
     }
@@ -1096,8 +1096,8 @@ async function handleIntentAction(
       await setLineUserPendingAction(lineUserId, { type: 'quantity_update_action', items, quantity: qty, text });
       await replyLineMessage(replyToken, [{ type: 'text', text: `「${itemDisplay}が${qty}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫の数量を更新\n2️⃣ 在庫確認（現在の冷蔵庫を表示）\n3️⃣ キャンセル\n\n`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '✏️ 数量を更新', text: '1' } },
-        { type: 'action', action: { type: 'message', label: '🔍 在庫確認', text: '2' } },
-        { type: 'action', action: { type: 'message', label: '❌ キャンセル', text: '3' } },
+        { type: 'action', action: { type: 'message', label: '🔍 在庫確認', text: '在庫確認' } },
+        { type: 'action', action: { type: 'message', label: '❌ キャンセル', text: 'キャンセル' } },
       ] } }], lineUserId);
       return true;
     }
@@ -1642,8 +1642,9 @@ ${dinnerResult.message}`;
           action: { type: 'message' as const, label: `📖 ${o.name.slice(0, 14)}のレシピ`, text: `${o.name}のレシピ教えて` },
         })),
         { type: 'action' as const, action: { type: 'message' as const, label: '🏒 もう一度出し直す', text: 'その他' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '❌ キャンセル', text: 'キャンセル' } },
       ];
-      await sendLineMessage(lineUserId, [{ type: 'text', text: result.message, quickReply: { items: regenQR } }]);
+      await sendLineMessage(lineUserId, [{ type: 'text', text: result.message + '\n\n👇 下のボタンから選んでね！', quickReply: { items: regenQR } }]);
     } else {
       await sendLineMessage(lineUserId, [{ type: 'text', text: result.message }]);
     }
@@ -1799,6 +1800,56 @@ ${dinnerResult.message}`;
       return true;
     }
 
+    // 調理方法変更・食材の使い方変更リクエスト → テーマ付き再生成フローへ誘導
+    const cookingChangePatterns = [
+      /炒め|揚げ|煮|焼き|蒸し|茹で|生|和え|炊き|スープ|汁物|サラダ|丼|炒飯|チャーハン|パスタ|カレー|シチュー|グラタン|クリーム|トマト|味噌|醤油|塩|甘辛|甘酢|照り焼き|唐揚げ|天ぷら|素揚げ|ソテー|ステーキ/,
+      /以外|なし|使わない|使わずに|抜き|除いて|なくして/,
+      /もっと|少なめ|多め|シンプル|簡単|手軽|時短|ヘルシー|さっぱり|こってり|辛め|甘め/,
+      /変えて|変更|別の調理|別の料理|違う作り方|他の方法|他の料理/,
+    ];
+    const isCookingChangeRequest = cookingChangePatterns.some(p => p.test(trimmed));
+    if (isCookingChangeRequest) {
+      const regenerateCount = (pending as any).regenerateCount ?? 0;
+      await setLineUserPendingAction(lineUserId, {
+        type: 'menu_theme_regen',
+        mealType,
+        targetDate,
+        menuPlanId,
+        regenerateCount: regenerateCount + 1,
+        askedAt: Date.now(),
+      });
+      // ユーザーのリクエストをそのままテーマとして再生成
+      await setLineUserPendingAction(lineUserId, null);
+      await sendLineMessage(lineUserId, [{ type: 'text', text: `「${trimmed}」のご要望で出し直しますね🍳\nちょっと待ってください...` }]);
+      const result = await generateMenuPlan(userId, targetDate, mealType as any, undefined, trimmed, true);
+      const regenOpts = result.options ?? [];
+      if (regenOpts.length > 0) {
+        const rQR = [
+          ...regenOpts.slice(0, 3).map((o, i) => ({
+            type: 'action' as const,
+            action: { type: 'message' as const, label: `${['1️⃣','2️⃣','3️⃣'][i]} ${o.name}`.slice(0, 20), text: o.name },
+          })),
+          { type: 'action' as const, action: { type: 'message' as const, label: '🔄 もう一度出し直す', text: 'その他' } },
+          { type: 'action' as const, action: { type: 'message' as const, label: '❌ キャンセル', text: 'キャンセル' } },
+        ];
+        await sendLineMessage(lineUserId, [{ type: 'text', text: result.message + '\n\n👇 下のボタンから選んでね！', quickReply: { items: rQR } }]);
+      } else {
+        await sendLineMessage(lineUserId, [{ type: 'text', text: result.message }]);
+      }
+      if (result.menuPlanId) {
+        await setLineUserPendingAction(lineUserId, {
+          type: 'menu_option_selection',
+          options: regenOpts,
+          mealType,
+          targetDate,
+          menuPlanId: result.menuPlanId,
+          regenerateCount: regenerateCount + 1,
+          askedAt: Date.now(),
+        });
+      }
+      return true;
+    }
+
     // それ以外 → 候補を再表示して待機続行（通常処理に流さない）
     const optionLinesB2 = options.map((o, i) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
     const quickReplyItemsB2 = [
@@ -1806,9 +1857,10 @@ ${dinnerResult.message}`;
         type: 'action' as const,
         action: { type: 'message' as const, label: `${['1️⃣','2️⃣','3️⃣'][i]} ${o.name}`.slice(0, 20), text: o.name },
       })),
-      { type: 'action' as const, action: { type: 'message' as const, label: 'キャンセル', text: 'キャンセル' } },
+      { type: 'action' as const, action: { type: 'message' as const, label: '🔄 出し直す', text: 'その他' } },
+      { type: 'action' as const, action: { type: 'message' as const, label: '❌ キャンセル', text: 'キャンセル' } },
     ];
-    await replyLineMessage(replyToken, [{ type: 'text', text: `番号（1〜${options.length}）で選んでください😊\n\n${optionLinesB2}\n\nキャンセルの場合は「キャンセル」と送ってください。`, quickReply: { items: quickReplyItemsB2 } }], lineUserId);
+    await replyLineMessage(replyToken, [{ type: 'text', text: `番号（1〜${options.length}）で選んでください😊\n\n${optionLinesB2}\n\n調理方法の変更（例：「炒め物にして」「揚げ物以外で」）もOKです！\nキャンセルの場合は「キャンセル」と送ってください。`, quickReply: { items: quickReplyItemsB2 } }], lineUserId);
     return true;
   }
 
@@ -3371,6 +3423,7 @@ ${itemList}
           quickReply: { items: [
             { type: 'action' as const, action: { type: 'message' as const, label: '📋 今週の予定表を確認', text: '予定表を確認' } },
             { type: 'action' as const, action: { type: 'message' as const, label: '🔄 新しく生成する', text: '新しく生成' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '❌ キャンセル', text: 'キャンセル' } },
           ]},
         }]);
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
@@ -3904,6 +3957,7 @@ ${itemList}
             { type: "action", action: { type: "message", label: "🍰 チートデー", text: "今日だけ特別：チートデー" } },
             { type: "action", action: { type: "message", label: "🎌 季節の行事", text: "今日だけ特別：季節の行事" } },
             { type: "action", action: { type: "message", label: "🏥 体調回復", text: "今日だけ特別：体調回復" } },
+            { type: "action", action: { type: "message", label: "❌ キャンセル", text: "キャンセル" } },
           ],
         },
       }]);
@@ -3927,6 +3981,7 @@ ${itemList}
               { type: "action", action: { type: "message", label: "🎉 自分の誕生日", text: "自分の誕生日" } },
               { type: "action", action: { type: "message", label: "💍 結婚記念日", text: "結婚記念日" } },
               { type: "action", action: { type: "message", label: "🎊 その他の記念日", text: "その他の記念日" } },
+              { type: "action", action: { type: "message", label: "❌ キャンセル", text: "キャンセル" } },
             ],
           },
         }]);
