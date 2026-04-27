@@ -393,14 +393,14 @@ async function generateContextualReply(
       const todayDishList = todayDishNamesForChat.length > 0
         ? `\n\n今日の献立のレシピはこちらから見られます👇\n${todayDishNamesForChat.map((n, i) => `${i + 1}️⃣ ${n}`).join('\n')}`
         : '';
-      return `${resolvedDishInChat}は今日の献立にないので、レシピのご案内ができません😊${todayDishList}\n\n✨ プレミアム会員になると、献立に関係なくどんな料理のレシピでも聞けます！\nhttps://www.kondatebiyori.com/dashboard`;
+      return `${resolvedDishInChat}は今日の献立にないので、レシピのご案内ができません😊${todayDishList}\n\n✨ プレミアム会員になると、献立に関係なくどんな料理のレシピでも聞けます！\nhttps://app.kondatebiyori.com/dashboard`;
     }
   }
 
   if (isFridgeQuery) {
     console.log(`[LINE] generateContextualReply: Intercepted fridge query: "${userMessage}"`);
     if (!userId) {
-      return `まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`;
+      return `まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`;
     }
     const items = await getFridgeItems(userId);
     if (items.length === 0) {
@@ -414,7 +414,7 @@ async function generateContextualReply(
   if (isShoppingQuery) {
     console.log(`[LINE] generateContextualReply: Intercepted shopping query: "${userMessage}"`);
     if (!userId) {
-      return `まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`;
+      return `まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`;
     }
     const db = await getDb();
     if (!db) return 'エラーが発生しました。しばらくしてから再度お試しください。';
@@ -425,7 +425,7 @@ async function generateContextualReply(
       .orderBy(shoppingListItems.createdAt);
     const pendingItems = shoppingItems.filter((s) => !s.isChecked);
     if (pendingItems.length === 0) {
-      return '買い物リストは空です。\n\n献立を生成すると買い物リスト候補がダッシュボードに表示されます。\n必要なものだけ選んで追加できます！\nhttps://www.kondatebiyori.com/dashboard';
+      return '買い物リストは空です。\n\n献立を生成すると買い物リスト候補がダッシュボードに表示されます。\n必要なものだけ選んで追加できます！\nhttps://app.kondatebiyori.com/dashboard';
     } else {
       const itemList = pendingItems.map((s) => `・${s.name}${s.quantity ? ' ' + s.quantity : ''}`).join('\n');
       return `🛒 買い物リスト（${pendingItems.length}件）：\n${itemList}\n\n買い物が完了したらダッシュボードからチェックできます！`;
@@ -1713,7 +1713,7 @@ ${dinnerResult.message}`;
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
-          text: `「${theme}」はプレミアム機能のテーマです✨\n\nhttps://kondatebiyori.com/plan からアップグレードすると利用できます！\n\n他のテーマを選んでください😊`,
+          text: `「${theme}」はプレミアム機能のテーマです✨\n\nhttps://app.kondatebiyori.com/plan からアップグレードすると利用できます！\n\n他のテーマを選んでください😊`,
           quickReply: { items: [
             { type: 'action', action: { type: 'message', label: '😌 さっぱり', text: 'さっぱり' } },
             { type: 'action', action: { type: 'message', label: '🍖 こってり', text: 'こってり' } },
@@ -2483,7 +2483,7 @@ ${dinnerResult.message}`;
     // 1 or \u8a2d\u5b9a\u3057\u3066 → \u732e\u7acb\u30c6\u30fc\u30de\u306b\u8a2d\u5b9a\u3057\u3066\u751f\u6210
     await setLineUserPendingAction(lineUserId, null);
     if (!userId) {
-      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059\u3002https://www.kondatebiyori.com' }], lineUserId);
+      await replyLineMessage(replyToken, [{ type: 'text', text: '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059\u3002https://app.kondatebiyori.com' }], lineUserId);
       return true;
     }
     try {
@@ -3134,7 +3134,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
               {
                 type: "uri",
                 label: "⚙️ 設定を始める →",
-                uri: "https://www.kondatebiyori.com",
+                uri: "https://app.kondatebiyori.com",
               },
             ],
           },
@@ -3217,7 +3217,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
                   action: {
                     type: "uri",
                     label: "✨ 今すぐ無料で始める →",
-                    uri: "https://www.kondatebiyori.com/dashboard",
+                    uri: "https://app.kondatebiyori.com/dashboard",
                   },
                   style: "primary",
                   color: "#FF6B35",
@@ -3232,12 +3232,20 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
     } catch (pushErr) {
       console.error('[LINE] Failed to send welcome push messages:', pushErr);
     }
-    // 友達追加時は必ず標準リッチメニューをセット（トライアルユーザーにプレミアムメニューが表示されないよう）
+    // 友達追加時: プレミアムユーザーならプレミアムメニュー、それ以外は通常メニューをセット
     try {
-      await switchToNormalMenu(lineUserId);
-      console.log(`[LINE] follow: switchToNormalMenu applied for ${lineUserId}`);
+      const lineUserOnFollow = await getLineUserByLineId(lineUserId);
+      const userIdOnFollow = lineUserOnFollow?.userId ?? null;
+      const isPremiumOnFollow = userIdOnFollow ? await getUserIsPremium(userIdOnFollow) : false;
+      if (isPremiumOnFollow) {
+        await switchToPremiumMenu(lineUserId);
+        console.log(`[LINE] follow: switchToPremiumMenu applied for ${lineUserId} (premium user)`);
+      } else {
+        await switchToNormalMenu(lineUserId);
+        console.log(`[LINE] follow: switchToNormalMenu applied for ${lineUserId}`);
+      }
     } catch (menuErr) {
-      console.error('[LINE] Failed to switch to normal menu on follow:', menuErr);
+      console.error('[LINE] Failed to switch rich menu on follow:', menuErr);
     }
   } else if (type === "unfollow") {
     const db = await getDb();
@@ -3486,9 +3494,9 @@ ${itemList}
       const isMenuRequest = /献立|今日何(作|つく)ろ|ご飯(何|なに)(作|つく)/.test(text);
       const isFridgeRequest = /冷蔵庫/.test(text);
       if (isMenuRequest) {
-        familyGuidePrefix = `💡 ダッシュボードで家族構成を登録すると、より精度の高い献立をご提案できます！\n👉 https://www.kondatebiyori.com\n\n`;
+        familyGuidePrefix = `💡 ダッシュボードで家族構成を登録すると、より精度の高い献立をご提案できます！\n👉 https://app.kondatebiyori.com\n\n`;
       } else if (isFridgeRequest) {
-        familyGuidePrefix = `💡 ダッシュボードで冷蔵庫の中身を登録すると、在庫を活かした献立を自動で提案できます！\n👉 https://www.kondatebiyori.com\n\n`;
+        familyGuidePrefix = `💡 ダッシュボードで冷蔵庫の中身を登録すると、在庫を活かした献立を自動で提案できます！\n👉 https://app.kondatebiyori.com\n\n`;
       }
     }
 
@@ -3593,7 +3601,7 @@ ${itemList}
         await replyAndSave(replyToken, [
           {
             type: "text",
-            text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
+            text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
           },
         ]);
         return;
@@ -3742,7 +3750,7 @@ ${itemList}
       await replyAndSave(replyToken, [
         {
           type: "text",
-          text: "【献立日和 coto coto の使い方】\n\n献立 → 今日の献立を提案\n天気 → 天気に合った料理を提案\n冷蔵庫 → 在庫で作れる料理を提案\n\n位置情報を送ると地域の天気に合わせた提案ができます！\n\n設定（家族構成・冷蔵庫・店舗）はアプリから\nhttps://www.kondatebiyori.com",
+          text: "【献立日和 coto coto の使い方】\n\n献立 → 今日の献立を提案\n天気 → 天気に合った料理を提案\n冷蔵庫 → 在庫で作れる料理を提案\n\n位置情報を送ると地域の天気に合わせた提案ができます！\n\n設定（家族構成・冷蔵庫・店舗）はアプリから\nhttps://app.kondatebiyori.com",
         },
       ]);
       return;
@@ -3758,7 +3766,7 @@ ${itemList}
         await replyAndSave(replyToken, [{
           type: "text",
           text: `${displayName}さん、まずはこちらからログインしてください😊
-👉 https://www.kondatebiyori.com
+👉 https://app.kondatebiyori.com
 
 ログインが完了したら、冷蔵庫の前に立ちながら
 「卵10個、牛乳1本、キャベツ半玉…」と
@@ -3874,7 +3882,7 @@ ${itemList}
     if (/冷蔵庫(?:の中身)?(?:を全部消して|を全消しして|を全部削除して|を空にして|をリセットして)$/.test(text.trim())) {
       if (!userId) {
         await replyAndSave(replyToken, [{ type: 'text', text: `${displayName}さん、まずはこちらからログインしてください😊
-👉 https://www.kondatebiyori.com
+👉 https://app.kondatebiyori.com
 
 ログインが完了したら、冷蔵庫の前に立ちながら
 「卵10個、牛乳1本、キャベツ半玉…」と
@@ -3896,7 +3904,7 @@ ${itemList}
         // ─── 買い物リスト全部冷蔵庫へ移動 ──────────────────────────────────────────────────────
     if (/買い物リストを全部冷蔵庫に移動して|買い物リストを冷蔵庫に移動して|買い物リスト.*全部.*冷蔵庫/.test(text)) {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
         return;
       }
       const db = await getDb();
@@ -3948,7 +3956,7 @@ ${itemList}
     // ─── 買い物リスト全部削除 ──────────────────────────────────────────────────────────────
     if (/買い物リストを全部削除して|買い物リストを削除して|買い物リスト.*全部.*削除/.test(text)) {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
         return;
       }
       const db = await getDb();
@@ -3972,7 +3980,7 @@ ${itemList}
     if (isShoppingDone) {
       if (!userId) {
         await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊
-👉 https://www.kondatebiyori.com
+👉 https://app.kondatebiyori.com
 
 ログインが完了したら、冷蔵庫の前に立ちながら
 「卵10個、牛乳1本、キャベツ半玉…」と
@@ -4004,7 +4012,7 @@ ${itemList}
         await replyAndSave(replyToken, [{
           type: "text",
           text: `${displayName}さん、まずはこちらからログインしてください😊
-👉 https://www.kondatebiyori.com
+👉 https://app.kondatebiyori.com
 
 ログインが完了したら、冷蔵庫の前に立ちながら
 「卵10個、牛乳1本、キャベツ半玉…」と
@@ -4027,7 +4035,7 @@ ${itemList}
       if (pendingItems.length === 0) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: "買い物リストは空です。\n\n献立を生成すると買い物リスト候補がダッシュボードに表示されます。\n必要なものだけ選んで追加できます！\nhttps://www.kondatebiyori.com/dashboard",
+          text: "買い物リストは空です。\n\n献立を生成すると買い物リスト候補がダッシュボードに表示されます。\n必要なものだけ選んで追加できます！\nhttps://app.kondatebiyori.com/dashboard",
         }]);
       } else {
         const itemList = pendingItems.map((s) => `・${s.name}${s.quantity ? " " + s.quantity : ""}`).join("\n");
@@ -4057,7 +4065,7 @@ ${itemList}
                 action: {
                   type: "uri",
                   label: "📋 個別に選ぶ",
-                  uri: "https://www.kondatebiyori.com/dashboard",
+                  uri: "https://app.kondatebiyori.com/dashboard",
                 },
               },
             ],
@@ -4071,14 +4079,14 @@ ${itemList}
     // ※「今日だけ特別：〇〇」（コロン付き）はこのifより前の specialTodayMatch で処理済み
     if (normalizedText === "今日だけ特別") {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
         return;
       }
       const isPremium = await getUserIsPremium(userId);
       if (!isPremium) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: "⭐ 「今日だけ特別」はプレミアム会員限定の機能です\n\nダッシュボードからプレミアムプランにアップグレードすると、特別な日の献立提案が使えるようになります！\nhttps://www.kondatebiyori.com/dashboard",
+          text: "⭐ 「今日だけ特別」はプレミアム会員限定の機能です\n\nダッシュボードからプレミアムプランにアップグレードすると、特別な日の献立提案が使えるようになります！\nhttps://app.kondatebiyori.com/dashboard",
         }]);
         return;
       }
@@ -4335,7 +4343,7 @@ ${itemList}
       if (!userId) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
+          text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
         }]);
         return;
       }
@@ -4375,7 +4383,7 @@ ${itemList}
       if (!userId) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://www.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
+          text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
         }]);
         return;
       }
@@ -4393,7 +4401,7 @@ ${itemList}
       if (pendingItems.length === 0) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: "買い物リストは空です。\n\n献立を生成すると買い物リスト候補がダッシュボードに表示されます。\n必要なものだけ選んで追加できます！\nhttps://www.kondatebiyori.com/dashboard",
+          text: "買い物リストは空です。\n\n献立を生成すると買い物リスト候補がダッシュボードに表示されます。\n必要なものだけ選んで追加できます！\nhttps://app.kondatebiyori.com/dashboard",
         }]);
       } else {
         const itemList = pendingItems.map((s) => `・${s.name}${s.quantity ? " " + s.quantity : ""}`).join("\n");
@@ -4423,7 +4431,7 @@ ${itemList}
                 action: {
                   type: "uri",
                   label: "📋 個別に選ぶ",
-                  uri: "https://www.kondatebiyori.com/dashboard",
+                  uri: "https://app.kondatebiyori.com/dashboard",
                 },
               },
             ],
@@ -4540,14 +4548,14 @@ ${itemList}
       }));
       todayQR.push({
         type: 'action' as const,
-        action: { type: 'uri' as const, label: '⭐ プレミアムを見る', uri: 'https://www.kondatebiyori.com/dashboard' } as any,
+        action: { type: 'uri' as const, label: '⭐ プレミアムを見る', uri: 'https://app.kondatebiyori.com/dashboard' } as any,
       });
       const todayDishList = todayDishNames.length > 0
         ? `\n\n今日の献立のレシピはこちらから見られます👇\n${todayDishNames.map((n, i) => `${i + 1}️⃣ ${n}`).join('\n')}`
         : '';
       await replyAndSave(replyToken, [{
         type: 'text',
-        text: `${resolvedRequestedDish}は今日の献立にないので、レシピのご案内ができません😊${todayDishList}\n\n✨ プレミアム会員になると、献立に関係なくどんな料理のレシピでも聞けます！\nhttps://www.kondatebiyori.com/dashboard`,
+        text: `${resolvedRequestedDish}は今日の献立にないので、レシピのご案内ができません😊${todayDishList}\n\n✨ プレミアム会員になると、献立に関係なくどんな料理のレシピでも聞けます！\nhttps://app.kondatebiyori.com/dashboard`,
         quickReply: todayQR.length > 1 ? { items: todayQR } : undefined,
       }]);
       return;
