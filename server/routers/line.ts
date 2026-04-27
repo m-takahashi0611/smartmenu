@@ -1113,6 +1113,77 @@ async function handleFridgeRegistration(
 ): Promise<boolean> {  // ─── Step 1: pendingActionがある場合（数量入力待ち・献立タイプ選択待ち）──────────────────────────────
   const pending = await getLineUserPendingAction(lineUserId);
 
+  // ─── pending_context_mismatch: 「今のフローと違う」確認待ち ─────────────────────────────────────────────────
+  if (pending?.type === 'pending_context_mismatch') {
+    const { originalText, originalPending } = pending as { originalText: string; originalPending: any; askedAt: number };
+    const trimmed = text.trim();
+    // 「キャンセルして続ける」→ pendingクリアして元の入力を再処理
+    if (/^(キャンセルして続ける|キャンセル|cancel|やめる|はい)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      return handleFridgeRegistration(originalText, userId, lineUserId, replyToken);
+    }
+    // 「今のフローを続ける」→ 元のpendingを復元して再度案内
+    if (/^(今のフローを続ける|続ける|フローを続ける|いいえ|no)$/i.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, originalPending);
+      const pendingType = originalPending?.type;
+      if (pendingType === 'menu_type_selection') {
+        const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
+        const hourJST = nowJST.getUTCHours();
+        const retryQR = hourJST >= 5 && hourJST < 15
+          ? [
+              { type: 'action' as const, action: { type: 'message' as const, label: '🌅 朝食・昼食', text: '今日の朝食・昼食' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕飯', text: '今夜の夕飯' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
+            ]
+          : hourJST >= 15 && hourJST < 22
+          ? [
+              { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜だけ', text: '今夜の夕飯だけ' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日朝食も', text: '今夜＋明日の朝食まで' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
+            ]
+          : [
+              { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 明日まとめて', text: '明日の夕飯まで' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
+            ];
+        await replyLineMessage(replyToken, [{ type: 'text', text: '番号か「夕飯」「朝食」などで教えてください😊', quickReply: { items: retryQR } }], lineUserId);
+      } else if (pendingType === 'menu_option_selection') {
+        const opts = originalPending.options ?? [];
+        const optLines = opts.map((o: any, i: number) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
+        const qrItems = [
+          ...opts.slice(0, 3).map((o: any, i: number) => ({ type: 'action' as const, action: { type: 'message' as const, label: `${['1️⃣','2️⃣','3️⃣'][i]} ${o.name}`.slice(0, 20), text: o.name } })),
+          { type: 'action' as const, action: { type: 'message' as const, label: '🔄 出し直す', text: 'その他' } },
+          { type: 'action' as const, action: { type: 'message' as const, label: '❌ キャンセル', text: 'キャンセル' } },
+        ];
+        await replyLineMessage(replyToken, [{ type: 'text', text: `番号（1〜${opts.length}）で選んでください😊\n\n${optLines}`, quickReply: { items: qrItems } }], lineUserId);
+      } else if (pendingType === 'menu_option_confirm') {
+        await replyLineMessage(replyToken, [{ type: 'text', text: '1か2か3で選んでください😊\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する', quickReply: { items: [
+          { type: 'action', action: { type: 'message', label: '📖 レシピを見たい', text: 'レシピを見たい' } },
+          { type: 'action', action: { type: 'message', label: '🔄 選び直す', text: '選び直したい' } },
+          { type: 'action', action: { type: 'message', label: '✅ 終了する', text: '案内を終了する' } },
+          { type: 'action', action: { type: 'message', label: '❌ キャンセル', text: 'キャンセル' } },
+        ] } }], lineUserId);
+      } else if (pendingType === 'fridge_add_qty') {
+        await replyLineMessage(replyToken, [{ type: 'text', text: `${originalPending.itemName}の数量を教えてください。\n例：「3個」「300g」「半分くらい」\n\nキャンセルする場合は「キャンセル」と送ってください。` }], lineUserId);
+      } else if (pendingType === 'shopping_hearing') {
+        await replyLineMessage(replyToken, [{ type: 'text', text: '今日、買い物に行く予定はありますか？\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります', quickReply: { items: [
+          { type: 'action', action: { type: 'message', label: '🛒 はい、行く予定', text: 'はい、行く予定です' } },
+          { type: 'action', action: { type: 'message', label: '🏠 今ある食材で', text: 'いいえ、今ある食材で作ります' } },
+          { type: 'action', action: { type: 'message', label: '❌ やっぱりやめる', text: 'キャンセル' } },
+        ] } }], lineUserId);
+      } else {
+        await replyLineMessage(replyToken, [{ type: 'text', text: 'フローを続けます。続きをどうぞ😊' }], lineUserId);
+      }
+      return true;
+    }
+    // それ以外 → 確認を再表示
+    await replyLineMessage(replyToken, [{ type: 'text', text: '今のフローをキャンセルしますか？\n\n「キャンセルして続ける」または「今のフローを続ける」と送ってください', quickReply: { items: [
+      { type: 'action', action: { type: 'message', label: '❌ キャンセルして続ける', text: 'キャンセルして続ける' } },
+      { type: 'action', action: { type: 'message', label: '▶️ 今のフローを続ける', text: '今のフローを続ける' } },
+    ] } }], lineUserId);
+    return true;
+  }
+
   // ─── 買い物ヒアリング待ちの場合 ──────────────────────────────────────────────────
   if (pending?.type === 'shopping_hearing') {
     const { hourJST } = pending as { hourJST: number; askedAt: number };
@@ -1138,6 +1209,22 @@ async function handleFridgeRegistration(
     const willNotShop = /^[2２]$/.test(trimmed) || /いいえ|行かない|ない|今ある食材/.test(trimmed);
 
     if (!willShop && !willNotShop) {
+      // 文脈違い検出：料理名・食材・献立キーワードを検出したら確認メッセージ
+      const isShoppingContextMismatch = /献立|おかず|レシピ|週間献立|冷蔵庫|買い物リスト/.test(trimmed) ||
+        /^[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]{2,}(?:食べたい|を食べたい|が食べたい|で作って|使った)?$/.test(trimmed);
+      if (isShoppingContextMismatch) {
+        await setLineUserPendingAction(lineUserId, {
+          type: 'pending_context_mismatch',
+          originalText: trimmed,
+          originalPending: pending,
+          askedAt: Date.now(),
+        });
+        await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmed}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？`, quickReply: { items: [
+          { type: 'action', action: { type: 'message', label: '❌ キャンセルして続ける', text: 'キャンセルして続ける' } },
+          { type: 'action', action: { type: 'message', label: '▶️ 今のフローを続ける', text: '今のフローを続ける' } },
+        ] } }], lineUserId);
+        return true;
+      }
       await replyLineMessage(replyToken, [{ type: 'text', text: `1または2の\n\n1️⃣ はい、行く予定です\n2️⃣ いいえ、今ある食材で作ります`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '🛒 はい、行く予定', text: 'はい、行く予定です' } },
         { type: 'action', action: { type: 'message', label: '🏠 今ある食材で', text: 'いいえ、今ある食材で作ります' } },
@@ -1270,9 +1357,27 @@ async function handleFridgeRegistration(
     }
 
     const selectedType = choices[trimmed];
-
     if (!selectedType) {
-      // 不明な入力→再度聴く（クイックリプライ付き）
+      // 文脈違い検出：料理名・食材・調理法パターンが来たら確認メッセージを出す
+      const isContextMismatch = (
+        // 料理名・食材らしいパターン（2文字以上の名詞）
+        /^[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]{2,}(?:料理|おかず|ご飯|定食|丼|炒め|煮|焼き|揚げ|蒸し|和え|スープ|サラダ|パスタ|カレー|シチュー|グラタン|ケーキ|パン|ミックス)?$/.test(trimmed) &&
+        !/^(夕飯|朝食|昼食|夕食|今夜|今日|明日|朝|昼|夜|夕|朝ごはん|昼ごはん|夜ごはん|晩ごはん|晩飯|ばんごはん)/.test(trimmed)
+      );
+      if (isContextMismatch) {
+        await setLineUserPendingAction(lineUserId, {
+          type: 'pending_context_mismatch',
+          originalText: trimmed,
+          originalPending: pending,
+          askedAt: Date.now(),
+        });
+        await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmed}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？`, quickReply: { items: [
+          { type: 'action', action: { type: 'message', label: '❌ キャンセルして続ける', text: 'キャンセルして続ける' } },
+          { type: 'action', action: { type: 'message', label: '▶️ 今のフローを続ける', text: '今のフローを続ける' } },
+        ] } }], lineUserId);
+        return true;
+      }
+      // 不明な入力→再度聴く（クイックリプライ付き））
       const _nowJST2 = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const _hourJST2 = _nowJST2.getUTCHours();
       const _retryQR = _hourJST2 >= 5 && _hourJST2 < 15
@@ -2027,6 +2132,21 @@ ${dinnerResult.message}`;
       return true;
     }
 
+    // 文脈違い検出：冷蔵庫・買い物・週間献立キーワードを検出したら確認メッセージ
+    const isConfirmContextMismatch = /冷蔵庫|買い物リスト|週間献立|週間予定表/.test(trimmed);
+    if (isConfirmContextMismatch) {
+      await setLineUserPendingAction(lineUserId, {
+        type: 'pending_context_mismatch',
+        originalText: trimmed,
+        originalPending: pending,
+        askedAt: Date.now(),
+      });
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmed}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？`, quickReply: { items: [
+        { type: 'action', action: { type: 'message', label: '❌ キャンセルして続ける', text: 'キャンセルして続ける' } },
+        { type: 'action', action: { type: 'message', label: '▶️ 今のフローを続ける', text: '今のフローを続ける' } },
+      ] } }], lineUserId);
+      return true;
+    }
     // それ以外 → 案内を再表示
     await replyLineMessage(replyToken, [{ type: 'text', text: `1か2か3で選んでください😊\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`, quickReply: { items: [
       { type: 'action', action: { type: 'message', label: '📖 レシピを見たい', text: 'レシピを見たい' } },
@@ -2548,6 +2668,21 @@ ${dinnerResult.message}`;
       return true;
     }
 
+    // 文脈違い検出：献立・買い物リスト・週間献立キーワードを検出したら確認メッセージ
+    const isFridgeQtyContextMismatch = /献立|おかず|ご飯|買い物|ショッピング|週間献立|今日の献立|今夜の献立|今日の朝食|今日の昼食|レシピ/.test(trimmedText);
+    if (isFridgeQtyContextMismatch) {
+      await setLineUserPendingAction(lineUserId, {
+        type: 'pending_context_mismatch',
+        originalText: trimmedText,
+        originalPending: pending,
+        askedAt: Date.now(),
+      });
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmedText}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？`, quickReply: { items: [
+        { type: 'action', action: { type: 'message', label: '❌ キャンセルして続ける', text: 'キャンセルして続ける' } },
+        { type: 'action', action: { type: 'message', label: '▶️ 今のフローを続ける', text: '今のフローを続ける' } },
+      ] } }], lineUserId);
+      return true;
+    }
     // 数量として解釈できない入力 → 再度聴く
     await replyLineMessage(replyToken, [{ type: 'text', text: `数量を教えてください。\n例：「3個」「300g」「半分くらい」「少し」\n\nキャンセルする場合は「キャンセル」と送ってください。` }], lineUserId);
     return true;
