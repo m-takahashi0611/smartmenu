@@ -3217,7 +3217,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
                   action: {
                     type: "uri",
                     label: "✨ 今すぐ無料で始める →",
-                    uri: "https://app.kondatebiyori.com/dashboard",
+                    uri: "https://app.kondatebiyori.com/plan",
                   },
                   style: "primary",
                   color: "#FF6B35",
