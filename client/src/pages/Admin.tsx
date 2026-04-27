@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { Loader2, LogOut, MessageSquare, X, Ban, CheckCircle, Send, Clock, Calendar, Plus, Pencil, Trash2, MailCheck, ChevronDown, ChevronUp, Users } from "lucide-react";
+import { Loader2, LogOut, MessageSquare, X, Ban, CheckCircle, Send, Clock, Calendar, Plus, Pencil, Trash2, MailCheck, ChevronDown, ChevronUp, Users, UploadCloud, Link2, Video, Image } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
@@ -407,6 +407,11 @@ function BroadcastMessageTab({ lineUsers }: { lineUsers: any[] | undefined }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formTitle, setFormTitle] = useState("");
   const [formContent, setFormContent] = useState("");
+  const [formMediaType, setFormMediaType] = useState<"none" | "image" | "video" | "youtube">("none");
+  const [formMediaUrl, setFormMediaUrl] = useState<string | null>(null);
+  const [formMediaThumbnailUrl, setFormMediaThumbnailUrl] = useState<string | null>(null);
+  const [formYoutubeUrl, setFormYoutubeUrl] = useState("");
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [sendModalMsgId, setSendModalMsgId] = useState<number | null>(null);
   const [selectedSendIds, setSelectedSendIds] = useState<string[]>([]);
 
@@ -419,6 +424,10 @@ function BroadcastMessageTab({ lineUsers }: { lineUsers: any[] | undefined }) {
       setShowForm(false);
       setFormTitle("");
       setFormContent("");
+      setFormMediaType("none");
+      setFormMediaUrl(null);
+      setFormMediaThumbnailUrl(null);
+      setFormYoutubeUrl("");
     },
     onError: (err) => toast.error("作成に失敗しました", { description: err.message }),
   });
@@ -430,6 +439,10 @@ function BroadcastMessageTab({ lineUsers }: { lineUsers: any[] | undefined }) {
       setEditingId(null);
       setFormTitle("");
       setFormContent("");
+      setFormMediaType("none");
+      setFormMediaUrl(null);
+      setFormMediaThumbnailUrl(null);
+      setFormYoutubeUrl("");
     },
     onError: (err) => toast.error("更新に失敗しました", { description: err.message }),
   });
@@ -442,6 +455,7 @@ function BroadcastMessageTab({ lineUsers }: { lineUsers: any[] | undefined }) {
     onError: (err) => toast.error("削除に失敗しました", { description: err.message }),
   });
 
+  const uploadMedia = trpc.admin.uploadBroadcastMedia.useMutation();
   const sendMsg = trpc.admin.sendBroadcastMessage.useMutation({
     onSuccess: (result) => {
       toast.success(`配信完了`, {
@@ -458,6 +472,10 @@ function BroadcastMessageTab({ lineUsers }: { lineUsers: any[] | undefined }) {
     setEditingId(msg.id);
     setFormTitle(msg.title);
     setFormContent(msg.content);
+    setFormMediaType(msg.mediaType ?? "none");
+    setFormMediaUrl(msg.mediaUrl ?? null);
+    setFormMediaThumbnailUrl(msg.mediaThumbnailUrl ?? null);
+    setFormYoutubeUrl(msg.mediaType === "youtube" ? (msg.mediaUrl ?? "") : "");
     setShowForm(true);
   };
 
@@ -466,10 +484,43 @@ function BroadcastMessageTab({ lineUsers }: { lineUsers: any[] | undefined }) {
       toast.error("タイトルと本文を入力してください");
       return;
     }
+    const mediaUrl = formMediaType === "youtube" ? (formYoutubeUrl.trim() || null) : formMediaUrl;
+    const mediaPayload = {
+      mediaType: formMediaType,
+      mediaUrl: mediaUrl,
+      mediaThumbnailUrl: formMediaType === "image" ? null : formMediaThumbnailUrl,
+    };
     if (editingId) {
-      updateMsg.mutate({ id: editingId, title: formTitle, content: formContent });
+      updateMsg.mutate({ id: editingId, title: formTitle, content: formContent, ...mediaPayload });
     } else {
-      createMsg.mutate({ title: formTitle, content: formContent });
+      createMsg.mutate({ title: formTitle, content: formContent, ...mediaPayload });
+    }
+  };
+  const handleUploadMedia = async (file: File, isThumb = false) => {
+    setUploadingMedia(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const result = await uploadMedia.mutateAsync({
+        fileName: file.name,
+        fileBase64: base64,
+        contentType: file.type,
+      });
+      if (isThumb) {
+        setFormMediaThumbnailUrl(result.url);
+      } else {
+        setFormMediaUrl(result.url);
+        if (formMediaType === "image") setFormMediaThumbnailUrl(result.url);
+      }
+      toast.success("アップロード完了");
+    } catch (e: any) {
+      toast.error("アップロードに失敗しました", { description: e.message });
+    } finally {
+      setUploadingMedia(false);
     }
   };
 
@@ -478,6 +529,10 @@ function BroadcastMessageTab({ lineUsers }: { lineUsers: any[] | undefined }) {
     setEditingId(null);
     setFormTitle("");
     setFormContent("");
+    setFormMediaType("none");
+    setFormMediaUrl(null);
+    setFormMediaThumbnailUrl(null);
+    setFormYoutubeUrl("");
   };
 
   const sendingMsg = messages?.find(m => m.id === sendModalMsgId);
@@ -528,10 +583,85 @@ function BroadcastMessageTab({ lineUsers }: { lineUsers: any[] | undefined }) {
                 </div>
               </div>
             </div>
+            {/* メディアセクション */}
+            <div>
+              <Label className="text-sm font-medium">メディア（任意）</Label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(["none", "image", "video", "youtube"] as const).map(type => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => { setFormMediaType(type); setFormMediaUrl(null); setFormMediaThumbnailUrl(null); setFormYoutubeUrl(""); }}
+                    className={`px-3 py-1 rounded-full text-xs border transition-colors ${formMediaType === type ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted"}`}
+                  >
+                    {type === "none" ? "なし" : type === "image" ? "🖼️ 画像" : type === "video" ? "🎥 動画" : "▶️ YouTube"}
+                  </button>
+                ))}
+              </div>
+              {formMediaType === "image" && (
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-dashed rounded-lg hover:bg-muted/50 text-sm">
+                      <UploadCloud className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">{uploadingMedia ? "アップロード中..." : "画像をアップロード"}</span>
+                      <input type="file" accept="image/*" className="hidden" disabled={uploadingMedia} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadMedia(f); }} />
+                    </label>
+                    {formMediaUrl && <span className="text-xs text-green-600 truncate max-w-xs">✅ アップロード済み</span>}
+                  </div>
+                  {formMediaUrl && (
+                    <div className="relative inline-block">
+                      <img src={formMediaUrl} alt="preview" className="h-24 rounded-lg object-contain border" />
+                      <button type="button" onClick={() => { setFormMediaUrl(null); setFormMediaThumbnailUrl(null); }} className="absolute -top-1 -right-1 bg-destructive text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">x</button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {formMediaType === "video" && (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">動画ファイル（mp4推奨）</p>
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-dashed rounded-lg hover:bg-muted/50 text-sm">
+                        <Video className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">{uploadingMedia ? "アップロード中..." : "動画をアップロード"}</span>
+                        <input type="file" accept="video/*" className="hidden" disabled={uploadingMedia} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadMedia(f); }} />
+                      </label>
+                      {formMediaUrl && <span className="text-xs text-green-600">✅ アップロード済み</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">サムネイル画像（必須）</p>
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-dashed rounded-lg hover:bg-muted/50 text-sm">
+                        <Image className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">{uploadingMedia ? "アップロード中..." : "サムネイルをアップロード"}</span>
+                        <input type="file" accept="image/*" className="hidden" disabled={uploadingMedia} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadMedia(f, true); }} />
+                      </label>
+                      {formMediaThumbnailUrl && <span className="text-xs text-green-600">✅ アップロード済み</span>}
+                    </div>
+                    {formMediaThumbnailUrl && (
+                      <div className="relative inline-block mt-1">
+                        <img src={formMediaThumbnailUrl} alt="thumb" className="h-16 rounded-lg object-contain border" />
+                        <button type="button" onClick={() => setFormMediaThumbnailUrl(null)} className="absolute -top-1 -right-1 bg-destructive text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">x</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {formMediaType === "youtube" && (
+                <div className="mt-3">
+                  <div className="flex items-center gap-2">
+                    <Link2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <Input value={formYoutubeUrl} onChange={(e) => setFormYoutubeUrl(e.target.value)} placeholder="https://youtu.be/xxxxx または https://www.youtube.com/watch?v=xxxxx" className="text-sm" />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">URLはテキストメッセージに追記されて配信されます</p>
+                </div>
+              )}
+            </div>
             <div className="flex gap-2">
               <Button
                 onClick={handleSave}
-                disabled={createMsg.isPending || updateMsg.isPending}
+                disabled={createMsg.isPending || updateMsg.isPending || uploadingMedia}
                 className="bg-primary text-primary-foreground"
               >
                 {createMsg.isPending || updateMsg.isPending ? (

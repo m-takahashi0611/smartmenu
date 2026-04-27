@@ -176,6 +176,13 @@
       "when": 1776768206841,
       "tag": "0024_heavy_night_thrasher",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1777259515416,
+      "tag": "0025_overconfident_captain_flint",
+      "breakpoints": true
     }
   ]
 }

@@ -379,6 +379,10 @@ export const broadcastMessages = mysqlTable("broadcast_messages", {
   id: int("id").autoincrement().primaryKey(),
   title: varchar("title", { length: 200 }).notNull(),
   content: text("content").notNull(),
+  // メディア添付： none | image | video | youtube
+  mediaType: mysqlEnum("mediaType", ["none", "image", "video", "youtube"]).default("none").notNull(),
+  mediaUrl: varchar("mediaUrl", { length: 2048 }),         // S3 URL or YouTube URL
+  mediaThumbnailUrl: varchar("mediaThumbnailUrl", { length: 2048 }), // 動画サムネイル or 画像プレビュー
   status: mysqlEnum("status", ["draft", "sent"]).default("draft").notNull(),
   sentAt: timestamp("sentAt"),
   sentCount: int("sentCount").default(0).notNull(),

@@ -748,7 +748,7 @@ export async function insertBroadcastMessage(data: InsertBroadcastMessage): Prom
 
 export async function updateBroadcastMessage(
   id: number,
-  data: Partial<Pick<BroadcastMessage, "title" | "content">>
+  data: Partial<Pick<BroadcastMessage, "title" | "content" | "mediaType" | "mediaUrl" | "mediaThumbnailUrl">>
 ): Promise<void> {
   const db = await getDb();
   if (!db) return;

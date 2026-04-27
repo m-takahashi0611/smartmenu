@@ -10,6 +10,7 @@ import { eq, desc } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { broadcastMenus, broadcastToSelected } from "../batch/deliverMenus";
 import { sendLineMessage } from "./line";
+import { storagePut } from "../storage";
 
 // 管理者専用プロシージャ
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -163,6 +164,9 @@ export const adminRouter = router({
     .input(z.object({
       title: z.string().min(1).max(200),
       content: z.string().min(1),
+      mediaType: z.enum(["none", "image", "video", "youtube"]).optional(),
+      mediaUrl: z.string().nullable().optional(),
+      mediaThumbnailUrl: z.string().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const id = await insertBroadcastMessage({
@@ -170,6 +174,9 @@ export const adminRouter = router({
         content: input.content,
         status: "draft",
         createdBy: ctx.user.id,
+        mediaType: input.mediaType ?? "none",
+        mediaUrl: input.mediaUrl ?? null,
+        mediaThumbnailUrl: input.mediaThumbnailUrl ?? null,
       });
       return { id, success: true };
     }),
@@ -180,13 +187,38 @@ export const adminRouter = router({
       id: z.number(),
       title: z.string().min(1).max(200),
       content: z.string().min(1),
+      mediaType: z.enum(["none", "image", "video", "youtube"]).optional(),
+      mediaUrl: z.string().nullable().optional(),
+      mediaThumbnailUrl: z.string().nullable().optional(),
     }))
     .mutation(async ({ input }) => {
       const msg = await getBroadcastMessage(input.id);
       if (!msg) throw new TRPCError({ code: "NOT_FOUND", message: "メッセージが見つかりません" });
       if (msg.status === "sent") throw new TRPCError({ code: "BAD_REQUEST", message: "送信済みメッセージは編集できません" });
-      await updateBroadcastMessage(input.id, { title: input.title, content: input.content });
+      await updateBroadcastMessage(input.id, {
+        title: input.title,
+        content: input.content,
+        mediaType: input.mediaType ?? "none",
+        mediaUrl: input.mediaUrl ?? null,
+        mediaThumbnailUrl: input.mediaThumbnailUrl ?? null,
+      });
       return { success: true };
+    }),
+
+  // メディアファイルをS3にアップロード
+  uploadBroadcastMedia: adminProcedure
+    .input(z.object({
+      fileName: z.string(),
+      fileBase64: z.string(),
+      contentType: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const buf = Buffer.from(input.fileBase64, "base64");
+      const suffix = Date.now().toString(36);
+      const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const key = `broadcast-media/${suffix}-${safeName}`;
+      const { url } = await storagePut(key, buf, input.contentType);
+      return { url };
     }),
 
   // 配信メッセージ削除
@@ -222,7 +254,35 @@ export const adminRouter = router({
         try {
           const displayName = nameMap.get(lineUserId) ?? "お客様";
           const text = msg.content.replace(/\{\{name\}\}/g, displayName);
-          await sendLineMessage(lineUserId, [{ type: "text", text }]);
+          // メッセージ配列を構築
+          const lineMessages: any[] = [];
+          if (text.trim()) {
+            lineMessages.push({ type: "text", text });
+          }
+          // メディアメッセージを追加
+          if (msg.mediaType === "image" && msg.mediaUrl) {
+            lineMessages.push({
+              type: "image",
+              originalContentUrl: msg.mediaUrl,
+              previewImageUrl: msg.mediaThumbnailUrl || msg.mediaUrl,
+            });
+          } else if (msg.mediaType === "video" && msg.mediaUrl && msg.mediaThumbnailUrl) {
+            lineMessages.push({
+              type: "video",
+              originalContentUrl: msg.mediaUrl,
+              previewImageUrl: msg.mediaThumbnailUrl,
+            });
+          } else if (msg.mediaType === "youtube" && msg.mediaUrl) {
+            // YouTubeはLINEのvideo typeで送れないのでURLをテキストに追記
+            const youtubeText = `\n🎬 動画はこちら:\n${msg.mediaUrl}`;
+            if (lineMessages.length > 0 && lineMessages[0].type === "text") {
+              lineMessages[0].text += youtubeText;
+            } else {
+              lineMessages.push({ type: "text", text: youtubeText });
+            }
+          }
+          if (lineMessages.length === 0) continue;
+          await sendLineMessage(lineUserId, lineMessages);
           success++;
         } catch (err) {
           console.error(`[sendBroadcastMessage] Failed for ${lineUserId}:`, err);
