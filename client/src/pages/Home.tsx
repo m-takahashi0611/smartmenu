@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useLiffContext } from "@/contexts/LiffContext";
+import { useLiffContext, reloadWithLoginReset } from "@/contexts/LiffContext";
 import { getLoginUrl } from "@/const";
 import { useEffect, useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
@@ -81,8 +81,8 @@ export default function Home() {
           </div>
         )}
         <button type="button"
-          onTouchEnd={(e) => { if (isLoggedIn || isLoggingIn) return; e.preventDefault(); e.stopPropagation(); clearLiffError(); loginWithLine(); }}
-          onClick={(e) => { if (isLoggedIn || isLoggingIn) return; e.preventDefault(); e.stopPropagation(); clearLiffError(); loginWithLine(); }}
+          onTouchEnd={(e) => { if (isLoggedIn || isLoggingIn) return; e.preventDefault(); e.stopPropagation(); if (liffError) { reloadWithLoginReset(); return; } clearLiffError(); loginWithLine(); }}
+          onClick={(e) => { if (isLoggedIn || isLoggingIn) return; e.preventDefault(); e.stopPropagation(); if (liffError) { reloadWithLoginReset(); return; } clearLiffError(); loginWithLine(); }}
           disabled={isLoggingIn || isLoggedIn}
           style={{ backgroundColor: (isLoggingIn || isLoggedIn) ? '#ccc' : (liffError ? '#e67e22' : '#06C755'), color: (isLoggingIn || isLoggedIn) ? '#888' : 'white', fontWeight: 'bold', fontSize: isLoggedIn ? '12px' : (size === 'lg' ? '18px' : '15px'), padding: isLoggedIn ? '6px 14px' : (size === 'lg' ? '18px 32px' : '10px 20px'), borderRadius: '8px', border: 'none', cursor: (isLoggingIn || isLoggedIn) ? 'default' : 'pointer', width: (size === 'lg' && !isLoggedIn) ? '100%' : 'auto', display: 'block', WebkitTapHighlightColor: 'transparent', WebkitUserSelect: 'none', userSelect: 'none', touchAction: 'manipulation', outline: 'none', WebkitAppearance: 'none', minHeight: isLoggedIn ? '28px' : (size === 'lg' ? '56px' : '44px'), opacity: isLoggedIn ? 0.5 : 1 }}
         >
