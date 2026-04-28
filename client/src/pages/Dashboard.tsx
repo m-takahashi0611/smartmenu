@@ -103,6 +103,8 @@ export default function Dashboard() {
   const [weekPopupDate, setWeekPopupDate] = useState<string | null>(null);
   // 週ビュー：本日を起点として前後に表示する日数オフセット（0=本日が左端）
   const [weekOffset, setWeekOffset] = useState(0); // -7=1週前, 7=1週後
+  // プロテクト状態のローカルオーバーライド（日付→boolean）
+  const [protectOverride, setProtectOverride] = useState<Map<string, boolean>>(new Map());
   // 週の開始日：本日 + weekOffset（T12:00:00でUTCズレ防止）
   const weekStart = (() => {
     const d = new Date(today + 'T12:00:00+09:00');
@@ -128,32 +130,25 @@ export default function Dashboard() {
 
   // プロテクト切り替え
   const toggleProtect = trpc.menu.toggleProtect.useMutation({
-    onMutate: async (variables) => {
-      // 楽観的更新：即座にUIに反映
-      await utils.menu.getByDateRange.cancel();
-      const prev = utils.menu.getByDateRange.getData({ startDate: weekStart, endDate: weekEnd });
-      utils.menu.getByDateRange.setData({ startDate: weekStart, endDate: weekEnd }, (old) => {
-        if (!old) return old;
-        return old.map(item => {
-          if ((variables.menuPlanIds ?? []).some(id => item.ids?.includes(id) || item.id === id)) {
-            return { ...item, isProtected: variables.isProtected };
-          }
-          return item;
-        });
+    onSuccess: (_data, variables) => {
+      // サーバー更新成功後にrefetchし、完了後にoverrideをクリア
+      refetchWeek().then(() => {
+        // refetch完了後にoverrideをクリア（サーバーデータが反映された）
+        setProtectOverride(new Map());
       });
-      return { prev };
+      toast.success('プロテクト状態を変更しました');
     },
-    onError: (err, _vars, context) => {
-      // エラー時はロールバック
-      if (context?.prev) {
-        utils.menu.getByDateRange.setData({ startDate: weekStart, endDate: weekEnd }, context.prev);
+    onError: (err, variables) => {
+      // エラー時はローカルstateをロールバック
+      if (weekPopupDate) {
+        setProtectOverride(prev => {
+          const next = new Map(prev);
+          next.delete(weekPopupDate);
+          return next;
+        });
       }
       toast.error('変更に失敗しました', { description: err.message });
     },
-    onSettled: () => {
-      utils.menu.getByDateRange.invalidate();
-    },
-    onSuccess: () => { toast.success('プロテクト状態を変更しました'); },
   });
 
   // 夕食候補選択
@@ -909,7 +904,8 @@ export default function Dashboard() {
                                 const md = menu?.menuData as any;
                                 const isToday = date === today;
                                 const isSelected = weekPopupDate === date;
-                                const isProtectedDay = menu?.isProtected;
+                                // protectOverrideがあればそちらを優先（即時UI反映）
+                                const isProtectedDay = protectOverride.has(date) ? protectOverride.get(date) : menu?.isProtected;
                                 const dayColor = dayOfWeek === '日' ? '#E53E3E' : dayOfWeek === '土' ? '#3182CE' : '#3D2B1F';
                                 const hasBreakfast = !!(md?.breakfast);
                                 const hasLunch = !!(md?.lunch);
@@ -1059,12 +1055,19 @@ export default function Dashboard() {
                                           <p className="text-xs font-bold" style={{ color: '#76E4F7' }}>🌙 夕食候補</p>
                                           {popupMenu && (
                                             <label className="flex items-center gap-1 text-xs cursor-pointer" style={{ color: '#8a7060' }}>
-                                              <input
-                                                type="checkbox"
-                                                checked={!!popupMenu.isProtected}
-                                                onChange={(e) => toggleProtect.mutate({ menuPlanIds: popupMenu.ids ?? [popupMenu.id], isProtected: e.target.checked })}
-                                                className="rounded"
-                                              />
+                              <input
+                                type="checkbox"
+                                checked={weekPopupDate && protectOverride.has(weekPopupDate) ? !!protectOverride.get(weekPopupDate) : !!popupMenu.isProtected}
+                                onChange={(e) => {
+                                  const newVal = e.target.checked;
+                                  // ローカルstateを即座に更新
+                                  if (weekPopupDate) {
+                                    setProtectOverride(prev => { const next = new Map(prev); next.set(weekPopupDate, newVal); return next; });
+                                  }
+                                  toggleProtect.mutate({ menuPlanIds: popupMenu.ids ?? [popupMenu.id], isProtected: newVal });
+                                }}
+                                className="rounded"
+                              />
                                               🔒 確定
                                             </label>
                                           )}
