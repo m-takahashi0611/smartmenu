@@ -630,7 +630,17 @@ export const menuRouter = router({
 
   // 週間献立を一括生成（プレミアム・課金無料期間のみ）
   generateWeekly: protectedProcedure
-    .input(z.object({ startDate: z.string(), days: z.number().min(2).max(7).default(7) }))
+    .input(z.object({
+      startDate: z.string(),
+      days: z.number().min(2).max(7).default(7),
+      // 週間設定（ポップアップで今週限り上書き）
+      shoppingDays: z.array(z.string()).optional(), // 買い物に行く曜日（例: ["thu", "sun"]）
+      eatOutDays: z.array(z.string()).optional(),   // 外食の曜日（例: ["wed"]）
+      specialDays: z.array(z.object({ date: z.string(), type: z.enum(["anniversary", "cheatday"]) })).optional(), // 特別な日
+      breakfastStyle: z.string().nullable().optional(), // 朝食スタイル
+      lunchStyle: z.string().nullable().optional(),     // 昼食スタイル
+      cookingAhead: z.string().nullable().optional(),   // 作り置き
+    }))
     .mutation(async ({ ctx, input }) => {
       const [isPremium, isTrial] = await Promise.all([
         getUserIsPremium(ctx.user.id),
@@ -643,10 +653,75 @@ export const menuRouter = router({
       const results: Array<{ date: string; skipped: boolean; success: boolean }> = [];
       const start = new Date(input.startDate + "T00:00:00+09:00");
 
+      // 曜日名マッピング（英語短縮→日本語）
+      const dayNameMap: Record<string, string> = {
+        sun: "日", mon: "月", tue: "火", wed: "水", thu: "木", fri: "金", sat: "土"
+      };
+      const dayIndexToKey = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+      // 朝食スタイル・昼食スタイル・作り置きのテーマ文字列を構築
+      const breakfastStyleMap: Record<string, string> = {
+        bread: "パン派（トースト・サンドイッチ等）",
+        rice: "ご飯派（和食・おにぎり等）",
+        noodle: "麺派（うどん・そうめん等）",
+        light: "軽食派（ヨーグルト・フルーツ等の軽めの朝食）",
+      };
+      const lunchStyleMap: Record<string, string> = {
+        bread: "パン派（サンドイッチ・パンラ等）",
+        rice: "ご飯派（定食・弁当等）",
+        noodle: "麺派（ラーメン・パスタ等）",
+        eating_out: "外食・テイクアウト多め",
+      };
+      const cookingAheadMap: Record<string, string> = {
+        once: "週１回まとめ調理（作り置きを活用し、翁日はアレンジ料理も提案）",
+        twice: "週２回まとめ調理（作り置きを活用し、翁日はアレンジ料理も提案）",
+      };
+      const weeklyThemeParts: string[] = [];
+      if (input.breakfastStyle && input.breakfastStyle !== "none" && breakfastStyleMap[input.breakfastStyle]) {
+        weeklyThemeParts.push(`朝食スタイル：${breakfastStyleMap[input.breakfastStyle]}`);
+      }
+      if (input.lunchStyle && input.lunchStyle !== "none" && lunchStyleMap[input.lunchStyle]) {
+        weeklyThemeParts.push(`昼食スタイル：${lunchStyleMap[input.lunchStyle]}`);
+      }
+      if (input.cookingAhead && input.cookingAhead !== "none" && cookingAheadMap[input.cookingAhead]) {
+        weeklyThemeParts.push(`作り置き：${cookingAheadMap[input.cookingAhead]}`);
+      }
+      const weeklyThemeDesc = weeklyThemeParts.length > 0 ? weeklyThemeParts.join("、") : null;
+
       for (let i = 0; i < input.days; i++) {
         const d = new Date(start);
         d.setDate(d.getDate() + i);
         const dateStr = d.toISOString().split("T")[0];
+        const dayKey = dayIndexToKey[d.getDay()];
+
+        // 外食の日はスキップ
+        if (input.eatOutDays?.includes(dayKey)) {
+          results.push({ date: dateStr, skipped: true, success: true });
+          continue;
+        }
+
+        // 特別な日のテーマを決定
+        const specialDay = input.specialDays?.find(s => s.date === dateStr);
+        let dayTheme: string | undefined;
+        if (specialDay?.type === "anniversary") {
+          dayTheme = "記念日・おもてなし向けの豪華な山盛り料理";
+        } else if (specialDay?.type === "cheatday") {
+          dayTheme = "チートデイ（好きなものを驏食する日）、カロリー制限なしで大好きな料理を提案";
+        } else if (weeklyThemeDesc) {
+          dayTheme = weeklyThemeDesc;
+        }
+
+        // 買い物日の判定（買い物日当日・翁日は自由献立、それ以外は冷蔵庫参照）
+        let willShopOverride: boolean | undefined;
+        if (input.shoppingDays && input.shoppingDays.length > 0) {
+          // 買い物日当日または翁日は自由献立（買い物で補充できる）
+          const prevDayKey = dayIndexToKey[(d.getDay() + 6) % 7];
+          if (input.shoppingDays.includes(dayKey) || input.shoppingDays.includes(prevDayKey)) {
+            willShopOverride = true; // 買い物日当日・翁日：自由献立
+          } else {
+            willShopOverride = false; // それ以外：冷蔵庫の残り食材を使い切る
+          }
+        }
 
         try {
           // 朝・昼・夜それぞれ生成
@@ -655,11 +730,7 @@ export const menuRouter = router({
           let combinedMessage = "";
 
           for (const mealType of mealTypes) {
-            const result = await generateMenuPlan(ctx.user.id, dateStr, mealType, undefined, undefined, false);
-            const menuData = {
-              mealType,
-              ...(typeof result.message === "string" ? {} : {}),
-            };
+            const result = await generateMenuPlan(ctx.user.id, dateStr, mealType, willShopOverride, dayTheme, false);
             combinedMenuData[mealType] = { message: result.message, menuPlanId: result.menuPlanId };
             if (!combinedMessage) combinedMessage = result.message;
           }

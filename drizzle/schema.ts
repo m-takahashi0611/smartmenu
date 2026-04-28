@@ -365,6 +365,12 @@ export const userBaseThemes = mysqlTable("user_base_themes", {
   styleTheme: varchar("styleTheme", { length: 50 }),
   // 食卓イメージ（品数）：1択 ichiju_issai/ichiju_nisai/ichiju_sansai/ichiju_yonsai
   dishCountTheme: varchar("dishCountTheme", { length: 50 }),
+  // 朝食スタイル：1択 bread/rice/noodle/light/none
+  breakfastStyle: varchar("breakfastStyle", { length: 50 }),
+  // 昼食スタイル：1択 bread/rice/noodle/eating_out/none
+  lunchStyle: varchar("lunchStyle", { length: 50 }),
+  // 作り置き設定：1択 none/once/twice
+  cookingAhead: varchar("cookingAhead", { length: 20 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

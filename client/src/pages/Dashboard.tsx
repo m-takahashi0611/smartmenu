@@ -150,6 +150,19 @@ export default function Dashboard() {
   const { data: shoppingList, isLoading: shoppingLoading } = trpc.shopping.list.useQuery({ date: today });
   const { data: fridgeItems, isLoading: fridgeLoading } = trpc.fridge.list.useQuery();
   const { data: familyData } = trpc.family.getProfile.useQuery();
+  const { data: menuThemeData } = trpc.menuTheme.get.useQuery(undefined, {
+    enabled: planData?.isPremium === true && planData?.status !== 'trial',
+  });
+
+  // 週間生成ポップアップの状態
+  const [showWeeklyGenPopup, setShowWeeklyGenPopup] = useState(false);
+  const [weeklyGenShoppingDays, setWeeklyGenShoppingDays] = useState<string[]>([]);
+  const [weeklyGenEatOutDays, setWeeklyGenEatOutDays] = useState<string[]>([]);
+  const [weeklyGenSpecialDays, setWeeklyGenSpecialDays] = useState<Array<{ date: string; type: 'anniversary' | 'cheatday' }>>([]);
+  const [weeklyGenBreakfastStyle, setWeeklyGenBreakfastStyle] = useState<string | null>(null);
+  const [weeklyGenLunchStyle, setWeeklyGenLunchStyle] = useState<string | null>(null);
+  const [weeklyGenCookingAhead, setWeeklyGenCookingAhead] = useState<string | null>(null);
+  const [weeklyGenInitialized, setWeeklyGenInitialized] = useState(false);
 
   const utils = trpc.useUtils();
 
@@ -796,7 +809,22 @@ export default function Dashboard() {
                   {menuView === 'week' && planData?.isPremium && planData?.status !== 'trial' && (
                     <Button
                       size="sm"
-                      onClick={() => generateWeekly.mutate({ startDate: weekStart, days: 7 })}
+                      onClick={() => {
+                        // ポップアップを開く前に既存設定を初期化
+                        if (!weeklyGenInitialized) {
+                          // 家族設定から買い物曜日を自動引用
+                          const savedDays = familyData?.profile?.shoppingDays;
+                          if (savedDays && Array.isArray(savedDays) && !savedDays.includes('everyday') && !savedDays.includes('irregular')) {
+                            setWeeklyGenShoppingDays(savedDays);
+                          }
+                          // 献立テーマから自動引用
+                          if (menuThemeData?.breakfastStyle) setWeeklyGenBreakfastStyle(menuThemeData.breakfastStyle);
+                          if (menuThemeData?.lunchStyle) setWeeklyGenLunchStyle(menuThemeData.lunchStyle);
+                          if (menuThemeData?.cookingAhead) setWeeklyGenCookingAhead(menuThemeData.cookingAhead);
+                          setWeeklyGenInitialized(true);
+                        }
+                        setShowWeeklyGenPopup(true);
+                      }}
                       disabled={generateWeekly.isPending}
                       className="text-white text-xs rounded-xl"
                       style={{ backgroundColor: '#B8860B' }}
@@ -1433,6 +1461,196 @@ export default function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 週間生成ポップアップ */}
+      <Dialog open={showWeeklyGenPopup} onOpenChange={setShowWeeklyGenPopup}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">📅 今週の献立設定</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* 買い物に行く日 */}
+            <div>
+              <p className="text-sm font-semibold mb-2">🛒 買い物に行く日
+                <span className="text-xs text-muted-foreground ml-1">(家族設定から自動入力)</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {(['mon','tue','wed','thu','fri','sat','sun'] as const).map(day => {
+                  const labels: Record<string, string> = { mon: '月', tue: '火', wed: '水', thu: '木', fri: '金', sat: '土', sun: '日' };
+                  const selected = weeklyGenShoppingDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => setWeeklyGenShoppingDays(prev =>
+                        prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+                      )}
+                      className={`w-9 h-9 rounded-full text-sm font-medium border transition-colors ${
+                        selected ? 'bg-primary text-primary-foreground border-primary' : 'bg-white text-foreground border-border'
+                      }`}
+                    >
+                      {labels[day]}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">買い物日当日・翁日は自由献立、それ以外は冷蔵庫の食材を優先します</p>
+            </div>
+
+            {/* 外食の日 */}
+            <div>
+              <p className="text-sm font-semibold mb-2">🍽️ 外食の日</p>
+              <div className="flex flex-wrap gap-2">
+                {(['mon','tue','wed','thu','fri','sat','sun'] as const).map(day => {
+                  const labels: Record<string, string> = { mon: '月', tue: '火', wed: '水', thu: '木', fri: '金', sat: '土', sun: '日' };
+                  const selected = weeklyGenEatOutDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => setWeeklyGenEatOutDays(prev =>
+                        prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+                      )}
+                      className={`w-9 h-9 rounded-full text-sm font-medium border transition-colors ${
+                        selected ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-foreground border-border'
+                      }`}
+                    >
+                      {labels[day]}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">外食の日は献立を生成しません</p>
+            </div>
+
+            {/* 特別な日 */}
+            <div>
+              <p className="text-sm font-semibold mb-2">✨ 特別な日（任意）</p>
+              <div className="space-y-2">
+                {Array.from({ length: 7 }, (_, i) => {
+                  const d = new Date(weekStart + 'T00:00:00+09:00');
+                  d.setDate(d.getDate() + i);
+                  const dateStr = d.toISOString().split('T')[0];
+                  const dayLabel = ['日','月','火','水','木','金','土'][d.getDay()];
+                  const month = d.getMonth() + 1;
+                  const day2 = d.getDate();
+                  const special = weeklyGenSpecialDays.find(s => s.date === dateStr);
+                  return (
+                    <div key={dateStr} className="flex items-center gap-2">
+                      <span className="text-xs w-12 text-muted-foreground">{month}/{day2}({dayLabel})</span>
+                      <button
+                        type="button"
+                        onClick={() => setWeeklyGenSpecialDays(prev => {
+                          const exists = prev.find(s => s.date === dateStr);
+                          if (exists?.type === 'anniversary') return prev.map(s => s.date === dateStr ? { ...s, type: 'cheatday' as const } : s);
+                          if (exists?.type === 'cheatday') return prev.filter(s => s.date !== dateStr);
+                          return [...prev, { date: dateStr, type: 'anniversary' as const }];
+                        })}
+                        className={`px-2 py-1 rounded text-xs border transition-colors ${
+                          special?.type === 'anniversary' ? 'bg-pink-100 text-pink-700 border-pink-300' :
+                          special?.type === 'cheatday' ? 'bg-yellow-100 text-yellow-700 border-yellow-300' :
+                          'bg-white text-muted-foreground border-border'
+                        }`}
+                      >
+                        {special?.type === 'anniversary' ? '🎉 記念日' : special?.type === 'cheatday' ? '🍔 チートデイ' : 'なし'}
+                      </button>
+                      <span className="text-xs text-muted-foreground">タップで切り替え</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 朝食スタイル */}
+            <div>
+              <p className="text-sm font-semibold mb-2">🍞 朝食スタイル
+                <span className="text-xs text-muted-foreground ml-1">(献立テーマから自動入力)</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {[{ value: 'none', label: 'こだわりなし' }, { value: 'bread', label: 'パン派' }, { value: 'rice', label: 'ご飯派' }, { value: 'noodle', label: '麺派' }, { value: 'light', label: '軽食派' }].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setWeeklyGenBreakfastStyle(opt.value === 'none' ? null : opt.value)}
+                    className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                      (weeklyGenBreakfastStyle ?? 'none') === opt.value ? 'bg-primary text-primary-foreground border-primary' : 'bg-white text-foreground border-border'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 昼食スタイル */}
+            <div>
+              <p className="text-sm font-semibold mb-2">🍜 昼食スタイル
+                <span className="text-xs text-muted-foreground ml-1">(献立テーマから自動入力)</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {[{ value: 'none', label: 'こだわりなし' }, { value: 'bread', label: 'パン派' }, { value: 'rice', label: 'ご飯派' }, { value: 'noodle', label: '麺派' }, { value: 'eating_out', label: '外食多め' }].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setWeeklyGenLunchStyle(opt.value === 'none' ? null : opt.value)}
+                    className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                      (weeklyGenLunchStyle ?? 'none') === opt.value ? 'bg-primary text-primary-foreground border-primary' : 'bg-white text-foreground border-border'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 作り置き */}
+            <div>
+              <p className="text-sm font-semibold mb-2">🍳 作り置き・まとめ調理
+                <span className="text-xs text-muted-foreground ml-1">(献立テーマから自動入力)</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {[{ value: 'none', label: 'しない' }, { value: 'once', label: '週1回' }, { value: 'twice', label: '週2回' }].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setWeeklyGenCookingAhead(opt.value === 'none' ? null : opt.value)}
+                    className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                      (weeklyGenCookingAhead ?? 'none') === opt.value ? 'bg-primary text-primary-foreground border-primary' : 'bg-white text-foreground border-border'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowWeeklyGenPopup(false)}>
+              キャンセル
+            </Button>
+            <Button
+              className="flex-1 text-white"
+              style={{ backgroundColor: '#B8860B' }}
+              onClick={() => {
+                setShowWeeklyGenPopup(false);
+                generateWeekly.mutate({
+                  startDate: weekStart,
+                  days: 7,
+                  shoppingDays: weeklyGenShoppingDays.length > 0 ? weeklyGenShoppingDays : undefined,
+                  eatOutDays: weeklyGenEatOutDays.length > 0 ? weeklyGenEatOutDays : undefined,
+                  specialDays: weeklyGenSpecialDays.length > 0 ? weeklyGenSpecialDays : undefined,
+                  breakfastStyle: weeklyGenBreakfastStyle,
+                  lunchStyle: weeklyGenLunchStyle,
+                  cookingAhead: weeklyGenCookingAhead,
+                });
+              }}
+            >
+              ✨ 週間献立を生成
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

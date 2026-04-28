@@ -88,6 +88,9 @@ export default function MenuTheme() {
   const [selectedEconomy, setSelectedEconomy] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [selectedDishCount, setSelectedDishCount] = useState<string | null>(null);
+  const [selectedBreakfastStyle, setSelectedBreakfastStyle] = useState<string | null>(null);
+  const [selectedLunchStyle, setSelectedLunchStyle] = useState<string | null>(null);
+  const [selectedCookingAhead, setSelectedCookingAhead] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -108,6 +111,9 @@ export default function MenuTheme() {
     setSelectedEconomy(savedTheme.economyTheme ?? null);
     setSelectedStyle(savedTheme.styleTheme ?? null);
     setSelectedDishCount((savedTheme as any).dishCountTheme ?? null);
+    setSelectedBreakfastStyle(savedTheme.breakfastStyle ?? null);
+    setSelectedLunchStyle(savedTheme.lunchStyle ?? null);
+    setSelectedCookingAhead(savedTheme.cookingAhead ?? null);
     setInitialized(true);
   }
 
@@ -189,6 +195,9 @@ export default function MenuTheme() {
       economyTheme: selectedEconomy,
       styleTheme: selectedStyle,
       dishCountTheme: selectedDishCount,
+      breakfastStyle: selectedBreakfastStyle,
+      lunchStyle: selectedLunchStyle,
+      cookingAhead: selectedCookingAhead,
     });
   };
 
@@ -384,6 +393,109 @@ export default function MenuTheme() {
             </Card>
           );
         })}
+
+        {/* 朝食・昼食スタイル・作り置き設定（プレミアムのみ） */}
+        {IS_PREMIUM && (
+          <Card className="border-border/40">
+            <CardHeader
+              className="p-4 cursor-pointer select-none"
+              onClick={() => toggleCategory("meal_style")}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🍳</span>
+                  <CardTitle className="text-sm font-semibold">朝食・昼食スタイル・作り置き</CardTitle>
+                  <Crown className="w-3.5 h-3.5 text-amber-500" />
+                </div>
+                {openCategories.includes("meal_style") ? (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                )}
+              </div>
+            </CardHeader>
+            {openCategories.includes("meal_style") && (
+              <CardContent className="px-4 pb-4 pt-0 space-y-4">
+                {/* 朝食スタイル */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">☀️ 朝食スタイル</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: "bread", label: "🍞 パン派", desc: "トースト・サンドイッチ等" },
+                      { id: "rice", label: "🍚 ご飯派", desc: "和食・おにぎり等" },
+                      { id: "noodle", label: "🍜 麺派", desc: "うどん・そうめん等" },
+                      { id: "light", label: "🥣 軽食派", desc: "ヨーグルト・フルーツ等" },
+                      { id: "none", label: "❓ こだわりなし", desc: "お任せします" },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => setSelectedBreakfastStyle((prev) => (prev === item.id ? null : item.id))}
+                        className={`p-2.5 rounded-lg border text-left transition-all ${
+                          selectedBreakfastStyle === item.id
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border/50 bg-background hover:border-primary/40"
+                        }`}
+                      >
+                        <div className="text-xs font-medium">{item.label}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* 昼食スタイル */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">🌞 昼食スタイル</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: "bread", label: "🍞 パン派", desc: "サンドイッチ・パンラ等" },
+                      { id: "rice", label: "🍚 ご飯派", desc: "定食・弁当等" },
+                      { id: "noodle", label: "🍜 麺派", desc: "ラーメン・パスタ等" },
+                      { id: "eating_out", label: "🏪 外食多め", desc: "外食・テイクアウト等" },
+                      { id: "none", label: "❓ こだわりなし", desc: "お任せします" },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => setSelectedLunchStyle((prev) => (prev === item.id ? null : item.id))}
+                        className={`p-2.5 rounded-lg border text-left transition-all ${
+                          selectedLunchStyle === item.id
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border/50 bg-background hover:border-primary/40"
+                        }`}
+                      >
+                        <div className="text-xs font-medium">{item.label}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* 作り置き */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">🍱 作り置き・まとめ調理</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: "none", label: "しない", desc: "毎日新鮮な料理" },
+                      { id: "once", label: "週1回", desc: "週末まとめ調理" },
+                      { id: "twice", label: "週2回", desc: "平日も作り置き" },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => setSelectedCookingAhead((prev) => (prev === item.id ? null : item.id))}
+                        className={`p-2.5 rounded-lg border text-center transition-all ${
+                          selectedCookingAhead === item.id
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border/50 bg-background hover:border-primary/40"
+                        }`}
+                      >
+                        <div className="text-xs font-medium">{item.label}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )}
 
         {/* 保存ボタン（プレミアムユーザーのみ） */}
         {IS_PREMIUM && (

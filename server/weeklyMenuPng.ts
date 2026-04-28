@@ -135,15 +135,17 @@ function drawFlower(ctx: any, cx: number, cy: number, r: number, pc: string, cc:
 /** menuDataから夜の主菜を取得（dinnerOptions対応） */
 function extractDinner(menuData: any): { dinner: string; dinnerOptions: string[] | null } {
   if (!menuData) return { dinner: "", dinnerOptions: null };
+  // 確定済み（selectedDinnerIndexあり）は必ず1件のみ表示（先に判定）
+  if (menuData.selectedDinnerIndex != null && menuData.dinnerOptions?.length > 0) {
+    const idx = Number(menuData.selectedDinnerIndex);
+    return { dinner: menuData.dinnerOptions[idx]?.name || menuData.dinnerOptions[0]?.name || "", dinnerOptions: null };
+  }
+  // 未確定（候補3種あり）は全候補を表示
   if (menuData.dinnerOptions && menuData.dinnerOptions.length > 1) {
     return {
       dinner: "",
       dinnerOptions: menuData.dinnerOptions.map((o: any) => o.name || o.mainDish || String(o)),
     };
-  }
-  if (menuData.selectedDinnerIndex != null && menuData.dinnerOptions?.length > 0) {
-    const idx = Number(menuData.selectedDinnerIndex);
-    return { dinner: menuData.dinnerOptions[idx]?.name || menuData.dinnerOptions[0]?.name || "", dinnerOptions: null };
   }
   if (menuData.dinner) return { dinner: menuData.dinner, dinnerOptions: null };
   if (menuData.dinnerOptions?.length > 0) return { dinner: menuData.dinnerOptions[0]?.name || "", dinnerOptions: null };

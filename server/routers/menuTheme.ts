@@ -15,6 +15,9 @@ export const menuThemeRouter = router({
       economyTheme: theme?.economyTheme ?? null,
       styleTheme: theme?.styleTheme ?? null,
       dishCountTheme: theme?.dishCountTheme ?? null,
+      breakfastStyle: theme?.breakfastStyle ?? null,
+      lunchStyle: theme?.lunchStyle ?? null,
+      cookingAhead: theme?.cookingAhead ?? null,
     };
   }),
 
@@ -27,6 +30,9 @@ export const menuThemeRouter = router({
         economyTheme: z.string().nullable().optional(), // 1択
         styleTheme: z.string().nullable().optional(), // 1択
         dishCountTheme: z.string().nullable().optional(), // 1択
+        breakfastStyle: z.string().nullable().optional(), // 朝食スタイル
+        lunchStyle: z.string().nullable().optional(), // 昼食スタイル
+        cookingAhead: z.string().nullable().optional(), // 作り置き
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -49,6 +55,9 @@ export const menuThemeRouter = router({
         economyTheme: input.economyTheme ?? null,
         styleTheme: input.styleTheme ?? null,
         dishCountTheme: input.dishCountTheme ?? null,
+        breakfastStyle: input.breakfastStyle ?? null,
+        lunchStyle: input.lunchStyle ?? null,
+        cookingAhead: input.cookingAhead ?? null,
       });
 
       return { success: true };
