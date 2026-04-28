@@ -1591,9 +1591,9 @@ export default function Dashboard() {
               <p className="text-sm font-semibold mb-2">✨ 特別な日（任意）</p>
               <div className="space-y-2">
                 {Array.from({ length: 7 }, (_, i) => {
-                  const d = new Date(weekStart + 'T00:00:00+09:00');
-                  d.setDate(d.getDate() + i);
-                  const dateStr = d.toISOString().split('T')[0];
+                  const [wy, wmo, wday] = weekStart.split('-').map(Number);
+                  const d = new Date(wy, wmo - 1, wday + i);
+                  const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                   const dayLabel = ['日','月','火','水','木','金','土'][d.getDay()];
                   const month = d.getMonth() + 1;
                   const day2 = d.getDate();

@@ -620,6 +620,7 @@ export const menuRouter = router({
       cookingAhead: z.string().nullable().optional(),   // 作り置き
     }))
     .mutation(async ({ ctx, input }) => {
+      console.log('[generateWeekly] input.breakfastStyle:', input.breakfastStyle, '| input.specialDays:', JSON.stringify(input.specialDays));
       const [isPremium, isTrial] = await Promise.all([
         getUserIsPremium(ctx.user.id),
         getUserIsTrial(ctx.user.id),
