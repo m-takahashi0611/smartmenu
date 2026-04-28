@@ -3511,7 +3511,9 @@ ${itemList}
       const isDirectKeyword =
         /^献立$|^今日の献立$|^今夜の献立$|^明日の献立$|^献立を$|^献立お願い$|^献立提案$/.test(text.trim()) ||
         /今日何(作|つく)ろ/.test(text) ||
-        /ご飯(何|なに)(作|つく)/.test(text);
+        /ご飯(何|なに)(作|つく)/.test(text) ||
+        // 週間献立系キーワードはLLM判定をスキップして週間献立処理へ直接流す
+        ['週間献立', '週間予定表', '献立予定表', '週間献立を見る', '週間献立を確認', '今週の献立を見せて', '今週の献立を確認', '予定表を確認', '予定表確認', '週間予定表を確認', '今週の予定表を確認', '新しく生成'].some(kw => text === kw || text.includes(kw));
       const pendingNow = await getLineUserPendingAction(lineUserId);
       if (!pendingNow && !isDirectKeyword) {
         const intentResult = await classifyUserIntent(text);
