@@ -585,7 +585,7 @@ export const menuRouter = router({
             menuData: {}, messageText: p.messageText,
             actualStatusBreakfast: p.actualStatusBreakfast, actualStatusLunch: p.actualStatusLunch, actualStatusDinner: p.actualStatusDinner,
             actualMealBreakfast: p.actualMealBreakfast ?? null, actualMealLunch: p.actualMealLunch ?? null, actualMealDinner: p.actualMealDinner ?? null,
-            ids: [p.id],
+            ids: [],
           });
         }
         const entry = byDate.get(dateStr)!;

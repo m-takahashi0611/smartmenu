@@ -1053,24 +1053,27 @@ export default function Dashboard() {
                                       <div>
                                         <div className="flex items-center justify-between mb-1">
                                           <p className="text-xs font-bold" style={{ color: '#76E4F7' }}>🌙 夕食候補</p>
-                                          {popupMenu && (
-                                            <label className="flex items-center gap-1 text-xs cursor-pointer" style={{ color: '#8a7060' }}>
-                              <input
-                                type="checkbox"
-                                checked={weekPopupDate && protectOverride.has(weekPopupDate) ? !!protectOverride.get(weekPopupDate) : !!popupMenu.isProtected}
-                                onChange={(e) => {
-                                  const newVal = e.target.checked;
-                                  // ローカルstateを即座に更新
-                                  if (weekPopupDate) {
-                                    setProtectOverride(prev => { const next = new Map(prev); next.set(weekPopupDate, newVal); return next; });
-                                  }
-                                  toggleProtect.mutate({ menuPlanIds: popupMenu.ids ?? [popupMenu.id], isProtected: newVal });
-                                }}
-                                className="rounded"
-                              />
-                                              🔒 確定
-                                            </label>
-                                          )}
+                                          {popupMenu && (() => {
+                                            const isProtectedNow = weekPopupDate && protectOverride.has(weekPopupDate) ? !!protectOverride.get(weekPopupDate) : !!popupMenu.isProtected;
+                                            const handleProtectToggle = () => {
+                                              const newVal = !isProtectedNow;
+                                              if (weekPopupDate) {
+                                                setProtectOverride(prev => { const next = new Map(prev); next.set(weekPopupDate, newVal); return next; });
+                                              }
+                                              toggleProtect.mutate({ menuPlanIds: popupMenu.ids && popupMenu.ids.length > 0 ? popupMenu.ids : [popupMenu.id], isProtected: newVal });
+                                            };
+                                            return (
+                                              <button
+                                                type="button"
+                                                onClick={handleProtectToggle}
+                                                className="flex items-center gap-1 text-xs cursor-pointer select-none"
+                                                style={{ color: isProtectedNow ? '#9F7AEA' : '#8a7060', fontWeight: isProtectedNow ? 'bold' : 'normal', background: 'none', border: 'none', padding: '4px 8px', borderRadius: '8px', backgroundColor: isProtectedNow ? '#F5F0FF' : 'transparent' }}
+                                              >
+                                                <span style={{ fontSize: '16px' }}>{isProtectedNow ? '🔒' : '🔓'}</span>
+                                                確定{isProtectedNow ? '済み' : 'する'}
+                                              </button>
+                                            );
+                                          })()}
                                         </div>
                                         {popupMenuData?.dinnerOptions && popupMenuData.dinnerOptions.length > 0 ? (() => {
                                             // selectedDinnerIndexを数値として正規化
