@@ -128,8 +128,32 @@ export default function Dashboard() {
 
   // プロテクト切り替え
   const toggleProtect = trpc.menu.toggleProtect.useMutation({
-    onSuccess: () => { refetchWeek(); toast.success('プロテクト状態を変更しました'); },
-    onError: (err) => toast.error('変更に失敗しました', { description: err.message }),
+    onMutate: async (variables) => {
+      // 楽観的更新：即座にUIに反映
+      await utils.menu.getByDateRange.cancel();
+      const prev = utils.menu.getByDateRange.getData({ startDate: weekStart, endDate: weekEnd });
+      utils.menu.getByDateRange.setData({ startDate: weekStart, endDate: weekEnd }, (old) => {
+        if (!old) return old;
+        return old.map(item => {
+          if ((variables.menuPlanIds ?? []).some(id => item.ids?.includes(id) || item.id === id)) {
+            return { ...item, isProtected: variables.isProtected };
+          }
+          return item;
+        });
+      });
+      return { prev };
+    },
+    onError: (err, _vars, context) => {
+      // エラー時はロールバック
+      if (context?.prev) {
+        utils.menu.getByDateRange.setData({ startDate: weekStart, endDate: weekEnd }, context.prev);
+      }
+      toast.error('変更に失敗しました', { description: err.message });
+    },
+    onSettled: () => {
+      utils.menu.getByDateRange.invalidate();
+    },
+    onSuccess: () => { toast.success('プロテクト状態を変更しました'); },
   });
 
   // 夕食候補選択
