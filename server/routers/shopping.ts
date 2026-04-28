@@ -5,6 +5,7 @@ import {
   getShoppingList,
   getShoppingListDates,
   getUserIsPremium,
+  getUserIsTrial,
   insertShoppingListItems,
   toggleShoppingItem,
   moveShoppingItemToFridge,
@@ -15,11 +16,18 @@ import {
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 
+const TRIAL_FORBIDDEN_MSG = "買い物リストはカード登録後にご利用いただけます";
+
 export const shoppingRouter = router({
   // 買い物リスト取得（プラン別保存期間制限付き）
   list: protectedProcedure
     .input(z.object({ date: z.string().optional() }))
     .query(async ({ ctx, input }) => {
+      // トライアルユーザーは買い物リスト閲覧不可
+      const isTrial = await getUserIsTrial(ctx.user.id);
+      if (isTrial) {
+        throw new TRPCError({ code: "FORBIDDEN", message: TRIAL_FORBIDDEN_MSG });
+      }
       const today = new Date().toISOString().split("T")[0];
       const requestedDate = input.date ?? today;
       const isPremium = await getUserIsPremium(ctx.user.id);
@@ -38,6 +46,11 @@ export const shoppingRouter = router({
   // 利用可能な買い物リスト日付一覧（プラン別）
   dates: protectedProcedure
     .query(async ({ ctx }) => {
+      // トライアルユーザーは買い物リスト閲覧不可
+      const isTrial = await getUserIsTrial(ctx.user.id);
+      if (isTrial) {
+        throw new TRPCError({ code: "FORBIDDEN", message: TRIAL_FORBIDDEN_MSG });
+      }
       const isPremium = await getUserIsPremium(ctx.user.id);
       const dates = await getShoppingListDates(ctx.user.id, isPremium);
       return { dates, isPremium, maxDays: isPremium ? 30 : 3 };
@@ -54,6 +67,11 @@ export const shoppingRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // トライアルユーザーは買い物リスト操作不可
+      const isTrial = await getUserIsTrial(ctx.user.id);
+      if (isTrial) {
+        throw new TRPCError({ code: "FORBIDDEN", message: TRIAL_FORBIDDEN_MSG });
+      }
       const today = input.date ?? new Date().toISOString().split("T")[0];
       await insertShoppingListItems([
         {
@@ -72,6 +90,8 @@ export const shoppingRouter = router({
   toggle: protectedProcedure
     .input(z.object({ id: z.number(), isChecked: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
+      const isTrial = await getUserIsTrial(ctx.user.id);
+      if (isTrial) throw new TRPCError({ code: "FORBIDDEN", message: TRIAL_FORBIDDEN_MSG });
       await toggleShoppingItem(input.id, ctx.user.id, input.isChecked);
       return { success: true };
     }),
@@ -80,6 +100,8 @@ export const shoppingRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
+      const isTrial = await getUserIsTrial(ctx.user.id);
+      if (isTrial) throw new TRPCError({ code: "FORBIDDEN", message: TRIAL_FORBIDDEN_MSG });
       await deleteShoppingItem(input.id, ctx.user.id);
       return { success: true };
     }),
@@ -87,6 +109,8 @@ export const shoppingRouter = router({
   // 購入済みアイテムを一括削除
   deleteChecked: protectedProcedure
     .mutation(async ({ ctx }) => {
+      const isTrial = await getUserIsTrial(ctx.user.id);
+      if (isTrial) throw new TRPCError({ code: "FORBIDDEN", message: TRIAL_FORBIDDEN_MSG });
       const count = await deleteCheckedShoppingItems(ctx.user.id);
       return { success: true, deletedCount: count };
     }),
@@ -95,6 +119,8 @@ export const shoppingRouter = router({
   moveToFridge: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
+      const isTrial = await getUserIsTrial(ctx.user.id);
+      if (isTrial) throw new TRPCError({ code: "FORBIDDEN", message: TRIAL_FORBIDDEN_MSG });
       const moved = await moveShoppingItemToFridge(input.id, ctx.user.id);
       return { success: moved };
     }),
@@ -102,6 +128,8 @@ export const shoppingRouter = router({
   // チェック済みアイテムを全て冷蔵庫に移行して削除
   moveCheckedToFridge: protectedProcedure
     .mutation(async ({ ctx }) => {
+      const isTrial = await getUserIsTrial(ctx.user.id);
+      if (isTrial) throw new TRPCError({ code: "FORBIDDEN", message: TRIAL_FORBIDDEN_MSG });
       const count = await moveCheckedShoppingItemsToFridge(ctx.user.id);
       return { success: true, movedCount: count };
     }),
@@ -110,6 +138,8 @@ export const shoppingRouter = router({
   bulkDelete: protectedProcedure
     .input(z.object({ ids: z.array(z.number()).min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const isTrial = await getUserIsTrial(ctx.user.id);
+      if (isTrial) throw new TRPCError({ code: "FORBIDDEN", message: TRIAL_FORBIDDEN_MSG });
       await bulkDeleteShoppingItems(input.ids, ctx.user.id);
       return { success: true, deletedCount: input.ids.length };
     }),
@@ -118,6 +148,8 @@ export const shoppingRouter = router({
   bulkMoveToFridge: protectedProcedure
     .input(z.object({ ids: z.array(z.number()).min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const isTrial = await getUserIsTrial(ctx.user.id);
+      if (isTrial) throw new TRPCError({ code: "FORBIDDEN", message: TRIAL_FORBIDDEN_MSG });
       const movedCount = await bulkMoveShoppingToFridge(input.ids, ctx.user.id);
       return { success: true, movedCount };
     }),

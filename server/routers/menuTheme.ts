@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
-import { getUserBaseTheme, upsertUserBaseTheme, getUserIsPremium } from "../db";
+import { getUserBaseTheme, upsertUserBaseTheme, getUserIsPremium, getUserIsTrial } from "../db";
 
 export const menuThemeRouter = router({
   // ベーステーマを取得
@@ -30,8 +30,11 @@ export const menuThemeRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const isPremium = await getUserIsPremium(ctx.user.id);
-      if (!isPremium) {
+      const [isPremium, isTrial] = await Promise.all([
+        getUserIsPremium(ctx.user.id),
+        getUserIsTrial(ctx.user.id),
+      ]);
+      if (!isPremium || isTrial) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "この機能はプレミアムプランのみ利用できます",

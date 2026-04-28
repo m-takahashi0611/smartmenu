@@ -40,7 +40,7 @@ export const subscriptionRouter = router({
       return {
         plan: "free" as const,
         status: "trial" as const,
-        isPremium: true, // トライアル中はプレミアム扱い
+        isPremium: false, // トライアルはプレミアムでない（機能制限あり）
         isTrialActive: true,
         trialDaysLeft: 45,
         trialStartedAt: new Date(),
@@ -58,10 +58,10 @@ export const subscriptionRouter = router({
     const trialDaysLeft = Math.max(0, sub.trialDays - daysPassed);
     const isTrialActive = sub.status === "trial" && trialDaysLeft > 0;
 
-    // プレミアム判定：activeまたはトライアル期間中、またはcancelled（期末まで有効）
+    // プレミアム判定：activeまたはcancelled（期末まで有効）のみ
+    // trial は isPremium=false（機能制限あり）
     const isPremium =
       sub.status === "active" ||
-      (sub.status === "trial" && isTrialActive) ||
       (sub.status === "cancelled" && sub.currentPeriodEnd != null && new Date(sub.currentPeriodEnd) > new Date());
 
     return {

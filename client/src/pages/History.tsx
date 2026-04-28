@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
+import { TRPCClientError } from "@trpc/client";
 
 type ActualStatus = "cooked" | "ordered" | "ate_out" | "skipped" | "other" | null | undefined;
 
@@ -25,7 +26,8 @@ function ActualStatusBadge({ status, meal }: { status: ActualStatus; meal?: stri
 }
 
 export default function History() {
-  const { data: plans, isLoading } = trpc.menu.list.useQuery({ limit: 14 });
+  const { data: plans, isLoading, error } = trpc.menu.list.useQuery({ limit: 14 });
+  const isForbidden = error instanceof TRPCClientError && error.data?.code === "FORBIDDEN";
 
   const formatDate = (dateVal: any) => {
     const d = new Date(dateVal);
@@ -48,6 +50,15 @@ export default function History() {
       <main className="max-w-3xl mx-auto px-4 py-6">
         {isLoading ? (
           <div className="text-center py-12 text-muted-foreground">読み込み中...</div>
+        ) : isForbidden ? (
+          <div className="text-center py-16">
+            <div className="text-5xl mb-4">🔒</div>
+            <p className="font-semibold mb-2">献立履歴はカード登録後にご利用いただけます</p>
+            <p className="text-sm text-muted-foreground mb-6">トライアル期間中はご利用いただけません</p>
+            <Link href="/plan">
+              <Button>👑 プレミアムにアップグレード</Button>
+            </Link>
+          </div>
         ) : !plans || plans.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-5xl mb-4">📋</div>

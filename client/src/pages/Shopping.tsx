@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { TRPCClientError } from "@trpc/client";
 
 export default function Shopping() {
   const [newItem, setNewItem] = useState("");
@@ -24,7 +25,8 @@ export default function Shopping() {
   const today = useMemo(() => new Date().toISOString().split("T")[0], []);
 
   // 利用可能な日付一覧（プラン別）
-  const { data: datesData } = trpc.shopping.dates.useQuery();
+  const { data: datesData, error: datesError } = trpc.shopping.dates.useQuery();
+  const isForbidden = datesError instanceof TRPCClientError && datesError.data?.code === "FORBIDDEN";
   const isPremium = datesData?.isPremium ?? false;
   const maxDays = datesData?.maxDays ?? 3;
 
@@ -134,6 +136,20 @@ export default function Shopping() {
 
       <main className="max-w-3xl mx-auto px-4 py-6">
 
+        {/* トライアル制限表示 */}
+        {isForbidden && (
+          <div className="text-center py-16">
+            <div className="text-5xl mb-4">🔒</div>
+            <p className="font-semibold mb-2">買い物リストはカード登録後にご利用いただけます</p>
+            <p className="text-sm text-muted-foreground mb-6">トライアル期間中はご利用いただけません</p>
+            <Link href="/plan">
+              <Button>👑 プレミアムにアップグレード</Button>
+            </Link>
+          </div>
+        )}
+
+        {!isForbidden && (
+        <>
         {/* 日付タブ（過去履歴） */}
         {availableDates.length > 1 && (
           <div className="mb-4">
@@ -315,8 +331,9 @@ export default function Shopping() {
             </CardContent>
           </Card>
         )}
+        </>
+        )}
       </main>
-
       {/* 冷蔵庫移行確認ダイアログ */}
       <AlertDialog open={!!moveToFridgeConfirm} onOpenChange={(open) => !open && setMoveToFridgeConfirm(null)}>
         <AlertDialogContent>

@@ -507,6 +507,11 @@ export const menuRouter = router({
   list: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(30).default(7) }))
     .query(async ({ ctx, input }) => {
+      // トライアルユーザーは献立履歴不可
+      const isTrial = await getUserIsTrial(ctx.user.id);
+      if (isTrial) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "献立履歴はカード登録後にご利用いただけます" });
+      }
       const plans = await getRecentMenuPlans(ctx.user.id, input.limit);
       return plans.map((p) => ({
         id: p.id,

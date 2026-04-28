@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
-import { getDb } from "../db";
+import { getDb, getUserIsPremium, getUserIsTrial } from "../db";
 import { bentoSettings } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 
@@ -60,6 +61,14 @@ export const bentoRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // トライアルユーザーはお弁当モード設定不可（課金ユーザーのみ）
+      const [isPremium, isTrial] = await Promise.all([
+        getUserIsPremium(ctx.user.id),
+        getUserIsTrial(ctx.user.id),
+      ]);
+      if (!isPremium || isTrial) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "お弁当モードはプレミアムプランのみ利用できます" });
+      }
       const db = await getDb();
       if (!db) return { success: false };
 
