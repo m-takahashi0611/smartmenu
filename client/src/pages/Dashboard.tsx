@@ -899,10 +899,11 @@ export default function Dashboard() {
                                     onKeyDown={(e) => e.key === 'Enter' && setWeekPopupDate(isSelected ? null : date)}
                                     className="rounded-xl p-2 text-center cursor-pointer select-none flex-shrink-0"
                                     style={{
-                                      backgroundColor: isSelected ? '#FFF0E8' : isToday ? '#FFF8F2' : 'white',
-                                      border: isSelected ? '2px solid #FF7F50' : isToday ? '2px solid #FFB899' : '1px solid #F0D9C8',
+                                      backgroundColor: isSelected ? '#FFF0E8' : isProtectedDay ? '#F5F0FF' : isToday ? '#FFF8F2' : 'white',
+                                      border: isSelected ? '2px solid #FF7F50' : isProtectedDay ? '2px solid #9F7AEA' : isToday ? '2px solid #FFB899' : '1px solid #F0D9C8',
                                       minHeight: '96px',
                                       width: '72px',
+                                      opacity: isProtectedDay ? 1 : 1,
                                     }}
                                   >
                                     <div className="text-xs font-bold" style={{ color: dayColor }}>{dayOfWeek}</div>
@@ -1037,7 +1038,7 @@ export default function Dashboard() {
                                               <input
                                                 type="checkbox"
                                                 checked={!!popupMenu.isProtected}
-                                                onChange={(e) => toggleProtect.mutate({ menuPlanId: popupMenu.id, isProtected: e.target.checked })}
+                                                onChange={(e) => toggleProtect.mutate({ menuPlanIds: popupMenu.ids ?? [popupMenu.id], isProtected: e.target.checked })}
                                                 className="rounded"
                                               />
                                               🔒 確定

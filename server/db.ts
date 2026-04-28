@@ -609,6 +609,17 @@ export async function updateMenuPlanProtect(menuPlanId: number, userId: number, 
 }
 
 /**
+ * 複数の献立プランのプロテクト状態を一括更新する（1日に複数レコードある場合用）
+ */
+export async function updateMenuPlanProtectBulk(menuPlanIds: number[], userId: number, isProtected: boolean) {
+  const db = await getDb();
+  if (!db || menuPlanIds.length === 0) return;
+  await db.update(menuPlans)
+    .set({ isProtected, updatedAt: new Date() })
+    .where(and(inArray(menuPlans.id, menuPlanIds), eq(menuPlans.userId, userId)));
+}
+
+/**
  * 指定日の献立を作成または更新する（週間生成用、プロテクト済みはスキップ）
  */
 export async function upsertMenuPlanForDate(

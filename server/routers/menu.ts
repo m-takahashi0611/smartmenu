@@ -15,6 +15,7 @@ import {
   insertShoppingListItems,
   markMenuPlanDelivered,
   updateMenuPlanProtect,
+  updateMenuPlanProtectBulk,
   upsertMenuPlanForDate,
   getMenuPlansByDateRange,
   deleteMenuPlan,
@@ -620,11 +621,17 @@ export const menuRouter = router({
       }));
     }),
 
-  // 献立のプロテクト状態を切り替え（全プラン共通）
+  // 献立のプロテクト状態を切り替え（1日に複数レコードある場合は全て一括更新）
   toggleProtect: protectedProcedure
-    .input(z.object({ menuPlanId: z.number(), isProtected: z.boolean() }))
+    .input(z.object({
+      menuPlanId: z.number().optional(),   // 単一ID（互換性のため残存）
+      menuPlanIds: z.array(z.number()).optional(), // 複数ID（1日に複数レコードある場合）
+      isProtected: z.boolean()
+    }))
     .mutation(async ({ ctx, input }) => {
-      await updateMenuPlanProtect(input.menuPlanId, ctx.user.id, input.isProtected);
+      const ids = input.menuPlanIds ?? (input.menuPlanId ? [input.menuPlanId] : []);
+      if (ids.length === 0) return { success: false };
+      await updateMenuPlanProtectBulk(ids, ctx.user.id, input.isProtected);
       return { success: true };
     }),
 
