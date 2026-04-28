@@ -630,7 +630,8 @@ export const menuRouter = router({
       }
 
       const results: Array<{ date: string; skipped: boolean; success: boolean }> = [];
-      const start = new Date(input.startDate + "T00:00:00+09:00");
+      // JST基準で日付を計算（T12:00:00+09:00でUTCズレを防ぐ）
+      const start = new Date(input.startDate + "T12:00:00+09:00");
 
       // 曜日名マッピング（英語短縮→日本語）
       const dayNameMap: Record<string, string> = {

@@ -961,7 +961,9 @@ export default function Dashboard() {
                                     {isAnniversary && !isProtectedDay && <div style={{ fontSize: '10px' }}>🎉</div>}
                                     {isCheatDay && !isProtectedDay && !isAnniversary && <div style={{ fontSize: '10px' }}>🍔</div>}
                                     {isEatOut && !isProtectedDay && !isAnniversary && !isCheatDay && <div style={{ fontSize: '10px' }}>🍽️</div>}
-                                    {md ? (
+                                    {isEatOut ? (
+                                      <div className="mt-1" style={{ color: '#A0AEC0', fontSize: '9px' }}>外食</div>
+                                    ) : md ? (
                                       <div className="mt-1 space-y-0.5">
                                         <div className="flex items-center gap-0.5 justify-start px-0.5">
                                           <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: hasBreakfast ? '#F6AD55' : '#E2D9D0', display: 'inline-block', flexShrink: 0 }} />
@@ -1722,6 +1724,7 @@ export default function Dashboard() {
                     await upsertSpecialDayMutation.mutateAsync({ date: s.date, type: s.type });
                   }
                 } catch (e) { /* 保存失敗しても生成は続行 */ }
+                console.log('[generateWeekly] breakfastStyle:', weeklyGenBreakfastStyle, '| specialDays:', weeklyGenSpecialDays);
                 generateWeekly.mutate({
                   startDate: weekStart,
                   days: 7,
