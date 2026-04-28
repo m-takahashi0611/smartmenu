@@ -166,6 +166,7 @@ export default function Dashboard() {
   const generateWeekly = trpc.menu.generateWeekly.useMutation({
     onSuccess: (data) => {
       refetchWeek();
+      refetchSpecialDays();
       toast.success(`${data.successCount}日分の献立を生成しました！`);
     },
     onError: (err) => toast.error('生成に失敗しました', { description: err.message }),
@@ -852,6 +853,10 @@ export default function Dashboard() {
                           if (menuThemeData?.cookingAhead) setWeeklyGenCookingAhead(menuThemeData.cookingAhead);
                           setWeeklyGenInitialized(true);
                         }
+                        // DBの特別日設定でローカルstateを初期化
+                        if (dbSpecialDays && dbSpecialDays.length > 0) {
+                          setWeeklyGenSpecialDays(dbSpecialDays);
+                        }
                         setShowWeeklyGenPopup(true);
                       }}
                       disabled={generateWeekly.isPending}
@@ -923,7 +928,7 @@ export default function Dashboard() {
                                 const hasLunch = !!(md?.lunch);
                                 const hasDinner = !!(md?.dinner || (md?.dinnerOptions && md?.dinnerOptions[0]));
                                 // 特別日（記念日・チートデイ）の判定（DBから取得したデータを使用）
-                                const specialDay = mergedSpecialDays.find(s => s.date === date);
+                                const specialDay = dbSpecialDays?.find(s => s.date === date);
                                 const isAnniversary = specialDay?.type === 'anniversary';
                                 const isCheatDay = specialDay?.type === 'cheatday';
                                 const isEatOut = !!(md?.eatOut) || !!((menu as any)?.isEatOut);
@@ -1594,22 +1599,20 @@ export default function Dashboard() {
                   const dayLabel = ['日','月','火','水','木','金','土'][d.getDay()];
                   const month = d.getMonth() + 1;
                   const day2 = d.getDate();
-                  const special = mergedSpecialDays.find(s => s.date === dateStr);
+                  const special = weeklyGenSpecialDays.find(s => s.date === dateStr);
                   return (
                     <div key={dateStr} className="flex items-center gap-2">
                       <span className="text-xs w-12 text-muted-foreground">{month}/{day2}({dayLabel})</span>
                       <button
                         type="button"
                         onClick={() => {
-                          const exists = mergedSpecialDays.find(s => s.date === dateStr);
+                          // ポップアップ内はローカルstateのみで管理（DBへの即時保存は行わない）
+                          const exists = weeklyGenSpecialDays.find(s => s.date === dateStr);
                           if (exists?.type === 'anniversary') {
-                            upsertSpecialDayMutation.mutate({ date: dateStr, type: 'cheatday' });
                             setWeeklyGenSpecialDays(prev => prev.map(s => s.date === dateStr ? { ...s, type: 'cheatday' as const } : s));
                           } else if (exists?.type === 'cheatday') {
-                            deleteSpecialDayMutation.mutate({ date: dateStr });
                             setWeeklyGenSpecialDays(prev => prev.filter(s => s.date !== dateStr));
                           } else {
-                            upsertSpecialDayMutation.mutate({ date: dateStr, type: 'anniversary' });
                             setWeeklyGenSpecialDays(prev => [...prev, { date: dateStr, type: 'anniversary' as const }]);
                           }
                         }}
@@ -1699,14 +1702,28 @@ export default function Dashboard() {
             <Button
               className="flex-1 text-white"
               style={{ backgroundColor: '#B8860B' }}
-              onClick={() => {
+              onClick={async () => {
                 setShowWeeklyGenPopup(false);
+                // ローカルstateの特別日設定をDBに保存（小週の範囲の古いデータを削除して新しい設定を保存）
+                try {
+                  // 現在週の範囲の旧データを削除
+                  if (dbSpecialDays) {
+                    for (const old of dbSpecialDays) {
+                      const newEntry = weeklyGenSpecialDays.find(s => s.date === old.date);
+                      if (!newEntry) await deleteSpecialDayMutation.mutateAsync({ date: old.date });
+                    }
+                  }
+                  // 新しい設定を保存
+                  for (const s of weeklyGenSpecialDays) {
+                    await upsertSpecialDayMutation.mutateAsync({ date: s.date, type: s.type });
+                  }
+                } catch (e) { /* 保存失敗しても生成は続行 */ }
                 generateWeekly.mutate({
                   startDate: weekStart,
                   days: 7,
                   shoppingDays: weeklyGenShoppingDays.length > 0 ? weeklyGenShoppingDays : undefined,
                   eatOutDays: weeklyGenEatOutDays.length > 0 ? weeklyGenEatOutDays : undefined,
-                  specialDays: mergedSpecialDays.length > 0 ? mergedSpecialDays : undefined,
+                  specialDays: weeklyGenSpecialDays.length > 0 ? weeklyGenSpecialDays : undefined,
                   breakfastStyle: weeklyGenBreakfastStyle,
                   lunchStyle: weeklyGenLunchStyle,
                   cookingAhead: weeklyGenCookingAhead,
