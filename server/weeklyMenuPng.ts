@@ -196,6 +196,11 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
     // 外食フラグ（isEatOut=1のレコード）
     if (p.isEatOut) { entry.isEatOut = true; }
     if (mealType === "dinner") {
+      // isProtected=trueのレコードを優先：既に確定済みentryがある場合は上書きしない
+      if (entry._dinnerProtected && !p.isProtected) {
+        continue;
+      }
+      if (p.isProtected) { entry._dinnerProtected = true; }
       entry.selectedDinnerIndex = md?.selectedDinnerIndex != null ? Number(md.selectedDinnerIndex) : null;
       if (md?.dinnerOptions && md.dinnerOptions.length > 0) {
         entry.dinnerOptions = md.dinnerOptions.map((o: any) => ({ name: o.name || o.mainDish || String(o) }));
@@ -208,6 +213,10 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
       if (md?.specialDay) entry.specialDay = md.specialDay;
     } else if (mealType !== "breakfast" && mealType !== "lunch") {
       // 旧形式
+      if (entry._dinnerProtected && !p.isProtected) {
+        continue;
+      }
+      if (p.isProtected) { entry._dinnerProtected = true; }
       if (md?.dinnerOptions && md.dinnerOptions.length > 0) {
         entry.dinnerOptions = md.dinnerOptions.map((o: any) => ({ name: o.name || o.mainDish || String(o) }));
         entry.dinner = "";
