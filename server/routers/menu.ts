@@ -581,10 +581,12 @@ export const menuRouter = router({
         }
         // isProtectedは1つでもtrueならtrue
         if (p.isProtected) entry.isProtected = true;
+        // isEatOutは1つでもtrueならtrue
+        if ((p as any).isEatOut) entry.isEatOut = true;
       }
       return Array.from(byDate.values()).map(e => ({
         id: e.id, planDate: e.planDate,
-        isDelivered: e.isDelivered, isProtected: e.isProtected,
+        isDelivered: e.isDelivered, isProtected: e.isProtected, isEatOut: e.isEatOut,
         menuData: e.menuData,
         messageText: e.messageText,
         actualStatusBreakfast: e.actualStatusBreakfast, actualStatusLunch: e.actualStatusLunch, actualStatusDinner: e.actualStatusDinner,
@@ -710,22 +712,22 @@ export const menuRouter = router({
             const { eq, and } = await import("drizzle-orm");
             const db = await getDb();
             if (db) {
-              const existing = await getMenuPlanByDate(ctx.user.id, dateStr);
-              if (existing) {
-                await db.update(menuPlansTable)
-                  .set({ isEatOut: true, updatedAt: new Date() })
-                  .where(eq(menuPlansTable.id, existing.id));
-              } else {
-                await db.insert(menuPlansTable).values({
-                  userId: ctx.user.id,
-                  planDate: new Date(dateStr + 'T00:00:00') as any,
-                  menuData: JSON.stringify({ eatOut: true }),
-                  messageText: '外食の日',
-                  isDelivered: false,
-                  isProtected: false,
-                  isEatOut: true,
-                });
-              }
+              // 同日の全レコードを削除（プロテクト済み以外）してから外食フラグ付き1件を挿入
+              await db.delete(menuPlansTable)
+                .where(and(
+                  eq(menuPlansTable.userId, ctx.user.id),
+                  eq(menuPlansTable.planDate, dateStr as any),
+                  eq(menuPlansTable.isProtected, false)
+                ));
+              await db.insert(menuPlansTable).values({
+                userId: ctx.user.id,
+                planDate: new Date(dateStr + 'T12:00:00+09:00') as any,
+                menuData: JSON.stringify({ eatOut: true }),
+                messageText: '外食の日',
+                isDelivered: false,
+                isProtected: false,
+                isEatOut: true,
+              });
             }
           } catch (err) {
             console.error('[generateWeekly] Failed to save eatOut flag:', err);
