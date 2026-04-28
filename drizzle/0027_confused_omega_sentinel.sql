@@ -1,0 +1,1 @@
+ALTER TABLE `menu_plans` ADD `isEatOut` boolean DEFAULT false NOT NULL;

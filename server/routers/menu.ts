@@ -57,7 +57,8 @@ export async function generateMenuPlan(
   mealType?: MealType,
   willShop?: boolean,
   theme?: string,
-  forceRegenerate?: boolean
+  forceRegenerate?: boolean,
+  excludeIngredients?: string[] // 週間生成時に前日までに使用した食材を除外
 ): Promise<{ message: string; menuPlanId?: number; shoppingList?: string[]; options?: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }> }> {
 
   // 時間帯を決定（引数がなければ現在時刻から判定）
@@ -219,16 +220,19 @@ export async function generateMenuPlan(
     .map((m) => `${m.name}：${m.allergies}`)
     .join("、");
 
-  // 冷蔵庫在庫の説明
+  // 冷蔵庫在庫の説明（週間生成時は使用済み食材を除外）
+  const effectiveFridgeItems = excludeIngredients && excludeIngredients.length > 0
+    ? fridgeItemList.filter(f => !excludeIngredients.some(ex => f.name.includes(ex) || ex.includes(f.name)))
+    : fridgeItemList;
   const fridgeDesc =
-    fridgeItemList.length > 0
-      ? fridgeItemList
+    effectiveFridgeItems.length > 0
+      ? effectiveFridgeItems
           .map((f) => {
             const isUrgent = soonExpiry.some((s) => s.id === f.id);
             return `${isUrgent ? "⚠️【要使用】" : ""}${f.name}（${f.quantity ?? "適量"}）`;
           })
           .join("、")
-      : "在庫情報なし";
+      : fridgeItemList.length > 0 ? "冷蔵庫の食材は前日までに使用済み。新たな食材で提案してください" : "在庫情報なし";
 
   const recentDesc = recentDishes || "なし";
 
@@ -445,42 +449,6 @@ ${optionLines}
 
   const saved = await getMenuPlanByDate(userId, planDate);
 
-  // ─── 買い物リストをshoppingListItemsテーブルに自動保存 ────────────────────────
-  // 献立生成時に不足食材（shoppingList）をDBに保存し、「買い物リストを教えて」で正しく返答できるようにする
-  const shoppingListRaw: string[] = menuData.shoppingList ?? [];
-  if (shoppingListRaw.length > 0) {
-    try {
-      const { getDb } = await import("../db");
-      const { shoppingListItems: shoppingTable } = await import("../../drizzle/schema");
-      const { eq, and } = await import("drizzle-orm");
-      const db = await getDb();
-      if (db) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        // 既存の未チェックアイテムを取得して重複を避ける
-        const existing = await db.select().from(shoppingTable)
-          .where(and(eq(shoppingTable.userId, userId), eq(shoppingTable.isChecked, false)));
-        const existingNames = new Set(existing.map(r => r.name));
-        const newItems = shoppingListRaw
-          .map(item => item.replace(/\s*\(.*?\)\s*/g, '').trim()) // 「牛乳（200ml）」→「牛乳」
-          .filter(name => name && !existingNames.has(name))
-          .map(name => ({
-            userId,
-            menuPlanId: saved?.id ?? undefined,
-            name,
-            quantity: null,
-            isChecked: false as const,
-            listDate: today as any,
-          }));
-        if (newItems.length > 0) {
-          await db.insert(shoppingTable).values(newItems);
-        }
-      }
-    } catch (err) {
-      console.error('[menu] Failed to save shopping list to DB:', err);
-    }
-  }
-
   return {
     message: messageText,
     menuPlanId: saved?.id,
@@ -568,7 +536,7 @@ export const menuRouter = router({
       const plans = await getMenuPlansByDateRange(ctx.user.id, input.startDate, input.endDate);
       // 同じplanDateの複数レコード（朝・昼・夜が別々に保存されている場合）を1日1件に統合する
       const byDate = new Map<string, {
-        id: number; planDate: string; isDelivered: boolean; isProtected: boolean;
+        id: number; planDate: string; isDelivered: boolean; isProtected: boolean; isEatOut: boolean;
         menuData: any; messageText: string | null;
         actualStatusBreakfast: any; actualStatusLunch: any; actualStatusDinner: any;
         actualMealBreakfast: string | null; actualMealLunch: string | null; actualMealDinner: string | null;
@@ -581,7 +549,7 @@ export const menuRouter = router({
         if (!byDate.has(dateStr)) {
           byDate.set(dateStr, {
             id: p.id, planDate: dateStr,
-            isDelivered: p.isDelivered, isProtected: p.isProtected ?? false,
+            isDelivered: p.isDelivered, isProtected: p.isProtected ?? false, isEatOut: (p as any).isEatOut ?? false,
             menuData: {}, messageText: p.messageText,
             actualStatusBreakfast: p.actualStatusBreakfast, actualStatusLunch: p.actualStatusLunch, actualStatusDinner: p.actualStatusDinner,
             actualMealBreakfast: p.actualMealBreakfast ?? null, actualMealLunch: p.actualMealLunch ?? null, actualMealDinner: p.actualMealDinner ?? null,
@@ -713,6 +681,9 @@ export const menuRouter = router({
         }
       }
 
+      // 使用済み食材を累積（毎日異なる食材を使うため）
+      const usedIngredientsAccum: string[] = [];
+
       for (let i = 0; i < input.days; i++) {
         const d = new Date(start);
         d.setDate(d.getDate() + i);
@@ -725,8 +696,34 @@ export const menuRouter = router({
           continue;
         }
 
-        // 外食の日はスキップ
+        // 外食の日はスキップ（DBに外食フラグ付きで保存）
         if (input.eatOutDays?.includes(dayKey)) {
+          try {
+            const { getDb } = await import("../db");
+            const { menuPlans: menuPlansTable } = await import("../../drizzle/schema");
+            const { eq, and } = await import("drizzle-orm");
+            const db = await getDb();
+            if (db) {
+              const existing = await getMenuPlanByDate(ctx.user.id, dateStr);
+              if (existing) {
+                await db.update(menuPlansTable)
+                  .set({ isEatOut: true, updatedAt: new Date() })
+                  .where(eq(menuPlansTable.id, existing.id));
+              } else {
+                await db.insert(menuPlansTable).values({
+                  userId: ctx.user.id,
+                  planDate: new Date(dateStr + 'T00:00:00') as any,
+                  menuData: JSON.stringify({ eatOut: true }),
+                  messageText: '外食の日',
+                  isDelivered: false,
+                  isProtected: false,
+                  isEatOut: true,
+                });
+              }
+            }
+          } catch (err) {
+            console.error('[generateWeekly] Failed to save eatOut flag:', err);
+          }
           results.push({ date: dateStr, skipped: true, success: true });
           continue;
         }
@@ -735,9 +732,9 @@ export const menuRouter = router({
         const specialDay = input.specialDays?.find(s => s.date === dateStr);
         let dayTheme: string | undefined;
         if (specialDay?.type === "anniversary") {
-          dayTheme = "記念日・おもてなし向けの豪華な山盛り料理";
+          dayTheme = "記念日・おもてなし向けの豪華なコース料理（ステーキ・シーフード・ケーキなど）。普段と全く違う特別感のある献立を提案してください";
         } else if (specialDay?.type === "cheatday") {
-          dayTheme = "チートデイ（好きなものを驏食する日）、カロリー制限なしで大好きな料理を提案";
+          dayTheme = "チートデイ（好きなものを好きなだけ食べる日）。カロリー制限なしで大好きな料理（ラーメン・ピザ・揚げ物・スイーツなど）を提案してください";
         } else if (weeklyThemeDesc) {
           dayTheme = weeklyThemeDesc;
         }
@@ -761,9 +758,23 @@ export const menuRouter = router({
           let combinedMessage = "";
 
           for (const mealType of mealTypes) {
-            const result = await generateMenuPlan(ctx.user.id, dateStr, mealType, willShopOverride, dayTheme, false);
+            const result = await generateMenuPlan(
+              ctx.user.id, dateStr, mealType, willShopOverride, dayTheme, false,
+              usedIngredientsAccum.length > 0 ? [...usedIngredientsAccum] : undefined
+            );
             combinedMenuData[mealType] = { message: result.message, menuPlanId: result.menuPlanId };
             if (!combinedMessage) combinedMessage = result.message;
+            // 使用済み食材を累積（小語化して重複を防ぐ）
+            if (result.options) {
+              for (const opt of result.options) {
+                for (const ing of opt.mainIngredients ?? []) {
+                  const normalized = ing.replace(/（.*?）|（.*?）/g, '').trim();
+                  if (normalized && !usedIngredientsAccum.includes(normalized)) {
+                    usedIngredientsAccum.push(normalized);
+                  }
+                }
+              }
+            }
           }
 
           results.push({ date: dateStr, skipped: false, success: true });

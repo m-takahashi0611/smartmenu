@@ -218,7 +218,7 @@ export default function Shopping() {
               {isToday ? "今日の買い物リストはありません" : "この日の買い物リストはありません"}
             </p>
             {isToday && (
-              <p className="text-sm text-muted-foreground">献立を生成すると自動的にリストが作成されます</p>
+              <p className="text-sm text-muted-foreground">上の入力欄から買い物を手動で追加できます</p>
             )}
           </div>
         ) : (

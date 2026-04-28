@@ -912,6 +912,26 @@ export default function Dashboard() {
                                 const hasBreakfast = !!(md?.breakfast);
                                 const hasLunch = !!(md?.lunch);
                                 const hasDinner = !!(md?.dinner || (md?.dinnerOptions && md?.dinnerOptions[0]));
+                                // 特別日（記念日・チートデイ）の判定（週間生成設定から参照）
+                                const specialDay = weeklyGenSpecialDays.find(s => s.date === date);
+                                const isAnniversary = specialDay?.type === 'anniversary';
+                                const isCheatDay = specialDay?.type === 'cheatday';
+                                const isEatOut = !!(md?.eatOut) || !!((menu as any)?.isEatOut);
+                                // 背景・ボーダー色の優先順位: 選択中 > プロテクト > 記念日 > チートデイ > 外食 > 今日 > デフォルト
+                                const bgColor = isSelected ? '#FFF0E8'
+                                  : isProtectedDay ? '#F5F0FF'
+                                  : isAnniversary ? '#FFF0F5'
+                                  : isCheatDay ? '#FFF4E6'
+                                  : isEatOut ? '#F5F5F5'
+                                  : isToday ? '#FFF8F2'
+                                  : 'white';
+                                const borderColor = isSelected ? '2px solid #FF7F50'
+                                  : isProtectedDay ? '2px solid #9F7AEA'
+                                  : isAnniversary ? '2px solid #F687B3'
+                                  : isCheatDay ? '2px solid #F6AD55'
+                                  : isEatOut ? '1px solid #CBD5E0'
+                                  : isToday ? '2px solid #FFB899'
+                                  : '1px solid #F0D9C8';
                                 return (
                                   <div
                                     key={date}
@@ -920,17 +940,14 @@ export default function Dashboard() {
                                     onClick={() => setWeekPopupDate(isSelected ? null : date)}
                                     onKeyDown={(e) => e.key === 'Enter' && setWeekPopupDate(isSelected ? null : date)}
                                     className="rounded-xl p-2 text-center cursor-pointer select-none flex-shrink-0"
-                                    style={{
-                                      backgroundColor: isSelected ? '#FFF0E8' : isProtectedDay ? '#F5F0FF' : isToday ? '#FFF8F2' : 'white',
-                                      border: isSelected ? '2px solid #FF7F50' : isProtectedDay ? '2px solid #9F7AEA' : isToday ? '2px solid #FFB899' : '1px solid #F0D9C8',
-                                      minHeight: '96px',
-                                      width: '72px',
-                                      opacity: isProtectedDay ? 1 : 1,
-                                    }}
+                                    style={{ backgroundColor: bgColor, border: borderColor, minHeight: '96px', width: '72px' }}
                                   >
                                     <div className="text-xs font-bold" style={{ color: dayColor }}>{dayOfWeek}</div>
                                     <div className="text-xs font-medium" style={{ color: isToday ? '#FF7F50' : '#3D2B1F' }}>{label}</div>
                                     {isProtectedDay && <div style={{ fontSize: '10px' }}>🔒</div>}
+                                    {isAnniversary && !isProtectedDay && <div style={{ fontSize: '10px' }}>🎉</div>}
+                                    {isCheatDay && !isProtectedDay && !isAnniversary && <div style={{ fontSize: '10px' }}>🍔</div>}
+                                    {isEatOut && !isProtectedDay && !isAnniversary && !isCheatDay && <div style={{ fontSize: '10px' }}>🍽️</div>}
                                     {md ? (
                                       <div className="mt-1 space-y-0.5">
                                         <div className="flex items-center gap-0.5 justify-start px-0.5">

@@ -177,6 +177,7 @@ export const menuPlans = mysqlTable("menu_plans", {
   actualStatusDinner: mysqlEnum("actualStatusDinner", ["cooked", "other", "eating_out", "not_eaten", "skipped"]),
   // スケジュール管理
   isProtected: boolean("isProtected").default(false).notNull(), // プロテクト（再生成でスキップ）
+  isEatOut: boolean("isEatOut").default(false).notNull(), // 外食日フラグ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

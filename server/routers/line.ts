@@ -3187,7 +3187,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
                   spacing: "sm",
                   contents: [
                     { type: "text", text: "✓ AI高精度献立（天気・栄養考慮）", size: "sm", color: "#333333" },
-                    { type: "text", text: "✓ 買い物リスト自動生成", size: "sm", color: "#333333" },
+                    { type: "text", text: "✓ 買い物リスト（手動管理）", size: "sm", color: "#333333" },
                     { type: "text", text: "✓ チラシ・レシート解析", size: "sm", color: "#333333" },
                     { type: "text", text: "✓ 献立テーマ（ダイエットなど）", size: "sm", color: "#333333" },
                     { type: "text", text: "✓ お弁当モード", size: "sm", color: "#333333" },
