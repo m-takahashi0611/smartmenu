@@ -644,10 +644,10 @@ export const menuRouter = router({
 
       // 朝食スタイル・昼食スタイル・作り置きのテーマ文字列を構築
       const breakfastStyleMap: Record<string, string> = {
-        bread: "パン派（トースト・サンドイッチ等）",
-        rice: "ご飯派（和食・おにぎり等）",
-        noodle: "麺派（うどん・そうめん等）",
-        light: "軽食派（ヨーグルト・フルーツ等の軽めの朝食）",
+        bread: "今日の朝食は必ずパン料理（トースト・サンドイッチ・ホットサンド・フレンチトースト等）にすること。ご飯・おにぎり・和食は絶対に提案しないこと",
+        rice: "今日の朝食は必ずご飯料理（おにぎり・定食・おこわ等）にすること。パン・麺類は絶対に提案しないこと",
+        noodle: "今日の朝食は必ず麺料理（うどん・そうめん・パスタ等）にすること。ご飯・パンは絶対に提案しないこと",
+        light: "今日の朝食は必ず軽食（ヨーグルト・フルーツ・シリアル等）にすること。ご飯・パン・麺類は絶対に提案しないこと",
       };
       const lunchStyleMap: Record<string, string> = {
         bread: "パン派（サンドイッチ・パンラ等）",
@@ -704,37 +704,8 @@ export const menuRouter = router({
           continue;
         }
 
-        // 外食の日はスキップ（DBに外食フラグ付きで保存）
-        if (input.eatOutDays?.includes(dayKey)) {
-          try {
-            const { getDb } = await import("../db");
-            const { menuPlans: menuPlansTable } = await import("../../drizzle/schema");
-            const { eq, and } = await import("drizzle-orm");
-            const db = await getDb();
-            if (db) {
-              // 同日の全レコードを削除（プロテクト済み以外）してから外食フラグ付き1件を挿入
-              await db.delete(menuPlansTable)
-                .where(and(
-                  eq(menuPlansTable.userId, ctx.user.id),
-                  eq(menuPlansTable.planDate, dateStr as any),
-                  eq(menuPlansTable.isProtected, false)
-                ));
-              await db.insert(menuPlansTable).values({
-                userId: ctx.user.id,
-                planDate: new Date(dateStr + 'T12:00:00+09:00') as any,
-                menuData: JSON.stringify({ eatOut: true }),
-                messageText: '外食の日',
-                isDelivered: false,
-                isProtected: false,
-                isEatOut: true,
-              });
-            }
-          } catch (err) {
-            console.error('[generateWeekly] Failed to save eatOut flag:', err);
-          }
-          results.push({ date: dateStr, skipped: true, success: true });
-          continue;
-        }
+        // 外食の日は夕食のみ外食（朝食・昨食は通常生成）
+        const isEatOutDay = input.eatOutDays?.includes(dayKey) ?? false;
 
         // 特別な日のテーマを決定（食事タイプ別に個別設定）
         const specialDay = input.specialDays?.find(s => s.date === dateStr);
@@ -767,12 +738,45 @@ export const menuRouter = router({
         }
 
         try {
-          // 朝・昼・夜それぞれ生成
+           // 朝・昨・夜それぞれ生成
           const mealTypes: MealType[] = ["breakfast", "lunch", "dinner"];
           let combinedMenuData: Record<string, any> = {};
           let combinedMessage = "";
-
           for (const mealType of mealTypes) {
+            // 外食の日は夕食のみ外食フラグを保存（朝食・昨食は通常生成）
+            if (isEatOutDay && mealType === "dinner") {
+              const { getDb } = await import("../db");
+              const { menuPlans: menuPlansTable } = await import("../../drizzle/schema");
+              const { eq, and } = await import("drizzle-orm");
+              const db = await getDb();
+              if (db) {
+                // 夕食の旧レコードを削除して外食フラグ付きレコードを挿入
+                const existingDinner = await db.select().from(menuPlansTable).where(
+                  and(
+                    eq(menuPlansTable.userId, ctx.user.id),
+                    eq(menuPlansTable.planDate, dateStr as any),
+                    eq(menuPlansTable.isProtected, false)
+                  )
+                );
+                // dinnerタイプのレコードだけ削除
+                for (const rec of existingDinner) {
+                  const recMd = (() => { try { return typeof rec.menuData === 'string' ? JSON.parse(rec.menuData) : rec.menuData; } catch { return null; } })();
+                  if (!recMd || recMd.mealType === 'dinner' || recMd.eatOut) {
+                    await db.delete(menuPlansTable).where(eq(menuPlansTable.id, rec.id));
+                  }
+                }
+                await db.insert(menuPlansTable).values({
+                  userId: ctx.user.id,
+                  planDate: new Date(dateStr + 'T12:00:00+09:00') as any,
+                  menuData: JSON.stringify({ mealType: 'dinner', eatOut: true }),
+                  messageText: '外食の日（夕食）',
+                  isDelivered: false,
+                  isProtected: false,
+                  isEatOut: true,
+                });
+              }
+              continue;
+            }
             // 食事タイプ別に適切なテーマを選択
             const mealTheme = mealType === "breakfast" ? breakfastTheme
               : mealType === "lunch" ? lunchTheme
@@ -783,7 +787,7 @@ export const menuRouter = router({
             );
             combinedMenuData[mealType] = { message: result.message, menuPlanId: result.menuPlanId };
             if (!combinedMessage) combinedMessage = result.message;
-            // 使用済み食材を累積（小語化して重複を防ぐ）
+            // 使用済食材を累積（小語化して重複を防ぐ）
             if (result.options) {
               for (const opt of result.options) {
                 for (const ing of opt.mainIngredients ?? []) {
@@ -795,7 +799,6 @@ export const menuRouter = router({
               }
             }
           }
-
           results.push({ date: dateStr, skipped: false, success: true });
         } catch (err) {
           results.push({ date: dateStr, skipped: false, success: false });
