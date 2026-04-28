@@ -689,6 +689,23 @@ export const menuRouter = router({
         }
       }
 
+      // 対象期間のプロテクトなしレコードを一括削除（再生成前にクリア）
+      {
+        const { getDb } = await import("../db");
+        const { menuPlans: menuPlansTable } = await import("../../drizzle/schema");
+        const { and, eq, gte, lte } = await import("drizzle-orm");
+        const db = await getDb();
+        if (db) {
+          await db.delete(menuPlansTable).where(
+            and(
+              eq(menuPlansTable.userId, ctx.user.id),
+              gte(menuPlansTable.planDate, new Date(startDateStr + 'T00:00:00+09:00') as any),
+              lte(menuPlansTable.planDate, new Date(endDateStr + 'T23:59:59+09:00') as any),
+              eq(menuPlansTable.isProtected, false)
+            )
+          );
+        }
+      }
       // 使用済み食材を累積（毎日異なる食材を使うため）
       const usedIngredientsAccum: string[] = [];
 
