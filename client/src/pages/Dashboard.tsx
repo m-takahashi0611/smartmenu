@@ -891,6 +891,8 @@ export default function Dashboard() {
                     }
                     const popupMenu = weekPopupDate ? menuByDate.get(weekPopupDate) : null;
                     const popupMenuData = (popupMenu?.menuData as any) ?? null;
+                    // プロテクト状態（ローカルoverrideを優先）
+                    const isProtectedNow = weekPopupDate && protectOverride.has(weekPopupDate) ? !!protectOverride.get(weekPopupDate) : !!popupMenu?.isProtected;
                     return (
                       <div className="space-y-3">
                         {weekMenuLoading ? (
@@ -1054,7 +1056,6 @@ export default function Dashboard() {
                                         <div className="flex items-center justify-between mb-1">
                                           <p className="text-xs font-bold" style={{ color: '#76E4F7' }}>🌙 夕食候補</p>
                                           {popupMenu && (() => {
-                                            const isProtectedNow = weekPopupDate && protectOverride.has(weekPopupDate) ? !!protectOverride.get(weekPopupDate) : !!popupMenu.isProtected;
                                             const handleProtectToggle = () => {
                                               const newVal = !isProtectedNow;
                                               if (weekPopupDate) {
@@ -1078,7 +1079,8 @@ export default function Dashboard() {
                                         {popupMenuData?.dinnerOptions && popupMenuData.dinnerOptions.length > 0 ? (() => {
                                             // selectedDinnerIndexを数値として正規化
                                             const selIdx = popupMenuData.selectedDinnerIndex != null ? Number(popupMenuData.selectedDinnerIndex) : null;
-                                            const hasSelection = selIdx !== null && selIdx >= 0;
+                                            // プロテクト解除中は選択済み表示を無効化（緑を解除）
+                                            const hasSelection = isProtectedNow && selIdx !== null && selIdx >= 0;
                                             return (
                                               <div className="space-y-2">
                                                 {popupMenuData.dinnerOptions.map((opt: any, i: number) => {
