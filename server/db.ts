@@ -30,6 +30,8 @@ import {
   broadcastMessages,
   type BroadcastMessage,
   type InsertBroadcastMessage,
+  weeklySpecialDays,
+  type WeeklySpecialDay,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -785,4 +787,39 @@ export async function markBroadcastMessageSent(id: number, sentCount: number): P
     sentCount,
     updatedAt: new Date(),
   }).where(eq(broadcastMessages.id, id));
+}
+
+// ─── Weekly Special Days ──────────────────────────────────────────────────────
+
+export async function getWeeklySpecialDays(userId: number, startDate: string, endDate: string): Promise<WeeklySpecialDay[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const { gte, lte } = await import("drizzle-orm");
+  return db.select().from(weeklySpecialDays)
+    .where(and(
+      eq(weeklySpecialDays.userId, userId),
+      gte(weeklySpecialDays.date, startDate),
+      lte(weeklySpecialDays.date, endDate)
+    ));
+}
+
+export async function upsertWeeklySpecialDay(userId: number, date: string, type: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  // 既存があれば更新、なければ挿入
+  const existing = await db.select().from(weeklySpecialDays)
+    .where(and(eq(weeklySpecialDays.userId, userId), eq(weeklySpecialDays.date, date))).limit(1);
+  if (existing.length > 0) {
+    await db.update(weeklySpecialDays).set({ type, updatedAt: new Date() })
+      .where(and(eq(weeklySpecialDays.userId, userId), eq(weeklySpecialDays.date, date)));
+  } else {
+    await db.insert(weeklySpecialDays).values({ userId, date, type });
+  }
+}
+
+export async function deleteWeeklySpecialDay(userId: number, date: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(weeklySpecialDays)
+    .where(and(eq(weeklySpecialDays.userId, userId), eq(weeklySpecialDays.date, date)));
 }

@@ -19,6 +19,9 @@ import {
   upsertMenuPlanForDate,
   getMenuPlansByDateRange,
   deleteMenuPlan,
+  getWeeklySpecialDays,
+  upsertWeeklySpecialDay,
+  deleteWeeklySpecialDay,
 } from "../db";
 import { menuPlans } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
@@ -728,15 +731,22 @@ export const menuRouter = router({
           continue;
         }
 
-        // 特別な日のテーマを決定
+        // 特別な日のテーマを決定（食事タイプ別に個別設定）
         const specialDay = input.specialDays?.find(s => s.date === dateStr);
-        let dayTheme: string | undefined;
+        // 朝食テーマ：朝食スタイル設定を優先（記念日・チートデイは朝食には適用しない）
+        const breakfastTheme = (input.breakfastStyle && input.breakfastStyle !== "none" && breakfastStyleMap[input.breakfastStyle])
+          ? `朝食スタイル：${breakfastStyleMap[input.breakfastStyle]}。必ずこのスタイルに合った朝食を提案すること` : undefined;
+        // 昼食テーマ：昼食スタイル設定を優先（記念日・チートデイは昼食には適用しない）
+        const lunchTheme = (input.lunchStyle && input.lunchStyle !== "none" && lunchStyleMap[input.lunchStyle])
+          ? `昼食スタイル：${lunchStyleMap[input.lunchStyle]}。必ずこのスタイルに合った昼食を提案すること` : undefined;
+        // 夕食テーマ：記念日・チートデイ > weeklyThemeDesc（作り置き等）
+        let dinnerTheme: string | undefined;
         if (specialDay?.type === "anniversary") {
-          dayTheme = "記念日・おもてなし向けの豪華なコース料理（ステーキ・シーフード・ケーキなど）。普段と全く違う特別感のある献立を提案してください";
+          dinnerTheme = "記念日・おもてなし向けの豪華な夕食（ステーキ・シーフード・ケーキなど）。普段と全く違う特別感のある夕食を提案してください";
         } else if (specialDay?.type === "cheatday") {
-          dayTheme = "チートデイ（好きなものを好きなだけ食べる日）。カロリー制限なしで大好きな料理（ラーメン・ピザ・揚げ物・スイーツなど）を提案してください";
+          dinnerTheme = "チートデイ（好きなものを食べる日）。カロリー制限なしで大好きな夕食（ラーメン・ピザ・揚げ物・スイーツなど）を提案してください";
         } else if (weeklyThemeDesc) {
-          dayTheme = weeklyThemeDesc;
+          dinnerTheme = weeklyThemeDesc;
         }
 
         // 買い物日の判定（買い物日当日・翁日は自由献立、それ以外は冷蔵庫参照）
@@ -758,8 +768,12 @@ export const menuRouter = router({
           let combinedMessage = "";
 
           for (const mealType of mealTypes) {
+            // 食事タイプ別に適切なテーマを選択
+            const mealTheme = mealType === "breakfast" ? breakfastTheme
+              : mealType === "lunch" ? lunchTheme
+              : dinnerTheme;
             const result = await generateMenuPlan(
-              ctx.user.id, dateStr, mealType, willShopOverride, dayTheme, false,
+              ctx.user.id, dateStr, mealType, willShopOverride, mealTheme, false,
               usedIngredientsAccum.length > 0 ? [...usedIngredientsAccum] : undefined
             );
             combinedMenuData[mealType] = { message: result.message, menuPlanId: result.menuPlanId };
@@ -855,6 +869,28 @@ export const menuRouter = router({
     .input(z.object({ menuPlanId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       await deleteMenuPlan(input.menuPlanId, ctx.user.id);
+      return { success: true };
+    }),
+
+  // 週間特別日設定（記念日・チートデイ）の永続化
+  getWeeklySpecialDays: protectedProcedure
+    .input(z.object({ startDate: z.string(), endDate: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const days = await getWeeklySpecialDays(ctx.user.id, input.startDate, input.endDate);
+      return days.map(d => ({ date: d.date, type: d.type as 'anniversary' | 'cheatday' }));
+    }),
+
+  upsertWeeklySpecialDay: protectedProcedure
+    .input(z.object({ date: z.string(), type: z.enum(['anniversary', 'cheatday']) }))
+    .mutation(async ({ ctx, input }) => {
+      await upsertWeeklySpecialDay(ctx.user.id, input.date, input.type);
+      return { success: true };
+    }),
+
+  deleteWeeklySpecialDay: protectedProcedure
+    .input(z.object({ date: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await deleteWeeklySpecialDay(ctx.user.id, input.date);
       return { success: true };
     }),
 });

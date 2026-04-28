@@ -197,6 +197,13 @@
       "when": 1777359505343,
       "tag": "0027_confused_omega_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1777361745678,
+      "tag": "0028_sudden_nightcrawler",
+      "breakpoints": true
     }
   ]
 }

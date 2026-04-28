@@ -121,7 +121,13 @@ export default function Dashboard() {
     { startDate: weekStart, endDate: weekEnd },
     { enabled: menuView === 'week' }
   );
-
+  // 週間特別日設定（記念日・チートデイ）をDBから取得
+  const { data: dbSpecialDays, refetch: refetchSpecialDays } = trpc.menu.getWeeklySpecialDays.useQuery(
+    { startDate: weekStart, endDate: weekEnd },
+    { enabled: menuView === 'week' }
+  );
+  const upsertSpecialDayMutation = trpc.menu.upsertWeeklySpecialDay.useMutation({ onSuccess: () => refetchSpecialDays() });
+  const deleteSpecialDayMutation = trpc.menu.deleteWeeklySpecialDay.useMutation({ onSuccess: () => refetchSpecialDays() });
   // 献立削除
   const deleteMenuPlanMutation = trpc.menu.deleteMenuPlan.useMutation({
     onSuccess: () => { refetchWeek(); setWeekPopupDate(null); toast.success('献立を削除しました'); },
@@ -178,6 +184,10 @@ export default function Dashboard() {
   const [weeklyGenShoppingDays, setWeeklyGenShoppingDays] = useState<string[]>([]);
   const [weeklyGenEatOutDays, setWeeklyGenEatOutDays] = useState<string[]>([]);
   const [weeklyGenSpecialDays, setWeeklyGenSpecialDays] = useState<Array<{ date: string; type: 'anniversary' | 'cheatday' }>>([]);
+  // DB取得データとローカルstateを統合（週カードはDBデータを使用）
+  // 注意：dbSpecialDaysは上部で定義されているが、ここで参照するのは安全（クロージャー参照）
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const mergedSpecialDays = dbSpecialDays ?? weeklyGenSpecialDays;
   const [weeklyGenBreakfastStyle, setWeeklyGenBreakfastStyle] = useState<string | null>(null);
   const [weeklyGenLunchStyle, setWeeklyGenLunchStyle] = useState<string | null>(null);
   const [weeklyGenCookingAhead, setWeeklyGenCookingAhead] = useState<string | null>(null);
@@ -912,8 +922,8 @@ export default function Dashboard() {
                                 const hasBreakfast = !!(md?.breakfast);
                                 const hasLunch = !!(md?.lunch);
                                 const hasDinner = !!(md?.dinner || (md?.dinnerOptions && md?.dinnerOptions[0]));
-                                // 特別日（記念日・チートデイ）の判定（週間生成設定から参照）
-                                const specialDay = weeklyGenSpecialDays.find(s => s.date === date);
+                                // 特別日（記念日・チートデイ）の判定（DBから取得したデータを使用）
+                                const specialDay = mergedSpecialDays.find(s => s.date === date);
                                 const isAnniversary = specialDay?.type === 'anniversary';
                                 const isCheatDay = specialDay?.type === 'cheatday';
                                 const isEatOut = !!(md?.eatOut) || !!((menu as any)?.isEatOut);
@@ -1584,18 +1594,25 @@ export default function Dashboard() {
                   const dayLabel = ['日','月','火','水','木','金','土'][d.getDay()];
                   const month = d.getMonth() + 1;
                   const day2 = d.getDate();
-                  const special = weeklyGenSpecialDays.find(s => s.date === dateStr);
+                  const special = mergedSpecialDays.find(s => s.date === dateStr);
                   return (
                     <div key={dateStr} className="flex items-center gap-2">
                       <span className="text-xs w-12 text-muted-foreground">{month}/{day2}({dayLabel})</span>
                       <button
                         type="button"
-                        onClick={() => setWeeklyGenSpecialDays(prev => {
-                          const exists = prev.find(s => s.date === dateStr);
-                          if (exists?.type === 'anniversary') return prev.map(s => s.date === dateStr ? { ...s, type: 'cheatday' as const } : s);
-                          if (exists?.type === 'cheatday') return prev.filter(s => s.date !== dateStr);
-                          return [...prev, { date: dateStr, type: 'anniversary' as const }];
-                        })}
+                        onClick={() => {
+                          const exists = mergedSpecialDays.find(s => s.date === dateStr);
+                          if (exists?.type === 'anniversary') {
+                            upsertSpecialDayMutation.mutate({ date: dateStr, type: 'cheatday' });
+                            setWeeklyGenSpecialDays(prev => prev.map(s => s.date === dateStr ? { ...s, type: 'cheatday' as const } : s));
+                          } else if (exists?.type === 'cheatday') {
+                            deleteSpecialDayMutation.mutate({ date: dateStr });
+                            setWeeklyGenSpecialDays(prev => prev.filter(s => s.date !== dateStr));
+                          } else {
+                            upsertSpecialDayMutation.mutate({ date: dateStr, type: 'anniversary' });
+                            setWeeklyGenSpecialDays(prev => [...prev, { date: dateStr, type: 'anniversary' as const }]);
+                          }
+                        }}
                         className={`px-2 py-1 rounded text-xs border transition-colors ${
                           special?.type === 'anniversary' ? 'bg-pink-100 text-pink-700 border-pink-300' :
                           special?.type === 'cheatday' ? 'bg-yellow-100 text-yellow-700 border-yellow-300' :
@@ -1689,7 +1706,7 @@ export default function Dashboard() {
                   days: 7,
                   shoppingDays: weeklyGenShoppingDays.length > 0 ? weeklyGenShoppingDays : undefined,
                   eatOutDays: weeklyGenEatOutDays.length > 0 ? weeklyGenEatOutDays : undefined,
-                  specialDays: weeklyGenSpecialDays.length > 0 ? weeklyGenSpecialDays : undefined,
+                  specialDays: mergedSpecialDays.length > 0 ? mergedSpecialDays : undefined,
                   breakfastStyle: weeklyGenBreakfastStyle,
                   lunchStyle: weeklyGenLunchStyle,
                   cookingAhead: weeklyGenCookingAhead,

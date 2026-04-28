@@ -467,3 +467,18 @@ export const referralUsages = mysqlTable("referral_usages", {
 });
 export type ReferralUsage = typeof referralUsages.$inferSelect;
 export type InsertReferralUsage = typeof referralUsages.$inferInsert;
+
+/**
+ * 週間生成の特別日設定テーブル
+ * 記念日・チートデイの設定を永続化する
+ */
+export const weeklySpecialDays = mysqlTable("weekly_special_days", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
+  type: varchar("type", { length: 20 }).notNull(), // 'anniversary' | 'cheatday'
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type WeeklySpecialDay = typeof weeklySpecialDays.$inferSelect;
+export type InsertWeeklySpecialDay = typeof weeklySpecialDays.$inferInsert;
