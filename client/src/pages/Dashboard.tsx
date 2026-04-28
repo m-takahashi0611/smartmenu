@@ -853,10 +853,8 @@ export default function Dashboard() {
                           if (menuThemeData?.cookingAhead) setWeeklyGenCookingAhead(menuThemeData.cookingAhead);
                           setWeeklyGenInitialized(true);
                         }
-                        // DBの特別日設定でローカルstateを初期化
-                        if (dbSpecialDays && dbSpecialDays.length > 0) {
-                          setWeeklyGenSpecialDays(dbSpecialDays);
-                        }
+                        // DBの特別日設定でローカルstateを初期化（常に上書き）
+                        setWeeklyGenSpecialDays(dbSpecialDays ?? []);
                         setShowWeeklyGenPopup(true);
                       }}
                       disabled={generateWeekly.isPending}
@@ -1606,14 +1604,20 @@ export default function Dashboard() {
                       <button
                         type="button"
                         onClick={() => {
-                          // ポップアップ内はローカルstateのみで管理（DBへの即時保存は行わない）
+                          // タップした瞬間にDBへ即時保存
                           const exists = weeklyGenSpecialDays.find(s => s.date === dateStr);
                           if (exists?.type === 'anniversary') {
+                            // 記念日→チートデイ
                             setWeeklyGenSpecialDays(prev => prev.map(s => s.date === dateStr ? { ...s, type: 'cheatday' as const } : s));
+                            upsertSpecialDayMutation.mutate({ date: dateStr, type: 'cheatday' });
                           } else if (exists?.type === 'cheatday') {
+                            // チートデイ→なし（削除）
                             setWeeklyGenSpecialDays(prev => prev.filter(s => s.date !== dateStr));
+                            deleteSpecialDayMutation.mutate({ date: dateStr });
                           } else {
+                            // なし→記念日
                             setWeeklyGenSpecialDays(prev => [...prev, { date: dateStr, type: 'anniversary' as const }]);
+                            upsertSpecialDayMutation.mutate({ date: dateStr, type: 'anniversary' });
                           }
                         }}
                         className={`px-2 py-1 rounded text-xs border transition-colors ${
