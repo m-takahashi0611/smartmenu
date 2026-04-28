@@ -695,11 +695,35 @@ export const menuRouter = router({
       }
       const weeklyThemeDesc = weeklyThemeParts.length > 0 ? weeklyThemeParts.join("、") : null;
 
+      // 対象期間の既存メニューを一括取得（プロテクト判定用）
+      const endDate = new Date(start);
+      endDate.setDate(endDate.getDate() + input.days - 1);
+      const endDateStr = endDate.toISOString().split("T")[0];
+      const startDateStr = start.toISOString().split("T")[0];
+      const existingMenus = await getMenuPlansByDateRange(ctx.user.id, startDateStr, endDateStr);
+      // 日付→isProtectedのマップ（1つでもtrueならprotected）
+      const protectedDates = new Set<string>();
+      for (const m of existingMenus) {
+        if (m.isProtected) {
+          // planDateはDate型の場合もあるので文字列に変換
+          const pd = m.planDate instanceof Date
+            ? m.planDate.toISOString().split("T")[0]
+            : String(m.planDate);
+          protectedDates.add(pd);
+        }
+      }
+
       for (let i = 0; i < input.days; i++) {
         const d = new Date(start);
         d.setDate(d.getDate() + i);
         const dateStr = d.toISOString().split("T")[0];
         const dayKey = dayIndexToKey[d.getDay()];
+
+        // プロテクト済みの日はスキップ
+        if (protectedDates.has(dateStr)) {
+          results.push({ date: dateStr, skipped: true, success: true });
+          continue;
+        }
 
         // 外食の日はスキップ
         if (input.eatOutDays?.includes(dayKey)) {
