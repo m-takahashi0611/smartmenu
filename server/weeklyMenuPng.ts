@@ -193,6 +193,8 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
     const mealType: string = md?.mealType ?? "";
     if (!byDate.has(dateStr)) byDate.set(dateStr, {});
     const entry = byDate.get(dateStr)!;
+    // 外食フラグ（isEatOut=1のレコード）
+    if (p.isEatOut) { entry.isEatOut = true; }
     if (mealType === "dinner") {
       entry.selectedDinnerIndex = md?.selectedDinnerIndex != null ? Number(md.selectedDinnerIndex) : null;
       if (md?.dinnerOptions && md.dinnerOptions.length > 0) {
@@ -223,6 +225,7 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
     date: string; dow: string; mmdd: string;
     dinner: string; dinnerOptions: string[] | null;
     special: string | null;
+    isEatOut: boolean;
   }> = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday);
@@ -232,7 +235,8 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
     const md = byDate.get(dateStr) || null;
     const { dinner, dinnerOptions } = extractDinner(md);
     const special = md?.specialDay || null;
-    days.push({ date: dateStr, dow: dayLabelsArr[i], mmdd, dinner, dinnerOptions, special });
+    const isEatOut = !!(md?.isEatOut);
+    days.push({ date: dateStr, dow: dayLabelsArr[i], mmdd, dinner, dinnerOptions, special, isEatOut });
   }
 
   // 画像ロード
@@ -466,11 +470,18 @@ export async function generateWeeklyMenuPng(userId: number): Promise<string> {
     // 料理名
     const contentH = cy + ch - dishStartY - CONTENT_PAD;
 
-    if (!day.dinner && !day.dinnerOptions?.length) {
+    if (day.isEatOut) {
+      // 外食の日は「外食」と表示
+      ctx.fillStyle = "#888888";
+      ctx.font = `bold 14px ${FONT}`;
+      ctx.textAlign = "center";
+      ctx.fillText("🍽️ 外食", cx + cw / 2, dishStartY + contentH / 2);
+      ctx.textAlign = "left";
+    } else if (!day.dinner && !day.dinnerOptions?.length) {
       ctx.fillStyle = C.dishLight;
       ctx.font = `11px ${FONT}`;
       ctx.textAlign = "center";
-      ctx.fillText("未設定", cx + cw / 2, dishStartY + contentH / 2);
+      ctx.fillText("未生成", cx + cw / 2, dishStartY + contentH / 2);
       ctx.textAlign = "left";
     } else if (day.dinnerOptions?.length) {
       let ty = dishStartY + LINE_H * 0.5;
