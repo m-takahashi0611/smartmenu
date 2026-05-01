@@ -1029,10 +1029,11 @@ async function handleIntentAction(
       }
       const resolvedDisplay = resolvedItems.join('、') || text;
       await setLineUserPendingAction(lineUserId, { type: 'voice_ingredient_action', transcribedText: text, ingredients: resolvedItems });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${resolvedDisplay}」ですね！\n\nどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n`, quickReply: { items: [
-        { type: 'action', action: { type: 'message', label: '🍱 冷蔵庫に追加', text: '1' } },
-        { type: 'action', action: { type: 'message', label: '🛒 買い物リストに', text: '2' } },
-        { type: 'action', action: { type: 'message', label: '🍽️ 献立を提案', text: '3' } },
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${resolvedDisplay}」ですね！\n\nどうしますか？`, quickReply: { items: [
+        { type: 'action', action: { type: 'message', label: '🍱 冷蔵庫に追加', text: '冷蔵庫に追加' } },
+        { type: 'action', action: { type: 'message', label: '🛒 買い物リストに追加', text: '買い物リストに追加' } },
+        { type: 'action', action: { type: 'message', label: '🍽️ この食材で献立を提案', text: 'この食材で献立を提案' } },
+        { type: 'action', action: { type: 'message', label: '📖 レシピを見る', text: 'レシピを見る' } },
       ] } }], lineUserId);
       return true;
     }
@@ -1474,22 +1475,34 @@ ${dinnerResult.message}`;
             { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
           ];
           await replyLineMessage(replyToken, [{ type: 'text', text: result.message + '\n\n👇 下のボタンから選んでね！', quickReply: { items: qrMenuItems } }], lineUserId);
-          // DBからdinnerOptionsを取得してpendingActionに保存
-          const savedPlan = await getMenuPlanByDate(userId, targetDate);
-          if (savedPlan) {
-            try {
-              const planData = typeof savedPlan.menuData === 'string' ? JSON.parse(savedPlan.menuData) : savedPlan.menuData;
-              if (planData?.dinnerOptions) {
-                await setLineUserPendingAction(lineUserId, {
-                  type: 'menu_option_selection',
-                  options: planData.dinnerOptions,
-                  mealType,
-                  targetDate,
-                  menuPlanId: savedPlan.id,
-                  askedAt: Date.now(),
-                });
-              }
-            } catch { /* ignore parse error */ }
+          // result.optionsを直接使用してpendingActionに保存（DB再取得不要）
+          if (result.options && result.options.length > 0 && result.menuPlanId) {
+            await setLineUserPendingAction(lineUserId, {
+              type: 'menu_option_selection',
+              options: result.options,
+              mealType,
+              targetDate,
+              menuPlanId: result.menuPlanId,
+              askedAt: Date.now(),
+            });
+          } else {
+            // フォールバック：DBから再取得
+            const savedPlan = await getMenuPlanByDate(userId, targetDate);
+            if (savedPlan) {
+              try {
+                const planData = typeof savedPlan.menuData === 'string' ? JSON.parse(savedPlan.menuData) : savedPlan.menuData;
+                if (planData?.dinnerOptions) {
+                  await setLineUserPendingAction(lineUserId, {
+                    type: 'menu_option_selection',
+                    options: planData.dinnerOptions,
+                    mealType,
+                    targetDate,
+                    menuPlanId: savedPlan.id,
+                    askedAt: Date.now(),
+                  });
+                }
+              } catch { /* ignore parse error */ }
+            }
           }
         } else {
           await replyLineMessage(replyToken, [{ type: 'text', text: result.message }], lineUserId);
@@ -1688,11 +1701,12 @@ ${dinnerResult.message}`;
 
   // ─── テーマ指定後の献立再生成待ちの場合 ─────────────────────────────────────────────────────────────────────────────
   if (pending?.type === 'menu_theme_regen') {
-    const { mealType, targetDate, menuPlanId, regenerateCount } = pending as {
+    const { mealType, targetDate, menuPlanId, regenerateCount, previousOptions } = pending as {
       mealType: string;
       targetDate: string;
       menuPlanId: number;
       regenerateCount: number;
+      previousOptions?: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
     };
     const trimmed = text.trim();
     const theme = trimmed === 'なし' || trimmed === 'なし。' ? undefined : trimmed;
@@ -1732,7 +1746,12 @@ ${dinnerResult.message}`;
       ? `「${theme}」のテーマで出し直しますね🍳\nちょっと待ってください...`
       : '新しい献立を出し直しますね🍳\nちょっと待ってください...' }]);
 
-    const result = await generateMenuPlan(userId, targetDate, mealType as any, undefined, theme, true);
+    // 前回の料理名を除外するため、themeに「」以外で」を追加
+    const previousDishNames = previousOptions?.map(o => o.name).filter(Boolean) ?? [];
+    const effectiveTheme = previousDishNames.length > 0
+      ? [theme, `「${previousDishNames.join('」「')}」以外の料理を提案すること`].filter(Boolean).join('、')
+      : theme;
+    const result = await generateMenuPlan(userId, targetDate, mealType as any, undefined, effectiveTheme, true);
 
     // 出し直し後のクイックリプライを構築（夕食・明日の朝食は3択ボタン付き）
     const regenOptions = result.options ?? [];
@@ -1793,13 +1812,14 @@ ${dinnerResult.message}`;
         await replyLineMessage(replyToken, [{ type: 'text', text: '何度も出し直しましたが、なかなか合うものがなくて申し訳ありません😓\n\n一度リセットします。「献立」と送ってもう一度最初から提案しましょうか？' }], lineUserId);
         return true;
       }
-       // テーマ収集ステップへ
+       // テーマ収集ステップへ（前回の候補をpreviousOptionsとして渡す）
       await setLineUserPendingAction(lineUserId, {
         type: 'menu_theme_regen',
         mealType,
         targetDate,
         menuPlanId,
         regenerateCount: regenerateCount + 1,
+        previousOptions: options,
         askedAt: Date.now(),
       });
       await replyLineMessage(replyToken, [{
@@ -1810,7 +1830,7 @@ ${dinnerResult.message}`;
           { type: 'action', action: { type: 'message', label: '🍖 こってり', text: 'こってり' } },
           { type: 'action', action: { type: 'message', label: '🍱 和食', text: '和食' } },
           { type: 'action', action: { type: 'message', label: '🍝 洋食', text: '洋食' } },
-          { type: 'action', action: { type: 'message', label: '🍜 麵類', text: '麵類' } },
+          { type: 'action', action: { type: 'message', label: '🍜 麦類', text: '麦類' } },
           { type: 'action', action: { type: 'message', label: '➡️ テーマなし', text: 'なし' } },
         ] },
       }], lineUserId);
@@ -1997,6 +2017,7 @@ ${dinnerResult.message}`;
         targetDate,
         menuPlanId,
         regenerateCount: regenerateCount + 1,
+        previousOptions: options,
         askedAt: Date.now(),
       });
       await replyLineMessage(replyToken, [{
@@ -2007,13 +2028,12 @@ ${dinnerResult.message}`;
           { type: 'action', action: { type: 'message', label: '🍖 こってり', text: 'こってり' } },
           { type: 'action', action: { type: 'message', label: '🍱 和食', text: '和食' } },
           { type: 'action', action: { type: 'message', label: '🍝 洋食', text: '洋食' } },
-          { type: 'action', action: { type: 'message', label: '🍜 麵類', text: '麵類' } },
+          { type: 'action', action: { type: 'message', label: '🍜 麦類・麦類', text: '麦類' } },
           { type: 'action', action: { type: 'message', label: '➡️ テーマなし', text: 'なし' } },
         ] },
       }], lineUserId);
       return true;
     }
-
     // 「3」または「案内を終了する」→ 終了メッセージのみ（実食記録を聞わない）
     if (/^[3３]$/.test(trimmed) || trimmed === '案内を終了する') {
       await setLineUserPendingAction(lineUserId, null);
@@ -2319,7 +2339,7 @@ ${dinnerResult.message}`;
     }
 
     // 1 → 冷蔵庫に追加
-    if (/^[1１]$/.test(trimmed) || /冷蔵庫/.test(trimmed)) {
+    if (/^[1１]$/.test(trimmed) || trimmed === '冷蔵庫に追加' || (/冷蔵庫/.test(trimmed) && !/買い物|献立|レシピ/.test(trimmed))) {
       await setLineUserPendingAction(lineUserId, null);
       const db = await getDb();
       if (!db) return false;
@@ -2344,7 +2364,7 @@ ${dinnerResult.message}`;
     }
 
     // 2 → 買い物リストに追加
-    if (/^[2２]$/.test(trimmed) || /買い物/.test(trimmed)) {
+    if (/^[2２]$/.test(trimmed) || trimmed === '買い物リストに追加' || (/買い物/.test(trimmed) && !/冷蔵庫|献立|レシピ/.test(trimmed))) {
       await setLineUserPendingAction(lineUserId, null);
       const db = await getDb();
       if (!db) return false;
@@ -2365,7 +2385,7 @@ ${dinnerResult.message}`;
     }
 
     // 3 → 献立を提案
-    if (/^[3３]$/.test(trimmed) || /献立/.test(trimmed)) {
+    if (/^[3３]$/.test(trimmed) || trimmed === 'この食材で献立を提案' || (/献立/.test(trimmed) && !/冷蔵庫|買い物|レシピ/.test(trimmed))) {
       await setLineUserPendingAction(lineUserId, null);
       // 疑似イベントで献立処理に再投入
       await handleLineWebhookEvent({
@@ -2376,17 +2396,31 @@ ${dinnerResult.message}`;
       }, true);
       return true;
     }
-
+    // 4 → レシピを見る
+    if (/^[4４]$/.test(trimmed) || trimmed === 'レシピを見る' || /レシピ/.test(trimmed)) {
+      await setLineUserPendingAction(lineUserId, null);
+      const ingredientForRecipe = ingredients.join('・');
+      const recipeResponse = await invokeLLM({
+        messages: [
+          { role: 'system', content: 'あなたは日本の主婦向け料理レシピAIです。簡潔で分かりやすいレシピをLINEメッセージ形式で返してください。' },
+          { role: 'user', content: `「${ingredientForRecipe}」を使ったおすすめ料理のレシピを1つ教えてください。\n\n以下の形式で返してください：\n【料理名】\n\n【材料】（4人分目安）\n・食材名 分量\n\n【作り方】\n1. 手順\n2. 手順\n（5〜7ステップ程度）\n\n【ポイント】\nコツや注意点を1〜2行で` },
+        ],
+      });
+      const recipeText = recipeResponse.choices[0]?.message?.content ?? 'レシピの取得に失敗しました。';
+      await replyLineMessage(replyToken, [{ type: 'text', text: recipeText }], lineUserId);
+      return true;
+    }
     // それ以外 → 再度選択を促す
     const ingredientDisplay = ingredients.join('、');
-    await replyLineMessage(replyToken, [{
-      type: 'text',
-      text: `「${ingredientDisplay}」をどうしますか？\n\n1️⃣ 冷蔵庫に追加\n2️⃣ 買い物リストに追加\n3️⃣ この食材で献立を提案\n\n`,
-    }], lineUserId);
+    await replyLineMessage(replyToken, [{ type: 'text', text: `「${ingredientDisplay}」をどうしますか？`, quickReply: { items: [
+      { type: 'action', action: { type: 'message', label: '🍱 冷蔵庫に追加', text: '冷蔵庫に追加' } },
+      { type: 'action', action: { type: 'message', label: '🛒 買い物リストに追加', text: '買い物リストに追加' } },
+      { type: 'action', action: { type: 'message', label: '🍽️ この食材で献立を提案', text: 'この食材で献立を提案' } },
+      { type: 'action', action: { type: 'message', label: '📖 レシピを見る', text: 'レシピを見る' } },
+    ] } }], lineUserId);
     return true;
   }
-
-  // ─── 食材を使った後の3択 (削除/数量を減らす/そのまま) ─────────────────────────────────────────────────────
+  // ─── 食材を使った後の3择 (削除/数量を減らす/そのまま) ─────────────────────────────────────────────────────────────────────────────────────────
   if (pending?.type === 'used_ingredient_action') {
     const { items: usedItems } = pending as { items: string[]; text: string };
     const trimmed = text.trim();
@@ -3516,6 +3550,56 @@ ${itemList}
         ['週間献立', '週間予定表', '献立予定表', '週間献立を見る', '週間献立を確認', '今週の献立を見せて', '今週の献立を確認', '予定表を確認', '予定表確認', '週間予定表を確認', '今週の予定表を確認', '新しく生成'].some(kw => text === kw || text.includes(kw));
       const pendingNow = await getLineUserPendingAction(lineUserId);
       if (!pendingNow && !isDirectKeyword) {
+        // 直前の献立提案の料理名と一致するかチェック（ingredients_onlyに分類される前に処理）
+        if (userId) {
+          const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
+          const todayStr = nowJST.toISOString().split('T')[0];
+          const recentPlan = await getMenuPlanByDate(userId, todayStr);
+          if (recentPlan?.menuData) {
+            try {
+              const planData = typeof recentPlan.menuData === 'string' ? JSON.parse(recentPlan.menuData) : recentPlan.menuData;
+              const recentOptions: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }> = planData?.dinnerOptions ?? [];
+              const matchedOption = recentOptions.find(o => text.trim() === o.name || text.trim().includes(o.name));
+              if (matchedOption && recentOptions.length > 0) {
+                // 料理名に一致→ menu_option_selectionを復元して選択処理へ
+                const matchedIdx = recentOptions.indexOf(matchedOption);
+                await setLineUserPendingAction(lineUserId, {
+                  type: 'menu_option_selection',
+                  options: recentOptions,
+                  mealType: planData.mealType ?? 'dinner',
+                  targetDate: todayStr,
+                  menuPlanId: recentPlan.id,
+                  askedAt: Date.now(),
+                });
+                // 選択を直接処理（復唱確認フローへ）
+                const numStr = ['１', '２', '３'][matchedIdx] ?? `${matchedIdx + 1}`;
+                await setLineUserPendingAction(lineUserId, {
+                  type: 'menu_option_confirm',
+                  selectedIndex: matchedIdx,
+                  selectedName: matchedOption.name,
+                  options: recentOptions,
+                  mealType: planData.mealType ?? 'dinner',
+                  targetDate: todayStr,
+                  menuPlanId: recentPlan.id,
+                  askedAt: Date.now(),
+                });
+                await replyLineMessage(replyToken, [{
+                  type: 'text',
+                  text: `${numStr}番（${matchedOption.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`,
+                  quickReply: { items: [
+                    { type: 'action', action: { type: 'message', label: '📖 レシピを表示', text: 'レシピを見たい' } },
+                    { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
+                    { type: 'action', action: { type: 'message', label: '✅ 案内を終了する', text: '案内を終了する' } },
+                    { type: 'action', action: { type: 'message', label: '🎲 献立をやり直す', text: '献立をやり直す' } },
+                    { type: 'action', action: { type: 'message', label: '📝 今日の食事として記録', text: '今日の食事として記録する' } },
+                  ] },
+                }], lineUserId);
+                if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
+                return;
+              }
+            } catch { /* ignore */ }
+          }
+        }
         const intentResult = await classifyUserIntent(text);
         if (intentResult.intent !== 'other') {
           const handled = await handleIntentAction(intentResult, text, lineUserId, userId, replyToken);
