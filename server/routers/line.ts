@@ -3759,6 +3759,7 @@ ${itemList}
             text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
           },
         ]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       // ─── 時間帯に応じた確認質問を返す ──────────────────────────────────────────────
@@ -3771,6 +3772,7 @@ ${itemList}
         const todayPlans = await getMenuPlansByDateRange(userId, todayStr, todayStr);
         if (todayPlans.length >= 3) {
           await replyAndSave(replyToken, [{ type: "text", text: "今日の献立提案は3回まで利用できます。\n\nカード登録で無制限に提案できるようになります！" }]);
+          if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
           return;
         }
       }
@@ -3815,6 +3817,7 @@ ${itemList}
             text: `昨日の夕食、何を作りましたか？😊\n毎日の記録が積み重なると、よりあなた好みに合った献立を提案できるようになります！💪`,
             quickReply: { items: actualQR },
           }]);
+          if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
           return;
         }
       }
@@ -3897,6 +3900,7 @@ ${itemList}
             { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 明日まとめて', text: '明日の夕飯まで' } },
           ];
       await replyAndSave(replyToken, [{ type: "text", text: questionText, quickReply: { items: qrItemsAfterShopping } }]);
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
       } // end else (non-weekly menu)
     }
@@ -3908,6 +3912,7 @@ ${itemList}
           text: "【献立日和 coto coto の使い方】\n\n献立 → 今日の献立を提案\n天気 → 天気に合った料理を提案\n冷蔵庫 → 在庫で作れる料理を提案\n\n位置情報を送ると地域の天気に合わせた提案ができます！\n\n設定（家族構成・冷蔵庫・店舗）はアプリから\nhttps://app.kondatebiyori.com",
         },
       ]);
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -3927,6 +3932,7 @@ ${itemList}
 「卵10個、牛乳1本、キャベツ半玉…」と
 音声で話しかけるだけで食材を登録することもできますよ🎤`,
         }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const items = await getFridgeItems(userId);
@@ -3950,6 +3956,7 @@ ${itemList}
           ]},
         }]);
       }
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -4028,6 +4035,7 @@ ${itemList}
 
 「冷蔵庫の中身を教えて」で確認できます`,
           }]);
+          if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
           return;
         }
       }
@@ -4042,6 +4050,7 @@ ${itemList}
 ログインが完了したら、冷蔵庫の前に立ちながら
 「卵10個、牛乳1本、キャベツ半玉…」と
 音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const deletedCount = await clearAllFridgeItems(userId);
@@ -4053,6 +4062,7 @@ ${itemList}
 新しく食材を登録するには「冷蔵庫に〇〇を追加」と送ってください`
           : '冷蔵庫にはすでに食材が登録されていません',
       }]);
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -4060,17 +4070,20 @@ ${itemList}
     if (/買い物リストを全部冷蔵庫に移動して|買い物リストを冷蔵庫に移動して|買い物リスト.*全部.*冷蔵庫/.test(text)) {
       if (!userId) {
         await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const db = await getDb();
       if (!db) {
         await replyAndSave(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const pendingShoppingItems = await db.select().from(shoppingListItems)
         .where(and(eq(shoppingListItems.userId, userId), eq(shoppingListItems.isChecked, false)));
       if (pendingShoppingItems.length === 0) {
         await replyAndSave(replyToken, [{ type: "text", text: "買い物リストは空です！" }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
        // 冷蔵庫に追加（同義語正規化・重複チェック・数量なし→1）
@@ -4105,6 +4118,7 @@ ${itemList}
 
 献立を提案しましょうか？「献立」と送ってください😊`;
       await replyAndSave(replyToken, [{ type: "text", text: moveReplyText }]);;
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -4112,11 +4126,13 @@ ${itemList}
     if (/買い物リストを全部削除して|買い物リストを削除して|買い物リスト.*全部.*削除/.test(text)) {
       if (!userId) {
         await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const db = await getDb();
       if (!db) {
         await replyAndSave(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const result = await db.delete(shoppingListItems)
@@ -4127,6 +4143,7 @@ ${itemList}
       } else {
         await replyAndSave(replyToken, [{ type: "text", text: `🗑️ 買い物リスト（${deletedCount}件）を削除しました。` }]);
       }
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -4140,11 +4157,13 @@ ${itemList}
 ログインが完了したら、冷蔵庫の前に立ちながら
 「卵10個、牛乳1本、キャベツ半玉…」と
 音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const db = await getDb();
       if (!db) {
         await replyAndSave(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       // 未チェックの買い物リストを全て完了に更新
@@ -4158,6 +4177,7 @@ ${itemList}
       } else {
         await replyAndSave(replyToken, [{ type: "text", text: `✅ 買い物お疲れさまでした！\n${updatedCount}件のアイテムを購入済みにしました👍\n\n冷蔵庫の中身も更新しましたか？\n「冷蔵庫に追加」と送ると登録できます🥬` }]);
       }
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -4173,11 +4193,13 @@ ${itemList}
 「卵10個、牛乳1本、キャベツ半玉…」と
 音声で話しかけるだけで食材を登録することもできますよ🎤`,
         }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const db = await getDb();
       if (!db) {
         await replyAndSave(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const shoppingItems = await db
@@ -4227,6 +4249,7 @@ ${itemList}
           },
         }]);
       }
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -4235,6 +4258,7 @@ ${itemList}
     if (normalizedText === "今日だけ特別") {
       if (!userId) {
         await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const isPremium = await getUserIsPremium(userId);
@@ -4243,6 +4267,7 @@ ${itemList}
           type: "text",
           text: "⭐ 「今日だけ特別」はプレミアム会員限定の機能です\n\nダッシュボードからプレミアムプランにアップグレードすると、特別な日の献立提案が使えるようになります！\nhttps://app.kondatebiyori.com/dashboard",
         }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       await replyAndSave(replyToken, [{
@@ -4259,6 +4284,7 @@ ${itemList}
           ],
         },
       }]);
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -4283,6 +4309,7 @@ ${itemList}
             ],
           },
         }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       // 記念日以外はすぐに献立生成
@@ -4291,6 +4318,7 @@ ${itemList}
       const specialThemeDesc = getSpecialThemeDesc(specialTheme);
       const menuPlan = await generateMenuPlan(userId, todaySpecial, 'dinner', undefined, specialThemeDesc, true);
       await replyAndSave(replyToken, [{ type: "text", text: menuPlan.message }]);
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -4306,6 +4334,7 @@ ${itemList}
         const specialThemeDesc = `${specialTheme}（${anniversaryFor}）。家族の好みや記録を最大限活かして、お祝いにふさわしい特別感のある献立を提案してください。`;
         const menuPlan = await generateMenuPlan(userId, today, 'dinner', undefined, specialThemeDesc, true);
         await replyAndSave(replyToken, [{ type: "text", text: menuPlan.message }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
     }
@@ -4326,6 +4355,7 @@ ${itemList}
           type: "text",
           text: "📅 週間献立確認はプレミアムプランの機能です\n\nプレミアムプランにアップグレードすると、今週の献立をPNG画像で確認できます😊",
         }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       if (!isPremium) {
@@ -4334,6 +4364,7 @@ ${itemList}
           type: "text",
           text: "📅 今週の献立はダッシュボードで確認できます！\n\nhttps://app.kondatebiyori.com",
         }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       // プレミアムユーザー → PNG画像を生成して返す
@@ -4345,6 +4376,7 @@ ${itemList}
         console.error("[LINE] Weekly menu PNG generation failed:", err);
         await sendLineMessage(lineUserId, [{ type: "text", text: "献立表の生成に失敗しました。しばらくしてからお試しください。" }]);
       }
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
     if (isWeeklyMenuAmbiguous) {
@@ -4369,6 +4401,7 @@ ${itemList}
           ],
         },
       }]);
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -4451,6 +4484,7 @@ ${itemList}
       const db = await getDb();
       if (!db || parsedItems.length === 0) {
         await replyAndSave(replyToken, [{ type: 'text', text: '買い物リストに追加する商品が分かりませんでした。例：「玉ねぎを買い物リストに追加して」' }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const addedItems: string[] = [];
@@ -4472,6 +4506,7 @@ ${itemList}
       } else {
         await replyAndSave(replyToken, [{ type: 'text', text: '追加できる商品が見つかりませんでした。例：「玉ねぎを買い物リストに追加して」' }]);
       }
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -4500,6 +4535,7 @@ ${itemList}
           type: "text",
           text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
         }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const items = await getFridgeItems(userId);
@@ -4523,6 +4559,7 @@ ${itemList}
           ]},
         }]);
       }
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -4540,11 +4577,13 @@ ${itemList}
           type: "text",
           text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
         }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const db = await getDb();
       if (!db) {
         await replyAndSave(replyToken, [{ type: "text", text: "エラーが発生しました。しばらくしてから再度お試しください。" }]);
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
       const shoppingItems = await db
@@ -4593,6 +4632,7 @@ ${itemList}
           },
         }]);
       }
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 
@@ -4639,6 +4679,7 @@ ${itemList}
             text: 'どの料理のレシピを知りたいですか？\n料理名を入力してください😊\n例：「唐揚げのレシピ教えて」',
           }]);
         }
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
 
@@ -4674,6 +4715,7 @@ ${itemList}
         } catch {
           await replyAndSave(replyToken, [{ type: 'text', text: '申し訳ありません。レシピの取得に失敗しました。しばらくしてからお試しください。' }]);
         }
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
 
@@ -4693,6 +4735,7 @@ ${itemList}
           await replyAndSave(replyToken, [{ type: 'text', text: `🍳 ${resolvedRequestedDish} のレシピ\n\n${recipeText}\n\n―――――――――――――――――――\n✨ プレミアム会員特典でお届けしました！` }]);       } catch {
           await replyAndSave(replyToken, [{ type: 'text', text: '申し訳ありません。レシピの取得に失敗しました。しばらくしてからお試しください。' }]);
         }
+        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
 
@@ -4713,6 +4756,7 @@ ${itemList}
         text: `${resolvedRequestedDish}は今日の献立にないので、レシピのご案内ができません😊${todayDishList}\n\n✨ プレミアム会員になると、献立に関係なくどんな料理のレシピでも聞けます！\nhttps://app.kondatebiyori.com/dashboard`,
         quickReply: todayQR.length > 1 ? { items: todayQR } : undefined,
       }]);
+      if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
 

@@ -379,3 +379,7 @@
 - [x] **RADIO-2**: family.tsのupsertProfile入力スキーマは配列形式のまま（単一選択値を配列で渡す）
 - [x] **RADIO-3**: db.tsのupsertFamilyProfile・getFamilyProfileは配列形式のまま（変更不要）
 - [x] **RADIO-4**: menu.tsのchildCareInstructionは配列の先頭要素を参照する形式のまま（変更不要）
+
+## 処理中フラグリセット漏れ修正（2026-05-12）
+- [x] **FLAG-FIX-1**: フラグリセットなしのreturn 44箇所を一括修正（Pythonスクリプトで自動置換）
+- [x] **FLAG-FIX-2**: タイムアウト判定をタイムアウト後の続行ロジックを確認し、タイムアウト時間をタイムアウト後の続行ロジックが正しく機能しているか確認（30秒→タイムアウト後の続行ロジックが正しく機能しているか確認）
