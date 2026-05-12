@@ -373,3 +373,9 @@
 - [x] **CHILD-FIX-4**: Family.tsxの優先順位並べ替えUIを削除し、3つのチェックボックUIに変更（childがいる場合のみ表示）
 - [x] **CHILD-FIX-5**: MenuTheme.tsxに優先順位並べ替えUIを移動・追加
 - [x] **CHILD-FIX-6**: menu.tsのchildCareInstructionにchildMenuPrefsの選択内容を反映
+
+## 子供配慮設定をラジオボタンに変更（2026-05-12）
+- [x] **RADIO-1**: Family.tsxの子供向け配慮チェックボックスをラジオボタン（1つだけ選択）に変更
+- [x] **RADIO-2**: family.tsのupsertProfile入力スキーマは配列形式のまま（単一選択値を配列で渡す）
+- [x] **RADIO-3**: db.tsのupsertFamilyProfile・getFamilyProfileは配列形式のまま（変更不要）
+- [x] **RADIO-4**: menu.tsのchildCareInstructionは配列の先頭要素を参照する形式のまま（変更不要）

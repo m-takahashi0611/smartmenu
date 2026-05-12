@@ -244,19 +244,19 @@ export async function generateMenuPlan(
   const hasChild = familyMemberList.some(m => m.ageGroup === "child");
 
   // 子供向け配慮ルール（無料・プレミアム共通、child がいる場合のみ）
-  // childMenuPrefsはユーザーが選択した配慮項目（DBから取得）
+  // childMenuPrefsはユーザーが選択した配慮項目（DBから取得）—先頭1件のみ有効（ラジオボタン単一選択対応）
   const childMenuPrefs = (familyProfile as any)?.childMenuPrefs as string[] | null | undefined;
-  // デフォルト（未設定時）は3つ全て適用
-  const activeChildPrefs = (childMenuPrefs && childMenuPrefs.length > 0)
-    ? childMenuPrefs
-    : ["easy", "avoid", "unified"];
+  // 先頭1件のみ有効。未設定時は"easy"をデフォルトに使用
+  const activePref = (childMenuPrefs && childMenuPrefs.length > 0)
+    ? childMenuPrefs[0]
+    : "easy";
 
   const childPrefRules: string[] = [];
-  if (activeChildPrefs.includes("easy"))
+  if (activePref === "easy")
     childPrefRules.push("1. 子供が食べやすい料理（揚げ物・炒め物・カレーなど人気メニュー）を優先して選ぶこと");
-  if (activeChildPrefs.includes("avoid"))
+  if (activePref === "avoid")
     childPrefRules.push("2. 子供が苦手にしやすい食材（苦味・臭みが強い食材：ゴーヤ・レバー・セロリ・春菊・ピーマン等）は避けること");
-  if (activeChildPrefs.includes("unified"))
+  if (activePref === "unified")
     childPrefRules.push("3. 家族全員が同じものを食べられる料理（子供用に別調理が不要な献立）を選ぶこと");
 
   const childCareInstruction = hasChild && childPrefRules.length > 0

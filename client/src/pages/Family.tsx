@@ -81,7 +81,7 @@ export default function Family() {
   const [menuPriorityOrder, setMenuPriorityOrder] = useState<string[]>(["child", "fridge", "variety"]);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   // 子供向け献立配慮の選択（childがいる場合のみ有効）
-  const [childMenuPrefs, setChildMenuPrefs] = useState<string[]>(["easy", "avoid", "unified"]);
+  const [childMenuPref, setChildMenuPref] = useState<string>("easy");
 
   const { data: planData } = trpc.subscription.getMyPlan.useQuery();
   const IS_PREMIUM = planData?.isPremium ?? false;
@@ -105,8 +105,13 @@ export default function Family() {
       if (p.menuPriorityOrder && Array.isArray(p.menuPriorityOrder) && p.menuPriorityOrder.length > 0) {
         setMenuPriorityOrder(p.menuPriorityOrder as string[]);
       }
-      if (p.childMenuPrefs && Array.isArray(p.childMenuPrefs)) {
-        setChildMenuPrefs(p.childMenuPrefs as string[]);
+      if (p.childMenuPrefs) {
+        // 旧形式（配列）の場合は最初の要素を使用
+        if (Array.isArray(p.childMenuPrefs) && (p.childMenuPrefs as string[]).length > 0) {
+          setChildMenuPref((p.childMenuPrefs as string[])[0]);
+        } else if (typeof p.childMenuPrefs === "string") {
+          setChildMenuPref(p.childMenuPrefs as string);
+        }
       }
       const days = (p.shoppingDays as string[]) ?? [];
       if (days.includes("everyday")) {
@@ -200,7 +205,7 @@ export default function Family() {
       lunchAttendees,
       dinnerAttendees,
       menuPriorityOrder: IS_PREMIUM ? menuPriorityOrder : undefined,
-      childMenuPrefs,
+      childMenuPrefs: [childMenuPref],
     });
   };
 
@@ -503,7 +508,7 @@ export default function Family() {
               <div className="space-y-3">
                 <div>
                   <h3 className="font-semibold text-sm">👦 お子さん向け献立の配慮設定</h3>
-                  <p className="text-xs text-muted-foreground mt-1">チェックした内容をAIが献立生成に反映します</p>
+                  <p className="text-xs text-muted-foreground mt-1">1つ選択してください。AIが献立生成に反映します</p>
                 </div>
                 <div className="space-y-3">
                   {[
@@ -511,20 +516,23 @@ export default function Family() {
                     { key: "avoid", label: "子供が苦手にしやすい食材（苦味・臭みが強い食材）を避けた献立生成" },
                     { key: "unified", label: "家族全員が食べられる料理（子供用に別調理が不要な献立）を献立生成" },
                   ].map(({ key, label }) => (
-                    <div key={key} className="flex items-start gap-3">
-                      <Checkbox
-                        id={`child-pref-${key}`}
-                        checked={childMenuPrefs.includes(key)}
-                        onCheckedChange={(checked) => {
-                          setChildMenuPrefs(prev =>
-                            checked ? [...prev, key] : prev.filter(k => k !== key)
-                          );
-                        }}
-                        className="mt-0.5"
-                      />
-                      <label htmlFor={`child-pref-${key}`} className="text-sm leading-relaxed cursor-pointer">
+                    <div
+                      key={key}
+                      className="flex items-start gap-3 cursor-pointer"
+                      onClick={() => setChildMenuPref(key)}
+                    >
+                      <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                        childMenuPref === key
+                          ? "border-primary bg-primary"
+                          : "border-muted-foreground"
+                      }`}>
+                        {childMenuPref === key && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <span className="text-sm leading-relaxed select-none">
                         {label}
-                      </label>
+                      </span>
                     </div>
                   ))}
                 </div>
