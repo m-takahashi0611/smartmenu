@@ -1865,8 +1865,8 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // 「その他」ボタン → regenerateCountをチェックしてループ防止＋テーマ収集
-    if (/^(その他|やり直し|やりなおし|献立をやり直す|別の|ほかの|other)$/i.test(trimmed)) {
+    // 「その他」ボタン or 曖昧な出し直し表現 → regenerateCountをチェックしてループ防止＋テーマ収集
+    if (/^(その他|やり直し|やりなおし|献立をやり直す|別の|別のを|ほかの|他の|他に|違う|違うの|出し直し|出し直して|other)$/i.test(trimmed)) {
       const regenerateCount = (pending as any).regenerateCount ?? 0;
       if (regenerateCount >= 3) {
         // 3回以上やり直しでループ強制終了
@@ -2065,8 +2065,8 @@ ${dinnerResult.message}`;
     };
     const trimmed = text.trim();
 
-    // 「その他」→ regenerateCountを引き継いでテーマ収集へ
-    if (/^(その他|やり直し|やりなおし|献立をやり直す|別の|ほかの|other)$/i.test(trimmed)) {
+    // 「その他」 or 曖昧な出し直し表現 → regenerateCountを引き継いでテーマ収集へ
+    if (/^(その他|やり直し|やりなおし|献立をやり直す|別の|別のを|ほかの|他の|他に|違う|違うの|出し直し|出し直して|other)$/i.test(trimmed)) {
       const regenerateCount = (pending as any).regenerateCount ?? 0;
       if (regenerateCount >= 3) {
         await setLineUserPendingAction(lineUserId, null);
