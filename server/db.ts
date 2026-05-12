@@ -205,6 +205,7 @@ export async function upsertFamilyProfile(data: InsertFamilyProfile) {
       lunchAttendees: data.lunchAttendees,
       dinnerAttendees: data.dinnerAttendees,
       menuPriorityOrder: data.menuPriorityOrder,
+      childMenuPrefs: data.childMenuPrefs,
       updatedAt: new Date(),
     },
   });

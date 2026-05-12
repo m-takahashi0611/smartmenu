@@ -94,10 +94,42 @@ export default function MenuTheme() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // 優先順位設定（プレミアム用）
+  const DEFAULT_PRIORITY = ["child", "fridge", "variety"];
+  const [priorityOrder, setPriorityOrder] = useState<string[]>(DEFAULT_PRIORITY);
+  const [priorityInitialized, setPriorityInitialized] = useState(false);
+
+  const PRIORITY_OPTIONS = [
+    { key: "child", label: "👦 子供が食べやすい料理を優先", desc: "苦味・臭みを避け、子供向けの料理を選択" },
+    { key: "fridge", label: "🧊 冷蔵庫の食材を使い切る", desc: "在庫食材をできるだけ活用した献立" },
+    { key: "variety", label: "🔄 最近食べていない料理を優先", desc: "献立のバリエーションを広げる" },
+  ];
+
+  const movePriority = (index: number, dir: "up" | "down") => {
+    const newOrder = [...priorityOrder];
+    const swapIndex = dir === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= newOrder.length) return;
+    [newOrder[index], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[index]];
+    setPriorityOrder(newOrder);
+    setSaved(false);
+  };
+
   const { data: planData } = trpc.subscription.getMyPlan.useQuery();
   const IS_PREMIUM = planData?.isPremium ?? false;
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [, navigate] = useLocation();
+
+  // 家族プロフィールから優先順位を取得
+  const { data: familyProfile } = trpc.family.getProfile.useQuery(undefined, {
+    enabled: IS_PREMIUM,
+  });
+  if (familyProfile && !priorityInitialized) {
+    const saved = (familyProfile.profile as any)?.menuPriorityOrder;
+    if (saved && Array.isArray(saved) && saved.length > 0) {
+      setPriorityOrder(saved);
+    }
+    setPriorityInitialized(true);
+  }
 
   // DBからベーステーマを取得して初期化
   const { data: savedTheme } = trpc.menuTheme.get.useQuery(undefined, {
@@ -188,7 +220,13 @@ export default function MenuTheme() {
     ...(selectedDishCount ? [selectedDishCount] : []),
   ];
 
+  const upsertProfile = trpc.family.upsertProfile.useMutation();
+
   const handleSave = () => {
+    // 優先順位も一緒に保存
+    upsertProfile.mutate({
+      menuPriorityOrder: priorityOrder,
+    });
     saveMutation.mutate({
       healthThemes: selectedHealth,
       lifestageThemes: selectedLifestage,
@@ -494,6 +532,49 @@ export default function MenuTheme() {
                 </div>
               </CardContent>
             )}
+          </Card>
+        )}
+
+        {/* 献立生成の優先順位（プレミアムユーザーのみ） */}
+        {IS_PREMIUM && (
+          <Card className="border-border/60">
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                🎯 献立生成の優先順位
+                <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700">プレミアム</Badge>
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">▲▼で並べ替えて保存してください</p>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 space-y-2">
+              {priorityOrder.map((key, i) => {
+                const opt = PRIORITY_OPTIONS.find(o => o.key === key);
+                const isChildDisabled = key === "child" && !(familyProfile?.members ?? []).some((m: any) => m.ageGroup === "child");
+                return (
+                  <div key={key} className={`flex items-center gap-3 rounded-lg border p-3 bg-card ${isChildDisabled ? "opacity-40" : ""}`}>
+                    <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}位</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{opt?.label}</p>
+                      <p className="text-xs text-muted-foreground">{opt?.desc}</p>
+                      {isChildDisabled && <p className="text-xs text-amber-600 mt-0.5">※ 家族設定にお子さんを追加すると有効になります</p>}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        disabled={i === 0}
+                        onClick={() => movePriority(i, "up")}
+                        className="text-xs px-2 py-0.5 rounded border border-border hover:bg-muted disabled:opacity-30"
+                      >▲</button>
+                      <button
+                        type="button"
+                        disabled={i === priorityOrder.length - 1}
+                        onClick={() => movePriority(i, "down")}
+                        className="text-xs px-2 py-0.5 rounded border border-border hover:bg-muted disabled:opacity-30"
+                      >▼</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
           </Card>
         )}
 

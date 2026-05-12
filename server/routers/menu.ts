@@ -244,11 +244,24 @@ export async function generateMenuPlan(
   const hasChild = familyMemberList.some(m => m.ageGroup === "child");
 
   // 子供向け配慮ルール（無料・プレミアム共通、child がいる場合のみ）
-  const childCareInstruction = hasChild
-    ? `【子供向け配慮（最優先）】家族に3〜12歳の子供がいます。以下の3つのルールを最優先で守ること：
-1. 子供が食べやすい料理（揚げ物・炒め物・カレーなど人気メニュー）を優先して選ぶこと
-2. 子供が嫌いな食材（苦味・臭みが強い食材：ゴーヤ・レバー・セロリ・春菊・ピーマン等）は避けること
-3. 家族全員が同じものを食べられる料理（子供用に別調理が不要な献立）を選ぶこと
+  // childMenuPrefsはユーザーが選択した配慮項目（DBから取得）
+  const childMenuPrefs = (familyProfile as any)?.childMenuPrefs as string[] | null | undefined;
+  // デフォルト（未設定時）は3つ全て適用
+  const activeChildPrefs = (childMenuPrefs && childMenuPrefs.length > 0)
+    ? childMenuPrefs
+    : ["easy", "avoid", "unified"];
+
+  const childPrefRules: string[] = [];
+  if (activeChildPrefs.includes("easy"))
+    childPrefRules.push("1. 子供が食べやすい料理（揚げ物・炒め物・カレーなど人気メニュー）を優先して選ぶこと");
+  if (activeChildPrefs.includes("avoid"))
+    childPrefRules.push("2. 子供が苦手にしやすい食材（苦味・臭みが強い食材：ゴーヤ・レバー・セロリ・春菊・ピーマン等）は避けること");
+  if (activeChildPrefs.includes("unified"))
+    childPrefRules.push("3. 家族全員が同じものを食べられる料理（子供用に別調理が不要な献立）を選ぶこと");
+
+  const childCareInstruction = hasChild && childPrefRules.length > 0
+    ? `【子供向け配慮（最優先）】家族に3〜12歳の子供がいます。以下のルールを最優先で守ること：
+${childPrefRules.join("\n")}
 好き嫌い情報がある場合は特に厳守すること。`
     : null;
 

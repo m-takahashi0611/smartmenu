@@ -1,0 +1,1 @@
+ALTER TABLE `family_profiles` ADD `childMenuPrefs` json;

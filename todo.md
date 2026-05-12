@@ -365,3 +365,11 @@
 - [x] **CHILD-7**: 献立提案メッセージ（menu.ts）：`childNote`がある場合に`👦 [childNote]`を1行追加
 - [x] **CHILD-8**: 家族設定画面（Family.tsx）：優先順位並び替えUI（冷蔵庫 / 子供 / 新献立）を追加（プレミアムのみ表示）
 - [x] **CHILD-9**: family.tsルーターのupsertProfileに`menuPriorityOrder`の保存・取得を追加
+
+## 子供配慮UI修正（2026-05-12）
+- [x] **CHILD-FIX-1**: DBスキーマにchildMenuPrefs（JSON配列）カラムを追加・マイグレーション
+- [x] **CHILD-FIX-2**: family.tsのupsertProfile入力スキーマにchildMenuPrefsを追加
+- [x] **CHILD-FIX-3**: db.tsのupsertFamilyProfile・getFamilyProfileにchildMenuPrefsを追加
+- [x] **CHILD-FIX-4**: Family.tsxの優先順位並べ替えUIを削除し、3つのチェックボックUIに変更（childがいる場合のみ表示）
+- [x] **CHILD-FIX-5**: MenuTheme.tsxに優先順位並べ替えUIを移動・追加
+- [x] **CHILD-FIX-6**: menu.tsのchildCareInstructionにchildMenuPrefsの選択内容を反映

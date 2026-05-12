@@ -211,6 +211,13 @@
       "when": 1778576638717,
       "tag": "0029_funny_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1778578192234,
+      "tag": "0030_wooden_mantis",
+      "breakpoints": true
     }
   ]
 }

@@ -4745,9 +4745,8 @@ ${itemList}
       await setLineUserProcessing(lineUserId, false).catch(() => {});
     }
   }
+  } // end else if (type === "message")
 }
-}
-
 // ─── tRPC router ──────────────────────────────────────────────────────────────
 
 export const lineRouter = router({

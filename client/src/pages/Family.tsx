@@ -80,6 +80,8 @@ export default function Family() {
   // 優先順位設定（プレミアム用）
   const [menuPriorityOrder, setMenuPriorityOrder] = useState<string[]>(["child", "fridge", "variety"]);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  // 子供向け献立配慮の選択（childがいる場合のみ有効）
+  const [childMenuPrefs, setChildMenuPrefs] = useState<string[]>(["easy", "avoid", "unified"]);
 
   const { data: planData } = trpc.subscription.getMyPlan.useQuery();
   const IS_PREMIUM = planData?.isPremium ?? false;
@@ -102,6 +104,9 @@ export default function Family() {
       setDinnerAttendees((p.dinnerAttendees as string[]) ?? []);
       if (p.menuPriorityOrder && Array.isArray(p.menuPriorityOrder) && p.menuPriorityOrder.length > 0) {
         setMenuPriorityOrder(p.menuPriorityOrder as string[]);
+      }
+      if (p.childMenuPrefs && Array.isArray(p.childMenuPrefs)) {
+        setChildMenuPrefs(p.childMenuPrefs as string[]);
       }
       const days = (p.shoppingDays as string[]) ?? [];
       if (days.includes("everyday")) {
@@ -195,6 +200,7 @@ export default function Family() {
       lunchAttendees,
       dinnerAttendees,
       menuPriorityOrder: IS_PREMIUM ? menuPriorityOrder : undefined,
+      childMenuPrefs,
     });
   };
 
@@ -492,75 +498,38 @@ export default function Family() {
               </div>
             )}
 
-            {/* ── 献立優先順位設定（プレミアム） ── */}
-            {(() => {
-              const hasChild = (familyData?.members ?? []).some(m => m.ageGroup === "child");
-              return (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-sm">🎯 献立生成の優先順位</h3>
-                    {IS_PREMIUM ? (
-                      <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700">プレミアム</Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-xs">プレミアム限定</Badge>
-                    )}
-                  </div>
-                  {!IS_PREMIUM ? (
-                    <div
-                      className="rounded-lg border border-dashed border-muted-foreground/40 p-4 opacity-60 cursor-pointer"
-                      onClick={() => setShowUpgradeDialog(true)}
-                    >
-                      <p className="text-xs text-muted-foreground mb-2">プレミアムプランで優先順位をカスタマイズできます</p>
-                      <div className="space-y-2">
-                        {["child", "fridge", "variety"].map((key, i) => {
-                          const opt = PRIORITY_OPTIONS.find(o => o.key === key);
-                          return (
-                            <div key={key} className="flex items-center gap-3 bg-muted/30 rounded p-2">
-                              <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}位</span>
-                              <span className="text-sm">{opt?.label}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <p className="text-xs text-primary mt-3 font-medium">🔓 プレミアムにアップグレード →</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {!hasChild && (
-                        <p className="text-xs text-muted-foreground">※ 子供メンバーを追加すると「子供優先」設定が有効になります</p>
-                      )}
-                      {menuPriorityOrder.map((key, i) => {
-                        const opt = PRIORITY_OPTIONS.find(o => o.key === key);
-                        const isChildDisabled = key === "child" && !hasChild;
-                        return (
-                          <div key={key} className={`flex items-center gap-3 rounded-lg border p-3 bg-card ${isChildDisabled ? "opacity-40" : ""}`}>
-                            <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}位</span>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium">{opt?.label}</p>
-                              <p className="text-xs text-muted-foreground">{opt?.desc}</p>
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <button
-                                type="button"
-                                disabled={i === 0}
-                                onClick={() => movePriority(i, "up")}
-                                className="text-xs px-2 py-0.5 rounded border border-border hover:bg-muted disabled:opacity-30"
-                              >▲</button>
-                              <button
-                                type="button"
-                                disabled={i === menuPriorityOrder.length - 1}
-                                onClick={() => movePriority(i, "down")}
-                                className="text-xs px-2 py-0.5 rounded border border-border hover:bg-muted disabled:opacity-30"
-                              >▼</button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+            {/* ── 子供向け献立配慮設定（childメンバーがいる場合のみ表示） ── */}
+            {(familyData?.members ?? []).some(m => m.ageGroup === "child") && (
+              <div className="space-y-3">
+                <div>
+                  <h3 className="font-semibold text-sm">👦 お子さん向け献立の配慮設定</h3>
+                  <p className="text-xs text-muted-foreground mt-1">チェックした内容をAIが献立生成に反映します</p>
                 </div>
-              );
-            })()}
+                <div className="space-y-3">
+                  {[
+                    { key: "easy", label: "子供が食べやすい料理（揚げ物・炒め物・カレーなど人気メニュー）を優先的に献立生成" },
+                    { key: "avoid", label: "子供が苦手にしやすい食材（苦味・臭みが強い食材）を避けた献立生成" },
+                    { key: "unified", label: "家族全員が食べられる料理（子供用に別調理が不要な献立）を献立生成" },
+                  ].map(({ key, label }) => (
+                    <div key={key} className="flex items-start gap-3">
+                      <Checkbox
+                        id={`child-pref-${key}`}
+                        checked={childMenuPrefs.includes(key)}
+                        onCheckedChange={(checked) => {
+                          setChildMenuPrefs(prev =>
+                            checked ? [...prev, key] : prev.filter(k => k !== key)
+                          );
+                        }}
+                        className="mt-0.5"
+                      />
+                      <label htmlFor={`child-pref-${key}`} className="text-sm leading-relaxed cursor-pointer">
+                        {label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <Button
               className="bg-primary text-primary-foreground w-full"
