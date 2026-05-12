@@ -38,6 +38,7 @@ export const familyRouter = router({
         breakfastAttendees: z.array(z.string()).optional(), // 家族メンバー名リスト
         lunchAttendees: z.array(z.string()).optional(),
         dinnerAttendees: z.array(z.string()).optional(),
+        menuPriorityOrder: z.array(z.string()).optional(), // 優先順位設定（プレミアム用）
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -56,6 +57,7 @@ export const familyRouter = router({
         breakfastAttendees: input.breakfastAttendees ?? null,
         lunchAttendees: input.lunchAttendees ?? null,
         dinnerAttendees: input.dinnerAttendees ?? null,
+        menuPriorityOrder: input.menuPriorityOrder ?? null,
       });
       return { success: true };
     }),

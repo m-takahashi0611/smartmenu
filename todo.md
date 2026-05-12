@@ -353,3 +353,15 @@
 
 - [x] **AMB-1**: menu_option_selectionブロックの正規表現に「他の」「他に」「違う」「違うの」「出し直し」「出し直して」を追加し、テーマ選択ヒアリングフローへ誘導
 - [x] **AMB-2**: menu_option_confirmブロックの正規表現にも同様のキーワードを追加（2069行目）
+
+## 子供向け献立配慮の可視化・優先順位設定（2026-05-12）
+
+- [x] **CHILD-1**: DBスキーマ：family_profilesテーブルに`menuPriorityOrder`（JSON配列）カラムを追加（プレミアム用優先順位保存）
+- [x] **CHILD-2**: DBマイグレーション実行
+- [x] **CHILD-3**: server/db.ts：`menuPriorityOrder`の取得・保存ヘルパーを追加
+- [x] **CHILD-4**: 献立生成プロンプト（menu.ts）：`child`（3【12歳）がいる場合に3つの配慮ルールを自動追加（固定優先順位：子供 > 冷蔵庫 > 新献立）
+- [x] **CHILD-5**: 献立生成プロンプト（menu.ts）：プレミアムユーザーかつ`menuPriorityOrder`設定済みの場合は設定順を優先
+- [x] **CHILD-6**: 献立生成JSONレスポンスに`childNote`フィールドを追加（`child`がいる場合のみ）。「〇〇だったので、〇〇しました」形式でAIが生成
+- [x] **CHILD-7**: 献立提案メッセージ（menu.ts）：`childNote`がある場合に`👦 [childNote]`を1行追加
+- [x] **CHILD-8**: 家族設定画面（Family.tsx）：優先順位並び替えUI（冷蔵庫 / 子供 / 新献立）を追加（プレミアムのみ表示）
+- [x] **CHILD-9**: family.tsルーターのupsertProfileに`menuPriorityOrder`の保存・取得を追加

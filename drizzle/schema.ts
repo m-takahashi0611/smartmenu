@@ -82,6 +82,7 @@ export const familyProfiles = mysqlTable("family_profiles", {
   breakfastAttendees: json("breakfastAttendees").$type<string[]>(), // 朝食に食べる家族メンバー名リスト
   lunchAttendees: json("lunchAttendees").$type<string[]>(), // 昼食に食べる家族メンバー名リスト
   dinnerAttendees: json("dinnerAttendees").$type<string[]>(), // 夕食に食べる家族メンバー名リスト
+  menuPriorityOrder: json("menuPriorityOrder").$type<string[]>(), // 献立生成の優先順位（プレミアム用）: ["child", "fridge", "variety"] など
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -204,6 +204,13 @@
       "when": 1777361745678,
       "tag": "0028_sudden_nightcrawler",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1778576638717,
+      "tag": "0029_funny_gunslinger",
+      "breakpoints": true
     }
   ]
 }

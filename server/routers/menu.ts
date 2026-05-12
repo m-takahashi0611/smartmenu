@@ -239,6 +239,38 @@ export async function generateMenuPlan(
 
   const recentDesc = recentDishes || "なし";
 
+  // ─── 子供向け配慮ロジック ────────────────────────────────────────────────────
+  // child（3〜12歳）がいるかチェック
+  const hasChild = familyMemberList.some(m => m.ageGroup === "child");
+
+  // 子供向け配慮ルール（無料・プレミアム共通、child がいる場合のみ）
+  const childCareInstruction = hasChild
+    ? `【子供向け配慮（最優先）】家族に3〜12歳の子供がいます。以下の3つのルールを最優先で守ること：
+1. 子供が食べやすい料理（揚げ物・炒め物・カレーなど人気メニュー）を優先して選ぶこと
+2. 子供が嫌いな食材（苦味・臭みが強い食材：ゴーヤ・レバー・セロリ・春菊・ピーマン等）は避けること
+3. 家族全員が同じものを食べられる料理（子供用に別調理が不要な献立）を選ぶこと
+好き嫌い情報がある場合は特に厳守すること。`
+    : null;
+
+  // プレミアムユーザーの優先順位設定
+  const menuPriorityOrder = (familyProfile as any)?.menuPriorityOrder as string[] | null | undefined;
+  const priorityInstruction = effectiveIsPremium && menuPriorityOrder && menuPriorityOrder.length > 0
+    ? (() => {
+        const labelMap: Record<string, string> = {
+          child: "子供が食べやすい料理を選ぶ（子供優先）",
+          fridge: "冷蔵庫の食材をできるだけ使い切る（冷蔵庫優先）",
+          variety: "最近食べていない料理・食材を積極的に使う（新しい献立優先）",
+        };
+        const labels = menuPriorityOrder.map((k, i) => `${i + 1}位: ${labelMap[k] ?? k}`).join("\n");
+        return `【献立生成の優先順位（ユーザー設定）】以下の順番で優先して献立を選ぶこと：\n${labels}`;
+      })()
+    : null;
+
+  // childNote生成指示（child がいる場合のみ、夕食・翌朝食の3案提案に追加）
+  const childNoteInstruction = hasChild
+    ? `\n"childNote": "（子供への配慮として何をしたか、冷蔵庫の状況を根拠に含め『〇〇だったので、〇〇しました』の形で1文で説明。例：冷蔵庫にゴーヤがありましたが、お子さんのために苦味の強い食材を避けて選びました）"`
+    : '';
+
   // ─── 食事タイプ別プロンプト ───────────────────────────────────────────────
 
   let systemPrompt: string;
@@ -251,7 +283,7 @@ export async function generateMenuPlan(
 
     systemPrompt = `あなたは日本の主婦向け献立提案AIアシスタントです。
 冷蔵庫の食材を活かした${targetMeal}を3案提案してください。${premiumPromptExtra}
-【重要ルール】
+${childCareInstruction ? `${childCareInstruction}\n` : ''}${priorityInstruction ? `${priorityInstruction}\n` : ''}【重要ルール】
 1. アレルギー食材は絶対に使用しないこと
 2. ⚠️【要使用】マークの食材は必ずいずれかの案に使うこと
 3. 冷蔵庫にある食材をできるだけ使い切ること
@@ -266,7 +298,8 @@ export async function generateMenuPlan(
     {"name": "料理名2", "mainIngredients": ["食材C", "食材D"], "usedFridgeItems": ["冷蔵庫食材"]},
     {"name": "料理名3", "mainIngredients": ["食材E", "食材F"], "usedFridgeItems": ["冷蔵庫食材"]}
   ],
-  "shoppingList": ["不足食材1（分量）", "不足食材2（分量）"]
+  "shoppingList": ["不足食材1（分量）", "不足食材2（分量）"]${hasChild ? `,
+  "childNote": "子供への配慮として何をしたか、冷蔵庫の状況を根拠に含め『〇〇だったので、〇〇しました』の形で1文で説明"` : ''}
 }`;
 
     userPrompt = `【日付・天気】${planDate}（${weatherDesc}）
@@ -302,8 +335,9 @@ ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyLis
               },
             },
             shoppingList: { type: "array", items: { type: "string" } },
+            ...(hasChild ? { childNote: { type: "string" } } : {}),
           },
-          required: ["options", "shoppingList"],
+          required: ["options", "shoppingList", ...(hasChild ? ["childNote"] : [])],
           additionalProperties: false,
         },
       },
@@ -401,9 +435,13 @@ ${allergyList ? `【⚠️アレルギー（絶対使用禁止）】${allergyLis
       return `${num} ${o.name}`;
     }).join("\n");
 
+    const childNoteText = hasChild && menuData.childNote
+      ? `\n\n👦 ${menuData.childNote}`
+      : '';
+
     messageText = `🍽️ ${targetLabel}、こんなのはどうですか？${weatherEmoji ? ` ${weatherEmoji}` : ""}
 
-${optionLines}
+${optionLines}${childNoteText}
 
 レシピを見たい場合は下のボタンをタップ、または料理名で「〇〇のレシピ教えて」と送ってください🍳
 買い物リストはダッシュボードで確認できます`;

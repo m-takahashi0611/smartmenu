@@ -1,0 +1,1 @@
+ALTER TABLE `family_profiles` ADD `menuPriorityOrder` json;

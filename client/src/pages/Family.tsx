@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,13 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+
+// 献立優先順位の選択肢
+const PRIORITY_OPTIONS = [
+  { key: "child", label: "👦 子供が食べやすい料理を優先", desc: "苦味・臭みを避け、子供向けの料理を選択" },
+  { key: "fridge", label: "🧊 冷蔵庫の食材を使い切る", desc: "在庫食材をできるだけ活用した献立" },
+  { key: "variety", label: "🔄 最近食べていない料理を優先", desc: "献立のバリエーションを広げる" },
+] as const;
 
 const AGE_GROUPS = [
   { value: "baby", label: "👶 乳幼児（0-2歳）" },
@@ -70,6 +77,12 @@ export default function Family() {
   const [lunchAttendees, setLunchAttendees] = useState<string[]>([]);
   const [dinnerAttendees, setDinnerAttendees] = useState<string[]>([]);
   const [profileSaved, setProfileSaved] = useState(false);
+  // 優先順位設定（プレミアム用）
+  const [menuPriorityOrder, setMenuPriorityOrder] = useState<string[]>(["child", "fridge", "variety"]);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+
+  const { data: planData } = trpc.subscription.getMyPlan.useQuery();
+  const IS_PREMIUM = planData?.isPremium ?? false;
 
   const { data: familyData, isLoading } = trpc.family.getProfile.useQuery();
   const utils = trpc.useUtils();
@@ -87,6 +100,9 @@ export default function Family() {
       setBreakfastAttendees((p.breakfastAttendees as string[]) ?? []);
       setLunchAttendees((p.lunchAttendees as string[]) ?? []);
       setDinnerAttendees((p.dinnerAttendees as string[]) ?? []);
+      if (p.menuPriorityOrder && Array.isArray(p.menuPriorityOrder) && p.menuPriorityOrder.length > 0) {
+        setMenuPriorityOrder(p.menuPriorityOrder as string[]);
+      }
       const days = (p.shoppingDays as string[]) ?? [];
       if (days.includes("everyday")) {
         setShoppingDayMode("everyday");
@@ -157,6 +173,15 @@ export default function Family() {
     setters[meal](current.includes(name) ? current.filter((n) => n !== name) : [...current, name]);
   };
 
+  // 優先順位の並べ替え
+  const movePriority = (index: number, direction: "up" | "down") => {
+    const newOrder = [...menuPriorityOrder];
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= newOrder.length) return;
+    [newOrder[index], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[index]];
+    setMenuPriorityOrder(newOrder);
+  };
+
   const handleSaveProfile = () => {
     upsertProfile.mutate({
       familyName: familyName || undefined,
@@ -169,8 +194,11 @@ export default function Family() {
       breakfastAttendees,
       lunchAttendees,
       dinnerAttendees,
+      menuPriorityOrder: IS_PREMIUM ? menuPriorityOrder : undefined,
     });
   };
+
+  const [, navigate] = useLocation();
 
   return (
     <div className="min-h-screen bg-background">
@@ -464,6 +492,76 @@ export default function Family() {
               </div>
             )}
 
+            {/* ── 献立優先順位設定（プレミアム） ── */}
+            {(() => {
+              const hasChild = (familyData?.members ?? []).some(m => m.ageGroup === "child");
+              return (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-sm">🎯 献立生成の優先順位</h3>
+                    {IS_PREMIUM ? (
+                      <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700">プレミアム</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">プレミアム限定</Badge>
+                    )}
+                  </div>
+                  {!IS_PREMIUM ? (
+                    <div
+                      className="rounded-lg border border-dashed border-muted-foreground/40 p-4 opacity-60 cursor-pointer"
+                      onClick={() => setShowUpgradeDialog(true)}
+                    >
+                      <p className="text-xs text-muted-foreground mb-2">プレミアムプランで優先順位をカスタマイズできます</p>
+                      <div className="space-y-2">
+                        {["child", "fridge", "variety"].map((key, i) => {
+                          const opt = PRIORITY_OPTIONS.find(o => o.key === key);
+                          return (
+                            <div key={key} className="flex items-center gap-3 bg-muted/30 rounded p-2">
+                              <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}位</span>
+                              <span className="text-sm">{opt?.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-primary mt-3 font-medium">🔓 プレミアムにアップグレード →</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {!hasChild && (
+                        <p className="text-xs text-muted-foreground">※ 子供メンバーを追加すると「子供優先」設定が有効になります</p>
+                      )}
+                      {menuPriorityOrder.map((key, i) => {
+                        const opt = PRIORITY_OPTIONS.find(o => o.key === key);
+                        const isChildDisabled = key === "child" && !hasChild;
+                        return (
+                          <div key={key} className={`flex items-center gap-3 rounded-lg border p-3 bg-card ${isChildDisabled ? "opacity-40" : ""}`}>
+                            <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}位</span>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{opt?.label}</p>
+                              <p className="text-xs text-muted-foreground">{opt?.desc}</p>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <button
+                                type="button"
+                                disabled={i === 0}
+                                onClick={() => movePriority(i, "up")}
+                                className="text-xs px-2 py-0.5 rounded border border-border hover:bg-muted disabled:opacity-30"
+                              >▲</button>
+                              <button
+                                type="button"
+                                disabled={i === menuPriorityOrder.length - 1}
+                                onClick={() => movePriority(i, "down")}
+                                className="text-xs px-2 py-0.5 rounded border border-border hover:bg-muted disabled:opacity-30"
+                              >▼</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             <Button
               className="bg-primary text-primary-foreground w-full"
               disabled={upsertProfile.isPending}
@@ -473,6 +571,25 @@ export default function Family() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* ── アップグレードダイアログ ── */}
+        <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>🔓 プレミアムプランで解放</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-muted-foreground">献立生成の優先順位カスタマイズはプレミアムプラン限定の機能です。</p>
+              <ul className="text-sm space-y-1 text-muted-foreground">
+                <li>✅ 冷蔵庫 / 子供 / バリエーションの優先順位を自由に設定</li>
+                <li>✅ その他プレミアム機能も全て利用可能</li>
+              </ul>
+              <Button className="w-full bg-primary text-primary-foreground" onClick={() => { setShowUpgradeDialog(false); navigate("/plan"); }}>
+                プレミアムプランを見る
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* ── 家族メンバー一覧 ── */}
         {isLoading ? (
