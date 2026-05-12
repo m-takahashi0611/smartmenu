@@ -1042,7 +1042,9 @@ async function handleIntentAction(
       }
       const resolvedDisplay = resolvedItems.join('、') || text;
       await setLineUserPendingAction(lineUserId, { type: 'voice_ingredient_action', transcribedText: text, ingredients: resolvedItems });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${resolvedDisplay}」ですね！\n\nどうしますか？`, quickReply: { items: [
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${resolvedDisplay}」ですね！\n\nどうしますか？
+
+👇 下のボタンから選んでね！`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '🍱 冷蔵庫に追加', text: '冷蔵庫に追加' } },
         { type: 'action', action: { type: 'message', label: '🛒 買い物リストに追加', text: '買い物リストに追加' } },
         { type: 'action', action: { type: 'message', label: '🍽️ この食材で献立を提案', text: 'この食材で献立を提案' } },
@@ -1138,7 +1140,9 @@ async function handleIntentAction(
       }
       const themeText = theme || itemDisplay;
       await setLineUserPendingAction(lineUserId, { type: 'mood_theme_action', theme: themeText, text });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${themeText}」の気分ですね！\n\nどうしますか？\n\n1️⃣ 今日の献立テーマに設定して提案\n2️⃣ キャンセル\n\n`, quickReply: { items: [
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${themeText}」の気分ですね！\n\nどうしますか？\n\n1️⃣ 今日の献立テーマに設定して提案\n2️⃣ キャンセル\n\n
+
+👇 下のボタンから選んでね！`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '🍽️ テーマに設定して提案', text: '1' } },
         { type: 'action', action: { type: 'message', label: '❌ キャンセル', text: 'キャンセル' } },
       ] } }], lineUserId);
@@ -1209,7 +1213,7 @@ async function handleFridgeRegistration(
               { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 明日まとめて', text: '明日の夕飯まで' } },
               { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
             ];
-        await replyLineMessage(replyToken, [{ type: 'text', text: '番号か「夕飯」「朝食」などで教えてください😊', quickReply: { items: retryQR } }], lineUserId);
+        await replyLineMessage(replyToken, [{ type: 'text', text: '番号か「夕飯」「朝食」などで教えてください😊\n\n👇 下のボタンから選んでね！', quickReply: { items: retryQR } }], lineUserId);
       } else if (pendingType === 'menu_option_selection') {
         const opts = originalPending.options ?? [];
         const optLines = opts.map((o: any, i: number) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
@@ -1240,7 +1244,7 @@ async function handleFridgeRegistration(
       return true;
     }
     // それ以外 → 確認を再表示
-    await replyLineMessage(replyToken, [{ type: 'text', text: '今のフローをキャンセルしますか？\n\n「キャンセルして続ける」または「今のフローを続ける」と送ってください', quickReply: { items: [
+    await replyLineMessage(replyToken, [{ type: 'text', text: '今のフローをキャンセルしますか？\n\n「キャンセルして続ける」または「今のフローを続ける」と送ってください\n\n👇 下のボタンから選んでね！', quickReply: { items: [
       { type: 'action', action: { type: 'message', label: '❌ キャンセルして続ける', text: 'キャンセルして続ける' } },
       { type: 'action', action: { type: 'message', label: '▶️ 今のフローを続ける', text: '今のフローを続ける' } },
     ] } }], lineUserId);
@@ -1282,7 +1286,9 @@ async function handleFridgeRegistration(
           originalPending: pending,
           askedAt: Date.now(),
         });
-        await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmed}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？`, quickReply: { items: [
+        await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmed}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？
+
+👇 下のボタンから選んでね！`, quickReply: { items: [
           { type: 'action', action: { type: 'message', label: '❌ キャンセルして続ける', text: 'キャンセルして続ける' } },
           { type: 'action', action: { type: 'message', label: '▶️ 今のフローを続ける', text: '今のフローを続ける' } },
         ] } }], lineUserId);
@@ -1391,7 +1397,7 @@ async function handleFridgeRegistration(
           cancelQR,
         ];
     await setLineUserPendingAction(lineUserId, {
-      type: 'menu_type_selection',
+      type: 'menu_type_selection\n\n👇 下のボタンから選んでね！',
       choices: pendingChoices,
       willShop,
       askedAt: Date.now(),
@@ -1434,7 +1440,9 @@ async function handleFridgeRegistration(
           originalPending: pending,
           askedAt: Date.now(),
         });
-        await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmed}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？`, quickReply: { items: [
+        await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmed}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？
+
+👇 下のボタンから選んでね！`, quickReply: { items: [
           { type: 'action', action: { type: 'message', label: '❌ キャンセルして続ける', text: 'キャンセルして続ける' } },
           { type: 'action', action: { type: 'message', label: '▶️ 今のフローを続ける', text: '今のフローを続ける' } },
         ] } }], lineUserId);
@@ -1461,7 +1469,7 @@ async function handleFridgeRegistration(
             { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
           ];
       await replyLineMessage(replyToken, [
-        { type: 'text', text: '番号か「夕飯」「朝食」などで教えてください😊\n\nキャンセルする場合は「キャンセル」と送ってください', quickReply: { items: _retryQR } }
+        { type: 'text', text: '番号か「夕飯」「朝食」などで教えてください😊\n\nキャンセルする場合は「キャンセル」と送ってください\n\n👇 下のボタンから選んでね！', quickReply: { items: _retryQR } }
       ], lineUserId);
       return true;
     }
@@ -1625,7 +1633,9 @@ ${dinnerResult.message}`;
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
-          text: `夕食${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`,
+          text: `夕食${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）
+
+👇 下のボタンから選んでね！`,
           quickReply: { items: [
             { type: 'action', action: { type: 'message', label: '📖 レシピを見たい', text: 'レシピを見たい' } },
             { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
@@ -1655,7 +1665,9 @@ ${dinnerResult.message}`;
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
-          text: `朝食${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`,
+          text: `朝食${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）
+
+👇 下のボタンから選んでね！`,
           quickReply: { items: [
             { type: 'action', action: { type: 'message', label: '📖 レシピを見たい', text: 'レシピを見たい' } },
             { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
@@ -1712,7 +1724,9 @@ ${dinnerResult.message}`;
           });
           await replyLineMessage(replyToken, [{
             type: 'text',
-            text: `夕食${ambiguousNum}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`,
+            text: `夕食${ambiguousNum}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）
+
+👇 下のボタンから選んでね！`,
             quickReply: { items: [
               { type: 'action', action: { type: 'message', label: '📖 レシピを見たい', text: 'レシピを見たい' } },
               { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
@@ -1739,7 +1753,9 @@ ${dinnerResult.message}`;
           });
           await replyLineMessage(replyToken, [{
             type: 'text',
-            text: `朝食${ambiguousNum}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`,
+            text: `朝食${ambiguousNum}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）
+
+👇 下のボタンから選んでね！`,
             quickReply: { items: [
               { type: 'action', action: { type: 'message', label: '📖 レシピを見たい', text: 'レシピを見たい' } },
               { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
@@ -1789,7 +1805,9 @@ ${dinnerResult.message}`;
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
-          text: `「${theme}」はプレミアム機能のテーマです✨\n\nhttps://app.kondatebiyori.com/plan からアップグレードすると利用できます！\n\n他のテーマを選んでください😊`,
+          text: `「${theme}」はプレミアム機能のテーマです✨\n\nhttps://app.kondatebiyori.com/plan からアップグレードすると利用できます！\n\n他のテーマを選んでください😊
+
+👇 下のボタンから選んでね！`,
           quickReply: { items: [
             { type: 'action', action: { type: 'message', label: '😌 さっぱり', text: 'さっぱり' } },
             { type: 'action', action: { type: 'message', label: '🍖 こってり', text: 'こってり' } },
@@ -1886,7 +1904,7 @@ ${dinnerResult.message}`;
       });
       await replyLineMessage(replyToken, [{
         type: 'text',
-        text: 'どんな気分ですか？テーマを選んでください😊\n\nボタン以外のテーマはそのままテキストで送ってもOKです！',
+        text: 'どんな気分ですか？テーマを選んでください😊\n\nボタン以外のテーマはそのままテキストで送ってもOKです！\n\n👇 下のボタンから選んでね！',
         quickReply: { items: [
           { type: 'action', action: { type: 'message', label: '😌 さっぱり', text: 'さっぱり' } },
           { type: 'action', action: { type: 'message', label: '🍖 こってり', text: 'こってり' } },
@@ -1953,7 +1971,9 @@ ${dinnerResult.message}`;
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
-          text: `${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`,
+          text: `${numStr}番（${selected.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）
+
+👇 下のボタンから選んでね！`,
           quickReply: { items: [
             { type: 'action', action: { type: 'message', label: '📖 レシピを表示', text: 'レシピを見たい' } },
             { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
@@ -2047,7 +2067,9 @@ ${dinnerResult.message}`;
       { type: 'action' as const, action: { type: 'message' as const, label: '🔄 出し直す', text: 'その他' } },
       { type: 'action' as const, action: { type: 'message' as const, label: '❌ キャンセル', text: 'キャンセル' } },
     ];
-    await replyLineMessage(replyToken, [{ type: 'text', text: `番号（1〜${options.length}）で選んでください😊\n\n${optionLinesB2}\n\n調理方法の変更（例：「炒め物にして」「揚げ物以外で」）もOKです！\nキャンセルの場合は「キャンセル」と送ってください。`, quickReply: { items: quickReplyItemsB2 } }], lineUserId);
+    await replyLineMessage(replyToken, [{ type: 'text', text: `番号（1〜${options.length}）で選んでください😊\n\n${optionLinesB2}\n\n調理方法の変更（例：「炒め物にして」「揚げ物以外で」）もOKです！\nキャンセルの場合は「キャンセル」と送ってください。
+
+👇 下のボタンから選んでね！`, quickReply: { items: quickReplyItemsB2 } }], lineUserId);
     return true;
   }
 
@@ -2084,7 +2106,7 @@ ${dinnerResult.message}`;
       });
       await replyLineMessage(replyToken, [{
         type: 'text',
-        text: 'どんな気分ですか？テーマを選んでください😊\n\nボタン以外のテーマはそのままテキストで送ってもOKです！',
+        text: 'どんな気分ですか？テーマを選んでください😊\n\nボタン以外のテーマはそのままテキストで送ってもOKです！\n\n👇 下のボタンから選んでね！',
         quickReply: { items: [
           { type: 'action', action: { type: 'message', label: '😌 さっぱり', text: 'さっぱり' } },
           { type: 'action', action: { type: 'message', label: '🍖 こってり', text: 'こってり' } },
@@ -2223,7 +2245,9 @@ ${dinnerResult.message}`;
         originalPending: pending,
         askedAt: Date.now(),
       });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmed}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？`, quickReply: { items: [
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmed}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？
+
+👇 下のボタンから選んでね！`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '❌ キャンセルして続ける', text: 'キャンセルして続ける' } },
         { type: 'action', action: { type: 'message', label: '▶️ 今のフローを続ける', text: '今のフローを続ける' } },
       ] } }], lineUserId);
@@ -2293,7 +2317,9 @@ ${dinnerResult.message}`;
       ];
       await replyLineMessage(replyToken, [{
         type: 'text',
-        text: `もう一度教えてください😊\n\n${mealLabel}は何を作りましたか？`,
+        text: `もう一度教えてください😊\n\n${mealLabel}は何を作りましたか？
+
+👇 下のボタンから選んでね！`,
         quickReply: { items: actualQR },
       }], lineUserId);
       return true;
@@ -2321,7 +2347,9 @@ ${dinnerResult.message}`;
     await setLineUserPendingAction(lineUserId, null);
     await replyLineMessage(replyToken, [{
       type: 'text',
-      text: `「${trimmed}」を記録しました！😊\n\nレシピも見ますか？`,
+      text: `「${trimmed}」を記録しました！😊\n\nレシピも見ますか？
+
+👇 下のボタンから選んでね！`,
       quickReply: { items: [
         { type: 'action' as const, action: { type: 'message' as const, label: '📖 レシピを見る', text: `${trimmed}のレシピ教えて` } },
         { type: 'action' as const, action: { type: 'message' as const, label: '✅ 大丈夫です', text: '大丈夫です' } },
@@ -2474,7 +2502,9 @@ ${dinnerResult.message}`;
     }
     // それ以外 → 再度選択を促す
     const ingredientDisplay = ingredients.join('、');
-    await replyLineMessage(replyToken, [{ type: 'text', text: `「${ingredientDisplay}」をどうしますか？`, quickReply: { items: [
+    await replyLineMessage(replyToken, [{ type: 'text', text: `「${ingredientDisplay}」をどうしますか？
+
+👇 下のボタンから選んでね！`, quickReply: { items: [
       { type: 'action', action: { type: 'message', label: '🍱 冷蔵庫に追加', text: '冷蔵庫に追加' } },
       { type: 'action', action: { type: 'message', label: '🛒 買い物リストに追加', text: '買い物リストに追加' } },
       { type: 'action', action: { type: 'message', label: '🍽️ この食材で献立を提案', text: 'この食材で献立を提案' } },
@@ -2773,7 +2803,9 @@ ${dinnerResult.message}`;
         originalPending: pending,
         askedAt: Date.now(),
       });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmedText}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？`, quickReply: { items: [
+      await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmedText}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？
+
+👇 下のボタンから選んでね！`, quickReply: { items: [
         { type: 'action', action: { type: 'message', label: '❌ キャンセルして続ける', text: 'キャンセルして続ける' } },
         { type: 'action', action: { type: 'message', label: '▶️ 今のフローを続ける', text: '今のフローを続ける' } },
       ] } }], lineUserId);
@@ -3647,7 +3679,9 @@ ${itemList}
                 });
                 await replyLineMessage(replyToken, [{
                   type: 'text',
-                  text: `${numStr}番（${matchedOption.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）`,
+                  text: `${numStr}番（${matchedOption.name}）ですね！\n\n1️⃣ レシピを表示する\n2️⃣ 違う献立を選び直す\n3️⃣ 案内を終了する\n4️⃣ 献立をやり直す（新しく生成）
+
+👇 下のボタンから選んでね！`,
                   quickReply: { items: [
                     { type: 'action', action: { type: 'message', label: '📖 レシピを表示', text: 'レシピを見たい' } },
                     { type: 'action', action: { type: 'message', label: '🔄 違う献立を選び直す', text: '選び直したい' } },
@@ -3717,7 +3751,7 @@ ${itemList}
         // 「週間献立」「週間予定表」単体 → 生成 or 確認の選択肢を提示
         await replyAndSave(replyToken, [{
           type: 'text',
-          text: '📅 週間予定表について何をしますか？',
+          text: '📅 週間予定表について何をしますか？\n\n👇 下のボタンから選んでね！',
           quickReply: { items: [
             { type: 'action' as const, action: { type: 'message' as const, label: '📋 今週の予定表を確認', text: '予定表を確認' } },
             { type: 'action' as const, action: { type: 'message' as const, label: '🔄 新しく生成する', text: '新しく生成' } },
@@ -3814,7 +3848,9 @@ ${itemList}
           ];
           await replyAndSave(replyToken, [{
             type: 'text',
-            text: `昨日の夕食、何を作りましたか？😊\n毎日の記録が積み重なると、よりあなた好みに合った献立を提案できるようになります！💪`,
+            text: `昨日の夕食、何を作りましたか？😊\n毎日の記録が積み重なると、よりあなた好みに合った献立を提案できるようになります！💪
+
+👇 下のボタンから選んでね！`,
             quickReply: { items: actualQR },
           }]);
           if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
@@ -3879,7 +3915,7 @@ ${itemList}
 
       // pendingActionに選択待ち状態をセット
       await setLineUserPendingAction(lineUserId, {
-        type: 'menu_type_selection',
+        type: 'menu_type_selection\n\n👇 下のボタンから選んでね！',
         choices: pendingChoices,
         askedAt: Date.now(),
       });
@@ -3939,7 +3975,7 @@ ${itemList}
       if (items.length === 0) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: "冷蔵庫に食材が登録されていません。\n\n「冷蔵庫に　を追加」と送ると登録できます！\n例：「冷蔵庫に豚肉、キャベツ、卵を追加」",
+          text: "冷蔵庫に食材が登録されていません。\n\n「冷蔵庫に　を追加」と送ると登録できます！\n例：「冷蔵庫に豚肉、キャベツ、卵を追加」\n\n👇 下のボタンから選んでね！",
           quickReply: { items: [
             { type: 'action', action: { type: 'message', label: '➕ 食材を追加する', text: '冷蔵庫に追加' } },
             { type: 'action', action: { type: 'message', label: '🍽️ 献立を提案', text: '献立' } },
@@ -4542,7 +4578,7 @@ ${itemList}
       if (items.length === 0) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: "冷蔵庫に食材が登録されていません。\n\n「冷蔵庫に　を追加」と送ると登録できます！\n例：「冷蔵庫に豚肉、キャベツ、卵を追加」",
+          text: "冷蔵庫に食材が登録されていません。\n\n「冷蔵庫に　を追加」と送ると登録できます！\n例：「冷蔵庫に豚肉、キャベツ、卵を追加」\n\n👇 下のボタンから選んでね！",
           quickReply: { items: [
             { type: 'action', action: { type: 'message', label: '➕ 食材を追加する', text: '冷蔵庫に追加' } },
             { type: 'action', action: { type: 'message', label: '🍽️ 献立を提案', text: '献立' } },
@@ -4670,7 +4706,7 @@ ${itemList}
           }));
           await replyAndSave(replyToken, [{
             type: 'text',
-            text: 'どの料理のレシピを知りたいですか？😊\n\n今日の献立から選ぶ場合はボタンをタップ👇',
+            text: 'どの料理のレシピを知りたいですか？😊\n\n今日の献立から選ぶ場合はボタンをタップ👇\n\n👇 下のボタンから選んでね！',
             quickReply: { items: qrItems },
           }]);
         } else {
@@ -4753,7 +4789,9 @@ ${itemList}
         : '';
       await replyAndSave(replyToken, [{
         type: 'text',
-        text: `${resolvedRequestedDish}は今日の献立にないので、レシピのご案内ができません😊${todayDishList}\n\n✨ プレミアム会員になると、献立に関係なくどんな料理のレシピでも聞けます！\nhttps://app.kondatebiyori.com/dashboard`,
+        text: `${resolvedRequestedDish}は今日の献立にないので、レシピのご案内ができません😊${todayDishList}\n\n✨ プレミアム会員になると、献立に関係なくどんな料理のレシピでも聞けます！\nhttps://app.kondatebiyori.com/dashboard
+
+👇 下のボタンから選んでね！`,
         quickReply: todayQR.length > 1 ? { items: todayQR } : undefined,
       }]);
       if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
