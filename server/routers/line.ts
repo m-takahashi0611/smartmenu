@@ -1397,7 +1397,7 @@ async function handleFridgeRegistration(
           cancelQR,
         ];
     await setLineUserPendingAction(lineUserId, {
-      type: 'menu_type_selection\n\n👇 下のボタンから選んでね！',
+      type: 'menu_type_selection',
       choices: pendingChoices,
       willShop,
       askedAt: Date.now(),
@@ -1425,7 +1425,29 @@ async function handleFridgeRegistration(
       return false; // 通常フローに戻して週間献立処理に委ねる
     }
 
-    const selectedType = choices[trimmed];
+    // 全時間帯共通フォールバックキーワード（choicesに入っていなくても認識）
+    const globalKeywordMap: Record<string, string> = {
+      '夕飯': 'dinner',
+      '夕食': 'dinner',
+      '今夜の夕飯': 'dinner',
+      '今夜の夕食': 'dinner',
+      '今夜': 'dinner',
+      '晩ごはん': 'dinner',
+      '晩飯': 'dinner',
+      'ばんごはん': 'dinner',
+      '夜ごはん': 'dinner',
+      '夜ご飯': 'dinner',
+      '朝食': 'breakfast',
+      '朝ごはん': 'breakfast',
+      '朝ご飯': 'breakfast',
+      '今日の朝食': 'breakfast',
+      '今日の朝ごはん': 'breakfast',
+      '昼食': 'lunch',
+      'ランチ': 'lunch',
+      '昼ごはん': 'lunch',
+      '昼ご飯': 'lunch',
+    };
+    const selectedType = choices[trimmed] ?? globalKeywordMap[trimmed];
     if (!selectedType) {
       // 文脈違い検出：料理名・食材・調理法パターンが来たら確認メッセージを出す
       const isContextMismatch = (
@@ -3915,7 +3937,7 @@ ${itemList}
 
       // pendingActionに選択待ち状態をセット
       await setLineUserPendingAction(lineUserId, {
-        type: 'menu_type_selection\n\n👇 下のボタンから選んでね！',
+        type: 'menu_type_selection',
         choices: pendingChoices,
         askedAt: Date.now(),
       });

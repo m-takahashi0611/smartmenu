@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE line_users SET pendingAction = NULL WHERE pendingAction IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(pendingAction, '$.type')) = 'menu_type_selection';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute UPDATE line_users SET pendingAction = NULL WHERE pendingAction IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(pendingAction, '$.type')) = 'menu_type_selection';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1836
+}

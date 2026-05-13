@@ -1,0 +1,40 @@
+{
+  "query": "SELECT lineUserId, displayName, JSON_UNQUOTE(JSON_EXTRACT(pendingAction, '$.type')) as pending_type, JSON_UNQUOTE(JSON_EXTRACT(pendingAction, '$.askedAt')) as asked_at FROM line_users WHERE pendingAction IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(pendingAction, '$.type')) = 'menu_type_selection' ORDER BY asked_at ASC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute SELECT lineUserId, displayName, JSON_UNQUOTE(JSON_EXTRACT(pendingAction, '$.type')) as pending_type, JSON_UNQUOTE(JSON_EXTRACT(pendingAction, '$.askedAt')) as asked_at FROM line_users WHERE pendingAction IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(pendingAction, '$.type')) = 'menu_type_selection' ORDER BY asked_at ASC;",
+  "rows": [
+    {
+      "lineUserId": "Udc9e51ac00bae091db82dfb4d469108a",
+      "displayName": "祐里",
+      "pending_type": "menu_type_selection",
+      "asked_at": "1775318557959"
+    },
+    {
+      "lineUserId": "Ua52b34ffa5f868abb1e03e9c59d49bb0",
+      "displayName": "なるみ",
+      "pending_type": "menu_type_selection",
+      "asked_at": "1776942824029"
+    },
+    {
+      "lineUserId": "Ud375a980e4e03532ebb598c932b0227a",
+      "displayName": "あゆ(藤重)",
+      "pending_type": "menu_type_selection",
+      "asked_at": "1777268460986"
+    },
+    {
+      "lineUserId": "U7db795355b54dc8c612c521dfd0f2e37",
+      "displayName": "吉野良平",
+      "pending_type": "menu_type_selection",
+      "asked_at": "1778552023993"
+    },
+    {
+      "lineUserId": "U450f782b8da2a9e5708ac3566c93a944",
+      "displayName": "宮田由加里",
+      "pending_type": "menu_type_selection",
+      "asked_at": "1778568495407"
+    }
+  ],
+  "messages": [],
+  "stdout": "lineUserId\tdisplayName\tpending_type\tasked_at\nUdc9e51ac00bae091db82dfb4d469108a\t祐里\tmenu_type_selection\t1775318557959\nUa52b34ffa5f868abb1e03e9c59d49bb0\tなるみ\tmenu_type_selection\t1776942824029\nUd375a980e4e03532ebb598c932b0227a\tあゆ(藤重)\tmenu_type_selection\t1777268460986\nU7db795355b54dc8c612c521dfd0f2e37\t吉野良平\tmenu_type_selection\t1778552023993\nU450f782b8da2a9e5708ac3566c93a944\t宮田由加里\tmenu_type_selection\t1778568495407\n",
+  "stderr": "",
+  "execution_time_ms": 2308
+}
