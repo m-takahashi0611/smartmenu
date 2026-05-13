@@ -768,6 +768,43 @@ function parseQuantityNumber(text: string): number | null {
   return null;
 }
 
+// ─── pendingActionタイムアウト判定 ──────────────────────────────────────────────────────────
+// 献立系：10分タイムアウト
+const PENDING_TIMEOUT_SHORT_MS = 10 * 60 * 1000;
+// 冷蔵庫・音声系：30分タイムアウト
+const PENDING_TIMEOUT_LONG_MS = 30 * 60 * 1000;
+
+const PENDING_TIMEOUT_LONG_TYPES = new Set([
+  'voice_confirm',
+  'fridge_add_qty',
+  'fridge_input_wait',
+]);
+
+/**
+ * pendingActionが期限切れかどうかを判定する
+ */
+function isPendingExpired(pending: Record<string, any>): boolean {
+  const createdAt: number = pending.askedAt ?? pending.createdAt ?? 0;
+  if (!createdAt) return false;
+  const timeoutMs = PENDING_TIMEOUT_LONG_TYPES.has(pending.type)
+    ? PENDING_TIMEOUT_LONG_MS
+    : PENDING_TIMEOUT_SHORT_MS;
+  return Date.now() - createdAt > timeoutMs;
+}
+
+/**
+ * 献立系pendingが有効期限内に再トリガーが来た時の確認クイックリプライを返す
+ */
+function buildRetriggerQuickReply() {
+  return {
+    items: [
+      { type: 'action' as const, action: { type: 'message' as const, label: '🔄 再生成希望', text: '__retrigger_regen__' } },
+      { type: 'action' as const, action: { type: 'message' as const, label: '↩️ 間違い送信', text: '__retrigger_continue__' } },
+      { type: 'action' as const, action: { type: 'message' as const, label: '👀 確認したい', text: '__retrigger_view__' } },
+    ],
+  };
+}
+
 // ─── LLM意図判定（テキスト・音声共通）───────────────────────────────────────────────────────
 type IntentType =
   | 'shopping_add'        // 買い物リストに追加（直接登録）
@@ -1179,6 +1216,97 @@ async function handleFridgeRegistration(
   replyToken: string
 ): Promise<boolean> {  // ─── Step 1: pendingActionがある場合（数量入力待ち・献立タイプ選択待ち）──────────────────────────────
   const pending = await getLineUserPendingAction(lineUserId);
+
+  // ─── pendingActionタイムアウトチェック ──────────────────────────────────────────
+  if (pending && isPendingExpired(pending)) {
+    await setLineUserPendingAction(lineUserId, null);
+    await replyLineMessage(replyToken, [{
+      type: 'text',
+      text: '⏰ しばらく操作がなかったのでリセットしました。\nもう一度最初からお試しください！',
+    }], lineUserId);
+    return true;
+  }
+
+
+  // ─── 再トリガークイックリプライの応答処理 ──────────────────────────────────────────
+  if (text.trim() === '__retrigger_regen__') {
+    // 再生成希望 → pendingクリアして新しい献立生成（テキストを「献立」として再処理）
+    await setLineUserPendingAction(lineUserId, null);
+    await replyLineMessage(replyToken, [{
+      type: 'text',
+      text: '了解です！新しい献立を提案しますね😊',
+    }], lineUserId);
+    // 「献立」として再帰処理
+    await handleLineWebhookEvent({
+      type: 'message',
+      source: { userId: lineUserId },
+      replyToken: 'dummy_retrigger',
+      message: { type: 'text', text: '献立' },
+    }, true);
+    return true;
+  }
+  if (text.trim() === '__retrigger_continue__') {
+    // 間違い送信 → pendingを維持して続きを案内
+    const _retriggerPending = await getLineUserPendingAction(lineUserId);
+    if (_retriggerPending?.type === 'voice_confirm') {
+      const { transcribedText } = _retriggerPending as { transcribedText: string };
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: `了解です！引き続き音声入力の確認をお願いします😊\n\n「${transcribedText}」でよろしいですか？\n「はい」→ そのまま処理します\n「いいえ」→ キャンセルします`,
+      }], lineUserId);
+    } else if (_retriggerPending?.type === 'fridge_input_wait') {
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: '了解です！引き続き冷蔵庫に追加する食材を教えてください😊\n（例：卵、牛乳、キャベツ）',
+      }], lineUserId);
+    } else if (_retriggerPending?.type === 'fridge_add_qty') {
+      const { itemName } = _retriggerPending as { itemName: string };
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: `了解です！「${itemName}」の数量を教えてください😊\n（例：3個、300g、半分くらい）`,
+      }], lineUserId);
+    } else {
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: '了解です！引き続き操作を続けてください😊',
+      }], lineUserId);
+    }
+    return true;
+  }
+  if (text.trim() === '__retrigger_view__') {
+    // 確認したい → 今日の献立を表示してpendingは維持
+    if (userId) {
+      const nowJSTv = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const todayStrV = nowJSTv.toISOString().slice(0, 10);
+      const todayPlanV = await getMenuPlanByDate(userId, todayStrV);
+      if (todayPlanV?.menuData) {
+        try {
+          const menuDataV = typeof todayPlanV.menuData === 'string' ? JSON.parse(todayPlanV.menuData) : todayPlanV.menuData;
+          const lines: string[] = ['📋 今日の献立'];
+          if (menuDataV.breakfast) {
+            const b = Array.isArray(menuDataV.breakfast) ? menuDataV.breakfast : [menuDataV.breakfast];
+            lines.push(`🌅 朝食: ${b.map((x: any) => x.name || x).join('・')}`);
+          }
+          if (menuDataV.lunch) {
+            const l = Array.isArray(menuDataV.lunch) ? menuDataV.lunch : [menuDataV.lunch];
+            lines.push(`☀️ 昼食: ${l.map((x: any) => x.name || x).join('・')}`);
+          }
+          if (menuDataV.dinner) {
+            const d = Array.isArray(menuDataV.dinner) ? menuDataV.dinner : [menuDataV.dinner];
+            lines.push(`🌙 夕食: ${d.map((x: any) => x.name || x).join('・')}`);
+          }
+          await replyLineMessage(replyToken, [{ type: 'text', text: lines.join('\n') }], lineUserId);
+        } catch {
+          await replyLineMessage(replyToken, [{ type: 'text', text: '今日の献立情報を取得できませんでした。' }], lineUserId);
+        }
+      } else {
+        await replyLineMessage(replyToken, [{ type: 'text', text: '今日の献立はまだ登録されていません。' }], lineUserId);
+      }
+    } else {
+      await replyLineMessage(replyToken, [{ type: 'text', text: '献立を確認するにはログインが必要です。' }], lineUserId);
+    }
+    return true;
+  }
 
   // ─── pending_context_mismatch: 「今のフローと違う」確認待ち ─────────────────────────────────────────────────
   if (pending?.type === 'pending_context_mismatch') {
@@ -2422,18 +2550,27 @@ ${dinnerResult.message}`;
       return true;
     }
 
-    // その他の入力→新しいテキストとして上書きして再確認
-    // 例：音声復唱中に「献立！」と返してきた場合、「献立！」を新しいtranscribedTextとして再確認
+    // その他の入力→献立キーワードなら3択クイックリプライ、それ以外は上書き再確認
+    const _voiceMenuKw = /^(献立|今日の献立|今夜の献立|明日の献立|献立を|献立お願い|献立提案|献立して|献立考えて|ご飯作って|ご飯提案|おすすめ献立)$/.test(trimmed)
+      || /今日何(作|つく)ろ/.test(trimmed) || /ご飯(何|なに)(作|つく)/.test(trimmed) || /今日のご飯/.test(trimmed);
+    if (_voiceMenuKw) {
+      // 献立キーワード → 3択クイックリプライ（pendingは維持）
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: `音声入力の確認中ですが、「${trimmed}」が届きました😊\n\nどうしますか？`,
+        quickReply: buildRetriggerQuickReply(),
+      }], lineUserId);
+      return true;
+    }
+    // 例：音声復唱中に別のテキストを返してきた場合、新しいtranscribedTextとして上書きして再確認
     await setLineUserPendingAction(lineUserId, {
       type: 'voice_confirm',
       transcribedText: trimmed,
+      askedAt: Date.now(),
     });
     await replyLineMessage(replyToken, [{
       type: 'text',
-      text: `「${trimmed}」でよろしいでしょうか？
-
-「はい」→ そのまま処理します
-「いいえ」→ キャンセルします`,
+      text: `「${trimmed}」でよろしいでしょうか？\n「はい」→ そのまま処理します\n「いいえ」→ キャンセルします`,
     }], lineUserId);
     return true;
   }
@@ -2819,18 +2956,12 @@ ${dinnerResult.message}`;
     // 文脈違い検出：献立・買い物リスト・週間献立キーワードを検出したら確認メッセージ
     const isFridgeQtyContextMismatch = /献立|おかず|ご飯|買い物|ショッピング|週間献立|今日の献立|今夜の献立|今日の朝食|今日の昼食|レシピ/.test(trimmedText);
     if (isFridgeQtyContextMismatch) {
-      await setLineUserPendingAction(lineUserId, {
-        type: 'pending_context_mismatch',
-        originalText: trimmedText,
-        originalPending: pending,
-        askedAt: Date.now(),
-      });
-      await replyLineMessage(replyToken, [{ type: 'text', text: `「${trimmedText}」ですね😊\n今のフローと違う指示を受け付けました。\n\n現在のフローをキャンセルして、改めて続けますか？
-
-👇 下のボタンから選んでね！`, quickReply: { items: [
-        { type: 'action', action: { type: 'message', label: '❌ キャンセルして続ける', text: 'キャンセルして続ける' } },
-        { type: 'action', action: { type: 'message', label: '▶️ 今のフローを続ける', text: '今のフローを続ける' } },
-      ] } }], lineUserId);
+      // 3択クイックリプライに変更（再生成希望/間違い送信/確認したい）
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: `食材の数量入力中ですが、「${trimmedText}」が届きました😊\n\nどうしますか？`,
+        quickReply: buildRetriggerQuickReply(),
+      }], lineUserId);
       return true;
     }
     // 数量として解釈できない入力 → 再度聴く
@@ -2896,14 +3027,26 @@ ${dinnerResult.message}`;
 
   // ─── Step 1.6: fridge_input_wait pendingActionがある場合（「冷蔵庫に」単独送信の続き）──────
   if (pending?.type === 'fridge_input_wait') {
-    await setLineUserPendingAction(lineUserId, null);
     // 次のメッセージを食材リストとして処理（再帰的にhandleFridgeRegistrationを呼ぶ）
     // 「を追加して」「追加して」が付いていない場合も食材リストとして扱う
     const fridgeText = text.trim();
     if (/^(キャンセル|やめる|やめて|cancel|いいえ)$/i.test(fridgeText)) {
+      await setLineUserPendingAction(lineUserId, null);
       await replyLineMessage(replyToken, [{ type: 'text', text: 'キャンセルしました。' }], lineUserId);
       return true;
     }
+    // 献立キーワード → 3択クイックリプライ（pendingは維持）
+    const _fridgeWaitMenuKw = /^(献立|今日の献立|今夜の献立|明日の献立|献立を|献立お願い|献立提案|献立して|献立考えて|ご飯作って|ご飯提案|おすすめ献立)$/.test(fridgeText)
+      || /今日何(作|つく)ろ/.test(fridgeText) || /ご飯(何|なに)(作|つく)/.test(fridgeText) || /今日のご飯/.test(fridgeText);
+    if (_fridgeWaitMenuKw) {
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: `冷蔵庫の食材入力中ですが、「${fridgeText}」が届きました😊\n\nどうしますか？`,
+        quickReply: buildRetriggerQuickReply(),
+      }], lineUserId);
+      return true;
+    }
+    await setLineUserPendingAction(lineUserId, null);
     // 「を追加して」が付いていない場合は付けて再処理
     const normalizedText = fridgeText.endsWith('追加して') || fridgeText.endsWith('追加') || fridgeText.endsWith('登録して')
       ? fridgeText
@@ -3049,6 +3192,7 @@ ${dinnerResult.message}`;
           itemName,
           existingId: existing.id,
           existingQty: existingQtyNum,
+          askedAt: Date.now(),
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
@@ -3061,6 +3205,7 @@ ${dinnerResult.message}`;
           itemName,
           existingId: existing.id,
           existingQty: 0,
+          askedAt: Date.now(),
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
@@ -3073,6 +3218,7 @@ ${dinnerResult.message}`;
           itemName,
           existingId: null,
           existingQty: 0,
+          askedAt: Date.now(),
         });
         await replyLineMessage(replyToken, [{
           type: 'text',
@@ -3144,7 +3290,7 @@ ${dinnerResult.message}`;
 
   // ─── Step 5: 「冷蔵庫に」単独送信時→次のメッセージを食材リストとして受け取る─────────────────
   if (/^冷蔵庫に$/.test(text.trim())) {
-    await setLineUserPendingAction(lineUserId, { type: 'fridge_input_wait' });
+    await setLineUserPendingAction(lineUserId, { type: 'fridge_input_wait', askedAt: Date.now() });
     await replyLineMessage(replyToken, [{ type: 'text', text: '冷蔵庫に登録する食材を教えてください😊\n\n例：「白菜、にんじん、卵」' }], lineUserId);
     return true;
   }
@@ -3498,6 +3644,7 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
           await setLineUserPendingAction(lineUserId, {
             type: "voice_confirm",
             transcribedText,
+            askedAt: Date.now(),
           });
           await replyAndSave(replyToken, [{
             type: "text",

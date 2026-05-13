@@ -386,3 +386,13 @@
 
 ## クイックリプライ「下のボタンから選んでね」追加（2026-05-12）
 - [x] **QR-HINT-1**: quickReplyがある全51箇所のメッセージテキストに「👇 下のボタンから選んでね！」を追加（43箇所修正、既実装8箇所スキップ）
+
+## pendingActionタイムアウト実装（2026-05-13）
+
+- [ ] **TIMEOUT-1**: pendingActionのタイムアウト判定ヘルパー関数を実装（isPendingExpired: 10分/30分の2種類）
+- [ ] **TIMEOUT-2**: 献立系pending（menu_type_selection/menu_option_selection/menu_option_selection_dual/menu_option_confirm/pending_context_mismatch/actual_meal_hearing/actual_meal_free_input）に10分タイムアウト実装
+- [ ] **TIMEOUT-3**: fridge/voice系pending（voice_confirm/fridge_add_qty/fridge_input_wait）に30分タイムアウト実装
+- [ ] **TIMEOUT-4**: 10分以内の再トリガー時クイックリプライ確認フロー実装（献立系全て）：「再生成希望」「間違い送信」「確認したい」の3択
+- [ ] **TIMEOUT-5**: voice_confirm: テキストで献立トリガーが来た場合の3択クイックリプライ実装
+- [ ] **TIMEOUT-6**: fridge_input_wait: 献立トリガーが来た場合の3択クイックリプライ実装
+- [ ] **TIMEOUT-7**: fridge_add_qty: pending_context_mismatchを3択クイックリプライに統一
