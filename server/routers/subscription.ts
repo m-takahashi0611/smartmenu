@@ -35,14 +35,14 @@ export const subscriptionRouter = router({
         userId,
         plan: "free",
         status: "trial",
-        trialDays: 45,
+        trialDays: 20,
       });
       return {
         plan: "free" as const,
         status: "trial" as const,
-        isPremium: false, // トライアルはプレミアムでない（機能制限あり）
+        isPremium: false, // ① トライアルはプレミアムでない（機能制限あり）
         isTrialActive: true,
-        trialDaysLeft: 45,
+        trialDaysLeft: 20,
         trialStartedAt: new Date(),
         currentPeriodEnd: null as Date | null,
         stripeSubscriptionId: null as string | null,
@@ -58,10 +58,14 @@ export const subscriptionRouter = router({
     const trialDaysLeft = Math.max(0, sub.trialDays - daysPassed);
     const isTrialActive = sub.status === "trial" && trialDaysLeft > 0;
 
-    // プレミアム判定：activeまたはcancelled（期末まで有効）のみ
-    // trial は isPremium=false（機能制限あり）
+    // プレミアム判定（設計書準拠）:
+    //   ① plan=free, status=trial     → isPremium=false
+    //   ② plan=premium, status=trial  → isPremium=true（課金無料期間中）
+    //   ③ plan=premium, status=active → isPremium=true
+    //   ④ plan=free, status=cancelled → isPremium=false
     const isPremium =
       sub.status === "active" ||
+      (sub.plan === "premium" && sub.status === "trial") ||
       (sub.status === "cancelled" && sub.currentPeriodEnd != null && new Date(sub.currentPeriodEnd) > new Date());
 
     return {
@@ -128,7 +132,7 @@ export const subscriptionRouter = router({
             userId,
             plan: "free",
             status: "trial",
-            trialDays: 45,
+            trialDays: 20,
             stripeCustomerId,
           });
         }

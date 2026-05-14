@@ -135,7 +135,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session):
       userId,
       plan: "premium",
       status: "active",
-      trialDays: 45,
+      trialDays: 20,
       stripeCustomerId,
       stripeSubscriptionId,
       currentPeriodEnd,
