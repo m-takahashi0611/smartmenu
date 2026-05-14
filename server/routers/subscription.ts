@@ -35,7 +35,7 @@ export const subscriptionRouter = router({
         userId,
         plan: "free",
         status: "trial",
-        trialDays: 20,
+        // trialDays は①トライアル（カード未登録）には不要。②課金無料期間のみ設定する。
       });
       return {
         plan: "free" as const,
@@ -132,7 +132,7 @@ export const subscriptionRouter = router({
             userId,
             plan: "free",
             status: "trial",
-            trialDays: 20,
+            // trialDays は①トライアル（カード未登録）には不要。②課金無料期間のみ設定する。
             stripeCustomerId,
           });
         }
