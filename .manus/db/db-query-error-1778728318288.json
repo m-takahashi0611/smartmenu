@@ -1,0 +1,14 @@
+{
+  "query": "\nSELECT COUNT(*) as total_users FROM users;\n\nSELECT \n  plan,\n  status,\n  COUNT(*) as count,\n  AVG(trialDays) as avg_trial_days\nFROM subscriptions\nGROUP BY plan, status;\n\nSELECT COUNT(DISTINCT user_id) as users_with_fridge FROM fridge_items;\n\nSELECT COUNT(DISTINCT user_id) as users_with_family FROM family_members;\n\nSELECT COUNT(DISTINCT user_id) as users_with_menu FROM menu_plans;\n\nSELECT COUNT(*) as total_line_users, \n  SUM(CASE WHEN userId IS NOT NULL THEN 1 ELSE 0 END) as linked_users\nFROM line_users;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute \nSELECT COUNT(*) as total_users FROM users;\n\nSELECT \n  plan,\n  status,\n  COUNT(*) as count,\n  AVG(trialDays) as avg_trial_days\nFROM subscriptions\nGROUP BY plan, status;\n\nSELECT COUNT(DISTINCT user_id) as users_with_fridge FROM fridge_items;\n\nSELECT COUNT(DISTINCT user_id) as users_with_family FROM family_members;\n\nSELECT COUNT(DISTINCT user_id) as users_with_menu FROM menu_plans;\n\nSELECT COUNT(*) as total_line_users, \n  SUM(CASE WHEN userId IS NOT NULL THEN 1 ELSE 0 END) as linked_users\nFROM line_users;\n",
+  "returncode": 1,
+  "logs": [
+    "total_users",
+    "15",
+    "plan\tstatus\tcount\tavg_trial_days",
+    "premium\tactive\t8\t45.0000",
+    "free\tcancelled\t4\t45.0000",
+    "free\ttrial\t3\t45.0000",
+    "ERROR 1054 (42S22) at line 12: Unknown column 'user_id' in ''"
+  ]
+}

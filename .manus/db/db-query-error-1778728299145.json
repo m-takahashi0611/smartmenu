@@ -1,0 +1,8 @@
+{
+  "query": "\n-- ユーザー数と課金状態\nSELECT \n  COUNT(*) as total_users,\n  SUM(CASE WHEN subscription_status = 'trial' THEN 1 ELSE 0 END) as trial_users,\n  SUM(CASE WHEN subscription_status = 'active' THEN 1 ELSE 0 END) as active_users,\n  SUM(CASE WHEN subscription_status = 'free' THEN 1 ELSE 0 END) as free_users,\n  SUM(CASE WHEN subscription_status IS NULL THEN 1 ELSE 0 END) as null_users\nFROM users;\n\n-- 冷蔵庫データを持つユーザー数\nSELECT COUNT(DISTINCT user_id) as users_with_fridge FROM fridge_items;\n\n-- 家族構成データを持つユーザー数\nSELECT COUNT(DISTINCT user_id) as users_with_family FROM family_members;\n\n-- 献立データを持つユーザー数\nSELECT COUNT(DISTINCT user_id) as users_with_menu FROM menu_plans;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute \n-- ユーザー数と課金状態\nSELECT \n  COUNT(*) as total_users,\n  SUM(CASE WHEN subscription_status = 'trial' THEN 1 ELSE 0 END) as trial_users,\n  SUM(CASE WHEN subscription_status = 'active' THEN 1 ELSE 0 END) as active_users,\n  SUM(CASE WHEN subscription_status = 'free' THEN 1 ELSE 0 END) as free_users,\n  SUM(CASE WHEN subscription_status IS NULL THEN 1 ELSE 0 END) as null_users\nFROM users;\n\n-- 冷蔵庫データを持つユーザー数\nSELECT COUNT(DISTINCT user_id) as users_with_fridge FROM fridge_items;\n\n-- 家族構成データを持つユーザー数\nSELECT COUNT(DISTINCT user_id) as users_with_family FROM family_members;\n\n-- 献立データを持つユーザー数\nSELECT COUNT(DISTINCT user_id) as users_with_menu FROM menu_plans;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 3: Unknown column 'subscription_status' in ''"
+  ]
+}

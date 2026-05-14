@@ -1,0 +1,49 @@
+{
+  "query": "\nSELECT COUNT(*) as total_users FROM users;\n\nSELECT plan, status, COUNT(*) as count, AVG(trialDays) as avg_trial_days\nFROM subscriptions\nGROUP BY plan, status;\n\nSELECT COUNT(DISTINCT userId) as users_with_fridge FROM fridge_items;\n\nSELECT COUNT(DISTINCT familyProfileId) as family_profiles FROM family_members;\n\nSELECT COUNT(DISTINCT userId) as users_with_menu FROM menu_plans;\n\nSELECT COUNT(*) as total_line_users, \n  SUM(CASE WHEN userId IS NOT NULL THEN 1 ELSE 0 END) as linked_users\nFROM line_users;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute \nSELECT COUNT(*) as total_users FROM users;\n\nSELECT plan, status, COUNT(*) as count, AVG(trialDays) as avg_trial_days\nFROM subscriptions\nGROUP BY plan, status;\n\nSELECT COUNT(DISTINCT userId) as users_with_fridge FROM fridge_items;\n\nSELECT COUNT(DISTINCT familyProfileId) as family_profiles FROM family_members;\n\nSELECT COUNT(DISTINCT userId) as users_with_menu FROM menu_plans;\n\nSELECT COUNT(*) as total_line_users, \n  SUM(CASE WHEN userId IS NOT NULL THEN 1 ELSE 0 END) as linked_users\nFROM line_users;\n",
+  "rows": [
+    {
+      "total_users": "15"
+    },
+    {
+      "total_users": "plan\tstatus\tcount\tavg_trial_days"
+    },
+    {
+      "total_users": "free\ttrial\t3\t45.0000"
+    },
+    {
+      "total_users": "premium\tactive\t8\t45.0000"
+    },
+    {
+      "total_users": "free\tcancelled\t4\t45.0000"
+    },
+    {
+      "total_users": "users_with_fridge"
+    },
+    {
+      "total_users": "11"
+    },
+    {
+      "total_users": "family_profiles"
+    },
+    {
+      "total_users": "15"
+    },
+    {
+      "total_users": "users_with_menu"
+    },
+    {
+      "total_users": "13"
+    },
+    {
+      "total_users": "total_line_users\tlinked_users"
+    },
+    {
+      "total_users": "18\t13"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_users\n15\nplan\tstatus\tcount\tavg_trial_days\nfree\ttrial\t3\t45.0000\npremium\tactive\t8\t45.0000\nfree\tcancelled\t4\t45.0000\nusers_with_fridge\n11\nfamily_profiles\n15\nusers_with_menu\n13\ntotal_line_users\tlinked_users\n18\t13\n",
+  "stderr": "",
+  "execution_time_ms": 2917
+}

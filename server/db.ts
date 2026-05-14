@@ -373,18 +373,24 @@ export async function getMenuPlansByDateRange(userId: number, fromDate: string, 
 
 // ─── Subscription helpers ─────────────────────────────────────────────────────
 /**
- * ユーザーがプレミアム（またはトライアル中）かどうかを返す
+ * ユーザーがプレミアム（②課金無料期間中 or ③自動課金継続中）かどうかを返す
+ *
+ * ユーザータイプ定義（設計書準拠）:
+ *   ① トライアル  : plan=free,    status=trial     → isPremium=false, isTrial=true
+ *   ② 課金無料期間: plan=premium, status=trial     → isPremium=true,  isTrial=false
+ *   ③ プレミアム  : plan=premium, status=active    → isPremium=true,  isTrial=false
+ *   ④ 無課金解約済: plan=free,    status=cancelled → isPremium=false, isTrial=false
  */
 export async function getUserIsPremium(userId: number): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
   const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
   if (!sub) return false;
-  // trial はプレミアムではない（機能制限が異なる）
-  // active = 課金中（無料期間含む） → プレミアム
-  // cancelled = 解約済みだが currentPeriodEnd（期日）を過ぎていない場合のみプレミアム扱い
-  // expired / trial = プレミアムでない
+  // ③ プレミアム（自動課金継続中）
   if (sub.status === "active") return true;
+  // ② 課金無料期間中（plan=premium かつ status=trial）
+  if (sub.plan === "premium" && sub.status === "trial") return true;
+  // ④ 解約済みだが currentPeriodEnd（期日）を過ぎていない場合のみプレミアム扱い
   if (sub.status === "cancelled" && sub.currentPeriodEnd != null && new Date(sub.currentPeriodEnd) > new Date()) return true;
   return false;
 }
@@ -476,16 +482,22 @@ export async function getDeliveryLogs(limit = 50) {
 }
 
 /**
- * トライアルユーザーかどうか判定（カード未登録状態 = statusがない or status === 'trial'でかつ非アクティブ）
- * トライアル = 課金ユーザーより機能制限が多い
+ * ① トライアルユーザーかどうか判定（plan=free かつ status=trial = カード未登録）
+ * ① のみ true。② (plan=premium, status=trial) は false（プレミアム扱い）
  */
 export async function getUserIsTrial(userId: number): Promise<boolean> {
   const db = await getDb();
   if (!db) return true; // DB接続不可の場合は安全側にトライアル扱い
   const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
   if (!sub) return true; // サブスクリプションなし = トライアル
-  if (sub.status === "active" || sub.status === "cancelled") return false; // 課金または解約済み = トライアルでない
-  return true; // その他（trial）= トライアル
+  // ② plan=premium かつ status=trial は「課金無料期間中」→ トライアルでない
+  if (sub.plan === "premium" && sub.status === "trial") return false;
+  // ③ active = 課金継続中 → トライアルでない
+  if (sub.status === "active") return false;
+  // ④ cancelled = 解約済み → トライアルでない
+  if (sub.status === "cancelled") return false;
+  // ① plan=free かつ status=trial = トライアル
+  return true;
 }
 
 // ─── Shopping List ────────────────────────────────────────────────────────────────────────────────────
