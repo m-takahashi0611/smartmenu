@@ -1122,7 +1122,9 @@ async function handleIntentAction(
           const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
           const mealTypeForGen = inferredMealType as import('./menu').MealType;
           const targetDate = (mealTypeForGen === 'breakfast' && nowJST.getUTCHours() >= 22) ? tomorrow : today;
-          const result = await generateMenuPlan(userId, targetDate, mealTypeForGen, undefined, inferredTheme ?? undefined);
+          // 同日に既存の献立がある場合は強制再生成
+          const _existingForInferred = targetDate === today ? await getMenuPlanByDate(userId, today) : null;
+          const result = await generateMenuPlan(userId, targetDate, mealTypeForGen, undefined, inferredTheme ?? undefined, !!_existingForInferred);
           if ((mealTypeForGen === 'dinner') && result.options && result.options.length > 0) {
             const qrMenuItems = [
               ...result.options.slice(0, 3).map((o, i) => ({
@@ -1629,10 +1631,13 @@ async function handleFridgeRegistration(
     try {
       const today = new Date().toISOString().split('T')[0];
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      // 同日に既存の献立がある場合は強制再生成
+      const _existingTodayPlan = await getMenuPlanByDate(userId, today);
+      const _shouldForceRegen = !!_existingTodayPlan;
 
       if (selectedType === 'dinner_and_tomorrow_breakfast') {
         // 今夜の夕食＋明日の朝食を順に生成
-        const dinnerResult = await generateMenuPlan(userId, today, 'dinner', pendingWillShop);
+        const dinnerResult = await generateMenuPlan(userId, today, 'dinner', pendingWillShop, undefined, _shouldForceRegen);
         const breakfastResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast', pendingWillShop);
         const combinedMessage = `${dinnerResult.message}
 
@@ -1679,7 +1684,8 @@ ${dinnerResult.message}`;
         // 単一食事タイプ
         const mealType = selectedType as import('./menu').MealType;
         const targetDate = (selectedType === 'tomorrow_breakfast') ? tomorrow : today;
-        const result = await generateMenuPlan(userId, targetDate, mealType, pendingWillShop);
+        const _forceRegenForSingle = targetDate === today ? _shouldForceRegen : false;
+        const result = await generateMenuPlan(userId, targetDate, mealType, pendingWillShop, undefined, _forceRegenForSingle);
         // 夕食・翌日朝食の場合は3案提示するのでクイックリプライを付ける
         if ((mealType === 'dinner' || mealType === 'tomorrow_breakfast') && result.options && result.options.length > 0) {
           const qrMenuItems = [
