@@ -3558,6 +3558,19 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
         .where(eq(lineUsers.lineUserId, lineUserId));
     }
   } else if (type === "message") {
+    // ─── メンテナンス中の自動応答 ────────────────────────────────────────────
+    // 5/28 14:00 〜 5/29 23:59 JST の間はメンテナンス応答を返して終了
+    const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000); // UTC→JST変換
+    const maintenanceStart = new Date('2026-05-28T05:00:00.000Z'); // 14:00 JST = 05:00 UTC
+    const maintenanceEnd   = new Date('2026-05-29T14:59:59.000Z'); // 23:59 JST = 14:59 UTC
+    if (nowJST >= maintenanceStart && nowJST <= maintenanceEnd) {
+      await replyLineMessage(replyToken, [{
+        type: 'text',
+        text: 'ただいまメンテナンス中です🔧\n\n5月28日（水）14:00 〜 5月29日（木）23:59 の間、本番サービス開始に向けたシステムメンテナンスを行っています。\n\n━━━━━━━━━━━━━━━━━━\n📅 メンテナンス期間\n\u30005月28日（水）14:00\n\u3000〜 5月29日（木）23:59\n━━━━━━━━━━━━━━━━━━\n\n【重要】本番サービス開始に伴う変更\n\n✅ 引き継がれるもの\n\u3000・冷蔵庫の食材情報\n\u3000・家族構成・プロフィール\n\u3000・その他の設定\n\n❌ リセットされるもの\n\u3000・過去の献立履歴\n\u3000・プラン情報\n\n5月30日（金）0:00より、本番サービスがスタートします。\nすべてのユーザーは「トライアル」プランになります。\n\n詳細は5月30日（金）0:00にご案内いたします。\n\nもうしばらくお待ちください😊',
+      }]);
+      return;
+    }
+
     const lineUser = await getLineUserByLineId(lineUserId);
     const userId = lineUser?.userId ?? null;
     const displayName = lineUser?.displayName ?? "ゲスト";
@@ -4505,7 +4518,8 @@ ${itemList}
       const specialTheme = specialTodayMatch[1].trim();
       // 「記念日」の場合は誰の記念日か確認する
       if (specialTheme.includes("記念日")) {
-        await setLineUserPendingAction(lineUserId, { type: 'special_today_anniversary', theme: specialTheme });
+        // 記念日の種類を確認するクイックリプライ
+        await setLineUserPendingAction(lineUserId, { type: 'special_today_anniversary_type', theme: specialTheme });
         await replyAndSave(replyToken, [{
           type: "text",
           text: "🎂 素敵な記念日ですね！\n\n誰の記念日ですか？",
@@ -4536,7 +4550,7 @@ ${itemList}
     // ─── 「今日だけ特別：記念日」→ 誰の記念日か回答後の処理 ─────────────────────────────────
     {
       const pendingAnniversary = await getLineUserPendingAction(lineUserId);
-      if (pendingAnniversary?.type === 'special_today_anniversary' && userId) {
+      if ((pendingAnniversary?.type === 'special_today_anniversary' || pendingAnniversary?.type === 'special_today_anniversary_type') && userId) {
         const anniversaryFor = text.trim();
         const specialTheme = (pendingAnniversary as any).theme ?? '記念日';
         await setLineUserPendingAction(lineUserId, null);
