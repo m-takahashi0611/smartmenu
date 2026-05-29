@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO subscriptions (userId, plan, status, trialStartedAt, trialDays, currentPeriodEnd, createdAt, updatedAt)\nVALUES \n  (30001,  'premium', 'active', NOW(), 0, '2035-12-31 00:00:00', NOW(), NOW()),\n  (60001,  'premium', 'active', NOW(), 0, '2035-12-31 00:00:00', NOW(), NOW()),\n  (480001, 'premium', 'active', NOW(), 0, '2035-12-31 00:00:00', NOW(), NOW());",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute INSERT INTO subscriptions (userId, plan, status, trialStartedAt, trialDays, currentPeriodEnd, createdAt, updatedAt)\nVALUES \n  (30001,  'premium', 'active', NOW(), 0, '2035-12-31 00:00:00', NOW(), NOW()),\n  (60001,  'premium', 'active', NOW(), 0, '2035-12-31 00:00:00', NOW(), NOW()),\n  (480001, 'premium', 'active', NOW(), 0, '2035-12-31 00:00:00', NOW(), NOW());",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1705
+}

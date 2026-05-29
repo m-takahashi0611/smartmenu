@@ -1,0 +1,31 @@
+{
+  "query": "SELECT lu.id, lu.displayName, lu.lineUserId, s.plan, s.status \nFROM line_users lu \nLEFT JOIN subscriptions s ON s.userId = lu.id\nWHERE lu.displayName LIKE '%高橋%' \n   OR lu.displayName LIKE '%まき%' \n   OR lu.displayName LIKE '%舞%'\nORDER BY lu.displayName;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute SELECT lu.id, lu.displayName, lu.lineUserId, s.plan, s.status \nFROM line_users lu \nLEFT JOIN subscriptions s ON s.userId = lu.id\nWHERE lu.displayName LIKE '%高橋%' \n   OR lu.displayName LIKE '%まき%' \n   OR lu.displayName LIKE '%舞%'\nORDER BY lu.displayName;",
+  "rows": [
+    {
+      "id": "30001",
+      "displayName": "まき",
+      "lineUserId": "Uefadd506717cf7f638132d97c476e1f9",
+      "plan": "NULL",
+      "status": "NULL"
+    },
+    {
+      "id": "60001",
+      "displayName": "舞",
+      "lineUserId": "U0f3e85852f5e8650573d0b30379f5bd8",
+      "plan": "NULL",
+      "status": "NULL"
+    },
+    {
+      "id": "480001",
+      "displayName": "高橋導成",
+      "lineUserId": "U3a978d44ad16e83f704e5130e7e3298f",
+      "plan": "NULL",
+      "status": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdisplayName\tlineUserId\tplan\tstatus\n30001\tまき\tUefadd506717cf7f638132d97c476e1f9\tNULL\tNULL\n60001\t舞\tU0f3e85852f5e8650573d0b30379f5bd8\tNULL\tNULL\n480001\t高橋導成\tU3a978d44ad16e83f704e5130e7e3298f\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1848
+}

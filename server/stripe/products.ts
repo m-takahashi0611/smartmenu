@@ -5,7 +5,7 @@
 
 export const STRIPE_PRODUCTS = {
   premium: {
-    priceId: "price_1TJox76uSpLS8PF1krvrRYma",
+    priceId: "price_1TcHjbQsyL2KIL3F1jhpJoVP",
     name: "献立日和〜coto coto〜 プレミアムプラン",
     amount: 480,
     currency: "jpy",

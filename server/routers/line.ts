@@ -3558,19 +3558,6 @@ export async function handleLineWebhookEvent(event: any, _skipHistory = false) {
         .where(eq(lineUsers.lineUserId, lineUserId));
     }
   } else if (type === "message") {
-    // ─── メンテナンス中の自動応答 ────────────────────────────────────────────
-    // 5/28 14:00 〜 5/29 23:59 JST の間はメンテナンス応答を返して終了
-    const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000); // UTC→JST変換
-    const maintenanceStart = new Date('2026-05-28T05:00:00.000Z'); // 14:00 JST = 05:00 UTC
-    const maintenanceEnd   = new Date('2026-05-29T14:59:59.000Z'); // 23:59 JST = 14:59 UTC
-    if (nowJST >= maintenanceStart && nowJST <= maintenanceEnd) {
-      await replyLineMessage(replyToken, [{
-        type: 'text',
-        text: 'ただいまメンテナンス中です🔧\n\n5月28日（水）14:00 〜 5月29日（木）23:59 の間、本番サービス開始に向けたシステムメンテナンスを行っています。\n\n━━━━━━━━━━━━━━━━━━\n📅 メンテナンス期間\n\u30005月28日（水）14:00\n\u3000〜 5月29日（木）23:59\n━━━━━━━━━━━━━━━━━━\n\n【重要】本番サービス開始に伴う変更\n\n✅ 引き継がれるもの\n\u3000・冷蔵庫の食材情報\n\u3000・家族構成・プロフィール\n\u3000・その他の設定\n\n❌ リセットされるもの\n\u3000・過去の献立履歴\n\u3000・プラン情報\n\n5月30日（金）0:00より、本番サービスがスタートします。\nすべてのユーザーは「トライアル」プランになります。\n\n詳細は5月30日（金）0:00にご案内いたします。\n\nもうしばらくお待ちください😊',
-      }]);
-      return;
-    }
-
     const lineUser = await getLineUserByLineId(lineUserId);
     const userId = lineUser?.userId ?? null;
     const displayName = lineUser?.displayName ?? "ゲスト";

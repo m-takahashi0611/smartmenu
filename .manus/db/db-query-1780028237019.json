@@ -1,0 +1,28 @@
+{
+  "query": "SELECT lu.displayName, s.plan, s.status, s.currentPeriodEnd\nFROM line_users lu\nJOIN subscriptions s ON s.userId = lu.id\nWHERE lu.id IN (30001, 60001, 480001);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute SELECT lu.displayName, s.plan, s.status, s.currentPeriodEnd\nFROM line_users lu\nJOIN subscriptions s ON s.userId = lu.id\nWHERE lu.id IN (30001, 60001, 480001);",
+  "rows": [
+    {
+      "displayName": "まき",
+      "plan": "premium",
+      "status": "active",
+      "currentPeriodEnd": "2035-12-31 00:00:00"
+    },
+    {
+      "displayName": "舞",
+      "plan": "premium",
+      "status": "active",
+      "currentPeriodEnd": "2035-12-31 00:00:00"
+    },
+    {
+      "displayName": "高橋導成",
+      "plan": "premium",
+      "status": "active",
+      "currentPeriodEnd": "2035-12-31 00:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "displayName\tplan\tstatus\tcurrentPeriodEnd\nまき\tpremium\tactive\t2035-12-31 00:00:00\n舞\tpremium\tactive\t2035-12-31 00:00:00\n高橋導成\tpremium\tactive\t2035-12-31 00:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 1734
+}

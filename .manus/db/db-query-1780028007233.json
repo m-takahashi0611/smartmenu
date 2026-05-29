@@ -1,0 +1,30 @@
+{
+  "query": "SELECT plan, status, COUNT(*) as count FROM subscriptions GROUP BY plan, status;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute SELECT plan, status, COUNT(*) as count FROM subscriptions GROUP BY plan, status;",
+  "rows": [
+    {
+      "plan": "free",
+      "status": "trial",
+      "count": "2"
+    },
+    {
+      "plan": "premium",
+      "status": "active",
+      "count": "8"
+    },
+    {
+      "plan": "free",
+      "status": "expired",
+      "count": "1"
+    },
+    {
+      "plan": "free",
+      "status": "cancelled",
+      "count": "4"
+    }
+  ],
+  "messages": [],
+  "stdout": "plan\tstatus\tcount\nfree\ttrial\t2\npremium\tactive\t8\nfree\texpired\t1\nfree\tcancelled\t4\n",
+  "stderr": "",
+  "execution_time_ms": 2770
+}

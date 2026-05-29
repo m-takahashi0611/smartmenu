@@ -1,0 +1,13 @@
+{
+  "query": "SELECT COUNT(*) as count FROM menu_plans;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute SELECT COUNT(*) as count FROM menu_plans;",
+  "rows": [
+    {
+      "count": "391"
+    }
+  ],
+  "messages": [],
+  "stdout": "count\n391\n",
+  "stderr": "",
+  "execution_time_ms": 1852
+}
