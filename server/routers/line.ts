@@ -125,50 +125,47 @@ export async function replyLineMessage(replyToken: string, messages: object[], l
  * 献立を返信した後に呼び出す。
  * ① トライアルユーザー → プレミアム誘導メッセージをpush送信
  * ② 家族構成未登録 or 冷蔵庫未登録 → 登録促進メッセージをpush送信
- * 両方該当なら両方送信、片方のみなら片方のみ送信、ログイン未済(userId=null)はスキップ
+ * 両方該当なら両方送信、片方のみなら片方のみ送信、ログイン未済(userId=null)はログイン誘導メッセージを送信
  */
 async function sendMenuUpsellIfNeeded(lineUserId: string, userId: number | null): Promise<void> {
-  if (!userId) return; // ログイン未済はfamilyGuidePrefixで対応済み
   try {
-    const [isTrial, fridgeItems, familyProfile] = await Promise.all([
-      getUserIsTrial(userId),
-      getFridgeItems(userId),
-      getFamilyProfile(userId),
-    ]);
-    // 家族構成チェック（プロファイルがあってもメンバーが0人なら未登録扱い）
-    let hasFamilyMembers = false;
-    if (familyProfile) {
-      const members = await getFamilyMembers(familyProfile.id);
-      hasFamilyMembers = members.length > 0;
-    }
-    const hasFridge = fridgeItems.length > 0;
     const messages: object[] = [];
-    // ① トライアル誘導
-    if (isTrial) {
+    // ログイン未済の場合：献立を気に入ってもらってからログイン・登録を促す
+    if (!userId) {
       messages.push({
         type: 'text',
-        text: `👑 プレミアムプランなら献立の精度がさらにアップ！
-
-✅ AI高精度献立（天気・栄養考慮）無制限
-✅ 週間献立・買い物リスト自動生成
-✅ レシート・チラシ解析
-✅ 献立テーマ・お弁当モード
-✅ 音声メッセージ対応
-
-🎁 カード登録で20日間無料でお試しできます！
-👉 https://app.kondatebiyori.com/plan`,
+        text: `💡 気に入りましたか？\n\nダッシュボードにログインして家族構成・冷蔵庫の食材を登録すると、もっとあなたに合った精度の高い献立をご提案できます！\n👉 https://app.kondatebiyori.com`,
       });
-    }
-    // ② 家族構成・冷蔵庫未登録促進
-    if (!hasFamilyMembers || !hasFridge) {
-      const parts: string[] = [];
-      if (!hasFamilyMembers) parts.push('家族構成');
-      if (!hasFridge) parts.push('冷蔵庫の食材');
-      messages.push({
-        type: 'text',
-        text: `📋 ${parts.join('・')}を登録すると、もっとあなたに合った献立が提案できます！
-👉 https://app.kondatebiyori.com/dashboard`,
-      });
+    } else {
+      const [isTrial, fridgeItems, familyProfile] = await Promise.all([
+        getUserIsTrial(userId),
+        getFridgeItems(userId),
+        getFamilyProfile(userId),
+      ]);
+      // 家族構成チェック（プロファイルがあってもメンバーが0人なら未登録扱い）
+      let hasFamilyMembers = false;
+      if (familyProfile) {
+        const members = await getFamilyMembers(familyProfile.id);
+        hasFamilyMembers = members.length > 0;
+      }
+      const hasFridge = fridgeItems.length > 0;
+      // ① トライアル誘導
+      if (isTrial) {
+        messages.push({
+          type: 'text',
+          text: `👑 プレミアムプランなら献立の精度がさらにアップ！\n✅ AI高精度献立（天気・栄養考慮）無制限\n✅ 週間献立・買い物リスト自動生成\n✅ レシート・チラシ解析\n✅ 献立テーマ・お弁当モード\n✅ 音声メッセージ対応\n🎁 カード登録で20日間無料でお試しできます！\n👉 https://app.kondatebiyori.com/plan`,
+        });
+      }
+      // ② 家族構成・冷蔵庫未登録促進
+      if (!hasFamilyMembers || !hasFridge) {
+        const parts: string[] = [];
+        if (!hasFamilyMembers) parts.push('家族構成');
+        if (!hasFridge) parts.push('冷蔵庫の食材');
+        messages.push({
+          type: 'text',
+          text: `📋 ${parts.join('・')}を登録すると、もっとあなたに合った献立が提案できます！\n👉 https://app.kondatebiyori.com/dashboard`,
+        });
+      }
     }
     if (messages.length > 0) {
       // 少し遅延してから送信（返信メッセージの後に届くように）
@@ -3891,19 +3888,8 @@ ${itemList}
       await setLineUserProcessing(lineUserId, true);
     }
 
-    // ─── ダッシュボード未ログインチェック（献立・冷蔵庫メッセージ時は毎回案内）
-
-    // userId が null（ダッシュボード未ログイン）の場合、登録を促す案内を冒頭に追加（処理は続行）
-    let familyGuidePrefix = "";
-    if (!userId) {
-      const isMenuRequest = /献立|今日何(作|つく)ろ|ご飯(何|なに)(作|つく)/.test(text);
-      const isFridgeRequest = /冷蔵庫/.test(text);
-      if (isMenuRequest) {
-        familyGuidePrefix = `💡 ダッシュボードで家族構成を登録すると、より精度の高い献立をご提案できます！\n👉 https://app.kondatebiyori.com\n\n`;
-      } else if (isFridgeRequest) {
-        familyGuidePrefix = `💡 ダッシュボードで冷蔵庫の中身を登録すると、在庫を活かした献立を自動で提案できます！\n👉 https://app.kondatebiyori.com\n\n`;
-      }
-    }
+    // familyGuidePrefixは廃止（献立後にsendMenuUpsellIfNeededで案内を送る方式に変更）
+    const familyGuidePrefix = "";
 
     // ─── LLM意図判定（pendingActionなしの場合のみ）─────────────────────────────────────────────────────
     // キーワードマッチする前に、テキストをLLMで分類してパターン別アクションを実行する
