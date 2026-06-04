@@ -120,6 +120,69 @@ export async function replyLineMessage(replyToken: string, messages: object[], l
   });
 }
 
+// ─── 献立返信後のupsell/登録促進メッセージ共通ヘルパー ─────────────────────────────────────────────
+/**
+ * 献立を返信した後に呼び出す。
+ * ① トライアルユーザー → プレミアム誘導メッセージをpush送信
+ * ② 家族構成未登録 or 冷蔵庫未登録 → 登録促進メッセージをpush送信
+ * 両方該当なら両方送信、片方のみなら片方のみ送信、ログイン未済(userId=null)はスキップ
+ */
+async function sendMenuUpsellIfNeeded(lineUserId: string, userId: number | null): Promise<void> {
+  if (!userId) return; // ログイン未済はfamilyGuidePrefixで対応済み
+  try {
+    const [isTrial, fridgeItems, familyProfile] = await Promise.all([
+      getUserIsTrial(userId),
+      getFridgeItems(userId),
+      getFamilyProfile(userId),
+    ]);
+    // 家族構成チェック（プロファイルがあってもメンバーが0人なら未登録扱い）
+    let hasFamilyMembers = false;
+    if (familyProfile) {
+      const members = await getFamilyMembers(familyProfile.id);
+      hasFamilyMembers = members.length > 0;
+    }
+    const hasFridge = fridgeItems.length > 0;
+    const messages: object[] = [];
+    // ① トライアル誘導
+    if (isTrial) {
+      messages.push({
+        type: 'text',
+        text: `👑 プレミアムプランなら献立の精度がさらにアップ！
+
+✅ AI高精度献立（天気・栄養考慮）無制限
+✅ 週間献立・買い物リスト自動生成
+✅ レシート・チラシ解析
+✅ 献立テーマ・お弁当モード
+✅ 音声メッセージ対応
+
+🎁 カード登録で20日間無料でお試しできます！
+👉 https://app.kondatebiyori.com/plan`,
+      });
+    }
+    // ② 家族構成・冷蔵庫未登録促進
+    if (!hasFamilyMembers || !hasFridge) {
+      const parts: string[] = [];
+      if (!hasFamilyMembers) parts.push('家族構成');
+      if (!hasFridge) parts.push('冷蔵庫の食材');
+      messages.push({
+        type: 'text',
+        text: `📋 ${parts.join('・')}を登録すると、もっとあなたに合った献立が提案できます！
+👉 https://app.kondatebiyori.com/dashboard`,
+      });
+    }
+    if (messages.length > 0) {
+      // 少し遅延してから送信（返信メッセージの後に届くように）
+      setTimeout(() => {
+        sendLineMessage(lineUserId, messages).catch((e) => {
+          console.error('[LINE] sendMenuUpsellIfNeeded failed:', e);
+        });
+      }, 1500);
+    }
+  } catch (e) {
+    console.error('[LINE] sendMenuUpsellIfNeeded error:', e);
+  }
+}
+
 export async function getLineUserProfile(lineUserId: string): Promise<{
   userId: string;
   displayName: string;
@@ -1153,6 +1216,7 @@ async function handleIntentAction(
           } else {
             await replyLineMessage(replyToken, [{ type: 'text', text: result.message }], lineUserId);
           }
+          sendMenuUpsellIfNeeded(lineUserId, userId).catch(() => {});
         } catch (err) {
           console.error('[LINE] menu_vague direct generation error:', err);
           // フォールバック：通常の献立フローへ
@@ -1651,6 +1715,7 @@ async function handleFridgeRegistration(
 
 ${breakfastResult.message}`;
         await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }], lineUserId);
+        sendMenuUpsellIfNeeded(lineUserId, userId).catch(() => {});
 
         // 夕食＋朝食の両方の選択肢をpendingActionに保存
         const dinnerPlan = await getMenuPlanByDate(userId, today);
@@ -1686,6 +1751,7 @@ ${lunchResult.message}
 
 ${dinnerResult.message}`;
         await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }], lineUserId);
+        sendMenuUpsellIfNeeded(lineUserId, userId).catch(() => {});
       } else {
         // 単一食事タイプ
         const mealType = selectedType as import('./menu').MealType;
@@ -1747,6 +1813,8 @@ ${dinnerResult.message}`;
           status: 'success',
           deliveredAt: new Date(),
         });
+        // トライアル・未登録ユーザー向けupsellメッセージを送信（非同期、返信後に届く）
+        sendMenuUpsellIfNeeded(lineUserId, userId).catch(() => {});
       }
     } catch (err) {
       console.error('[LINE] Menu generation failed:', err);
@@ -2801,6 +2869,7 @@ ${dinnerResult.message}`;
       const today = new Date().toISOString().split('T')[0];
       const result = await generateMenuPlan(userId, today, 'dinner', undefined, moodTheme);
       await replyLineMessage(replyToken, [{ type: 'text', text: result.message }], lineUserId);
+      sendMenuUpsellIfNeeded(lineUserId, userId).catch(() => {});
     } catch (err) {
       console.error('[LINE] mood_theme menu generation failed:', err);
       await replyLineMessage(replyToken, [{ type: 'text', text: '献立の生成に失敗しました。しばらくしてから再度お試しください。' }], lineUserId);
@@ -4541,6 +4610,7 @@ ${itemList}
       const specialThemeDesc = getSpecialThemeDesc(specialTheme);
       const menuPlan = await generateMenuPlan(userId, todaySpecial, 'dinner', undefined, specialThemeDesc, true);
       await replyAndSave(replyToken, [{ type: "text", text: menuPlan.message }]);
+      sendMenuUpsellIfNeeded(lineUserId, userId).catch(() => {});
       if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
     }
@@ -4557,6 +4627,7 @@ ${itemList}
         const specialThemeDesc = `${specialTheme}（${anniversaryFor}）。家族の好みや記録を最大限活かして、お祝いにふさわしい特別感のある献立を提案してください。`;
         const menuPlan = await generateMenuPlan(userId, today, 'dinner', undefined, specialThemeDesc, true);
         await replyAndSave(replyToken, [{ type: "text", text: menuPlan.message }]);
+        sendMenuUpsellIfNeeded(lineUserId, userId).catch(() => {});
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }

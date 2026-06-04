@@ -1,0 +1,16 @@
+{
+  "query": "\nSELECT id, planDate, menuData, messageText, createdAt\nFROM menu_plans\nWHERE userId = 1620001\nORDER BY createdAt DESC\nLIMIT 1;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute \nSELECT id, planDate, menuData, messageText, createdAt\nFROM menu_plans\nWHERE userId = 1620001\nORDER BY createdAt DESC\nLIMIT 1;\n",
+  "rows": [],
+  "messages": [
+    "2670001\t2026-06-03\t{\"mealType\":\"dinner\",\"dinnerOptions\":[{\"name\":\"鶏肉と彩り野菜の黒酢炒め\",\"mainIngredients\":[\"鶏もも肉\",\"パプリカ\",\"ピーマン\",\"玉ねぎ\"],\"usedFridgeItems\":[\"鶏もも肉\",\"パプリカ\",\"ピーマン\",\"玉ねぎ\"]},{\"name\":\"鮭の塩焼き定食\",\"mainIngredients\":[\"生鮭\",\"大根\",\"油揚げ\",\"わかめ\"],\"usedFridgeItems\":[\"生鮭\",\"大根\",\"油揚げ\",\"わかめ\"]},{\"name\":\"豚バラ大根\",\"mainIngredients\":[\"豚バラ肉\",\"大根\",\"こんにゃく\"],\"usedFridgeItems\":[\"豚バラ肉\",\"大根\",\"こんにゃく\"]}],\"dinner\":\"鶏肉と彩り野菜の黒酢炒め\",\"breakfast\":\"\",\"lunch\":\"\",\"shoppingList\":[\"鶏もも肉 300g\",\"パプリカ 1個\",\"ピーマン 2個\",\"玉ねぎ 1個\",\"生鮭 4切れ\",\"大根 1/2本\",\"油揚げ 2枚\",\"乾燥わかめ 適量\",\"豚バラ肉（薄切り） 300g\",\"こんにゃく 1枚\"]}\t🍽️ 今夜の夕食、こんなのはどうですか？ 🌧️",
+    "1️⃣ 鶏肉と彩り野菜の黒酢炒め",
+    "2️⃣ 鮭の塩焼き定食",
+    "3️⃣ 豚バラ大根",
+    "レシピを見たい場合は下のボタンをタップ、または料理名で「〇〇のレシピ教えて」と送ってください🍳",
+    "買い物リストはダッシュボードで確認できます\t2026-06-03 10:17:25"
+  ],
+  "stdout": "id\tplanDate\tmenuData\tmessageText\tcreatedAt\n2670001\t2026-06-03\t{\"mealType\":\"dinner\",\"dinnerOptions\":[{\"name\":\"鶏肉と彩り野菜の黒酢炒め\",\"mainIngredients\":[\"鶏もも肉\",\"パプリカ\",\"ピーマン\",\"玉ねぎ\"],\"usedFridgeItems\":[\"鶏もも肉\",\"パプリカ\",\"ピーマン\",\"玉ねぎ\"]},{\"name\":\"鮭の塩焼き定食\",\"mainIngredients\":[\"生鮭\",\"大根\",\"油揚げ\",\"わかめ\"],\"usedFridgeItems\":[\"生鮭\",\"大根\",\"油揚げ\",\"わかめ\"]},{\"name\":\"豚バラ大根\",\"mainIngredients\":[\"豚バラ肉\",\"大根\",\"こんにゃく\"],\"usedFridgeItems\":[\"豚バラ肉\",\"大根\",\"こんにゃく\"]}],\"dinner\":\"鶏肉と彩り野菜の黒酢炒め\",\"breakfast\":\"\",\"lunch\":\"\",\"shoppingList\":[\"鶏もも肉 300g\",\"パプリカ 1個\",\"ピーマン 2個\",\"玉ねぎ 1個\",\"生鮭 4切れ\",\"大根 1/2本\",\"油揚げ 2枚\",\"乾燥わかめ 適量\",\"豚バラ肉（薄切り） 300g\",\"こんにゃく 1枚\"]}\t🍽️ 今夜の夕食、こんなのはどうですか？ 🌧️\n\n1️⃣ 鶏肉と彩り野菜の黒酢炒め\n2️⃣ 鮭の塩焼き定食\n3️⃣ 豚バラ大根\n\nレシピを見たい場合は下のボタンをタップ、または料理名で「〇〇のレシピ教えて」と送ってください🍳\n買い物リストはダッシュボードで確認できます\t2026-06-03 10:17:25\n",
+  "stderr": "",
+  "execution_time_ms": 1938
+}
