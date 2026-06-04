@@ -1,0 +1,9 @@
+{
+  "query": "\nUPDATE subscriptions \nSET plan = 'premium', status = 'active', updatedAt = NOW()\nWHERE userId IN (690001, 1200001, 1500001);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute \nUPDATE subscriptions \nSET plan = 'premium', status = 'active', updatedAt = NOW()\nWHERE userId IN (690001, 1200001, 1500001);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1798
+}

@@ -183,6 +183,18 @@ async function sendMenuUpsellIfNeeded(lineUserId: string, userId: number | null)
   }
 }
 
+/**
+ * テーマキーワードを具体的なAI指示文に正規化する
+ * 「麦類」「麺類」等の曖昧なキーワードを明確な指示に変換
+ */
+export function normalizeThemeKeyword(theme: string): string {
+  const noodlePattern = /^(麦類|麺類|麺|うどん|ラーメン|パスタ|スパゲッティ|焼きそば|そば|そうめん|冷麺|フォー|ビーフン)$/;
+  if (noodlePattern.test(theme.trim())) {
+    return '必ず麺料理（パスタ・うどん・ラーメン・焼きそば・そば・そうめん等）を提案すること。ご飯・丼・炒め物など麺以外の料理は絶対不可';
+  }
+  return theme;
+}
+
 export async function getLineUserProfile(lineUserId: string): Promise<{
   userId: string;
   displayName: string;
@@ -463,7 +475,7 @@ async function generateContextualReply(
   if (isFridgeQuery) {
     console.log(`[LINE] generateContextualReply: Intercepted fridge query: "${userMessage}"`);
     if (!userId) {
-      return `まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`;
+      return `冷蔵庫の食材を登録すると、AIが在庫を活かした献立を提案できます！🥕\n\nまずはダッシュボードにログインして、冷蔵庫に食材を登録してみてください😊\n👉 https://app.kondatebiyori.com/fridge\n\n冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけでも登録できますよ🎤`;
     }
     const items = await getFridgeItems(userId);
     if (items.length === 0) {
@@ -477,7 +489,7 @@ async function generateContextualReply(
   if (isShoppingQuery) {
     console.log(`[LINE] generateContextualReply: Intercepted shopping query: "${userMessage}"`);
     if (!userId) {
-      return `まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`;
+      return `冷蔵庫の食材を登録すると、AIが在庫を活かした献立を提案できます！🥕\n\nまずはダッシュボードにログインして、冷蔵庫に食材を登録してみてください😊\n👉 https://app.kondatebiyori.com/fridge\n\n冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけでも登録できますよ🎤`;
     }
     const db = await getDb();
     if (!db) return 'エラーが発生しました。しばらくしてから再度お試しください。';
@@ -2058,9 +2070,10 @@ ${dinnerResult.message}`;
 
     // 前回の料理名を除外するため、themeに「」以外で」を追加
     const previousDishNames = previousOptions?.map(o => o.name).filter(Boolean) ?? [];
+    const normalizedTheme = theme ? normalizeThemeKeyword(theme) : theme;
     const effectiveTheme = previousDishNames.length > 0
-      ? [theme, `「${previousDishNames.join('」「')}」以外の料理を提案すること`].filter(Boolean).join('、')
-      : theme;
+      ? [normalizedTheme, `「${previousDishNames.join('」「')}」以外の料理を提案すること`].filter(Boolean).join('、')
+      : normalizedTheme;
     const result = await generateMenuPlan(userId, targetDate, mealType as any, undefined, effectiveTheme, true);
 
     // 出し直し後のクイックリプライを構築（夕食・明日の朝食は3択ボタン付き）
@@ -2258,7 +2271,7 @@ ${dinnerResult.message}`;
       // ユーザーのリクエストをそのままテーマとして再生成
       await setLineUserPendingAction(lineUserId, null);
       await sendLineMessage(lineUserId, [{ type: 'text', text: `「${trimmed}」のご要望で出し直しますね🍳\nちょっと待ってください...` }]);
-      const result = await generateMenuPlan(userId, targetDate, mealType as any, undefined, trimmed, true);
+      const result = await generateMenuPlan(userId, targetDate, mealType as any, undefined, normalizeThemeKeyword(trimmed), true);
       const regenOpts = result.options ?? [];
       if (regenOpts.length > 0) {
         const rQR = [
@@ -2867,7 +2880,7 @@ ${dinnerResult.message}`;
     }
     try {
       const today = new Date().toISOString().split('T')[0];
-      const result = await generateMenuPlan(userId, today, 'dinner', undefined, moodTheme);
+      const result = await generateMenuPlan(userId, today, 'dinner', undefined, normalizeThemeKeyword(moodTheme));
       await replyLineMessage(replyToken, [{ type: 'text', text: result.message }], lineUserId);
       sendMenuUpsellIfNeeded(lineUserId, userId).catch(() => {});
     } catch (err) {
@@ -4216,17 +4229,19 @@ ${itemList}
       if (!userId) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `${displayName}さん、まずはこちらからログインしてください😊
-👉 https://app.kondatebiyori.com
+          text: `${displayName}さん、冷蔵庫の食材を登録すると、AIが在庫を活かした献立を提案できます！🥕
 
-ログインが完了したら、冷蔵庫の前に立ちながら
+まずはダッシュボードにログインして、冷蔵庫に食材を登録してみてください😊
+👉 https://app.kondatebiyori.com/fridge
+
+冷蔵庫の前に立ちながら
 「卵10個、牛乳1本、キャベツ半玉…」と
-音声で話しかけるだけで食材を登録することもできますよ🎤`,
+音声で話しかけるだけでも登録できますよ🎤`,
         }]);
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
-      const items = await getFridgeItems(userId);
+      const items = await getFridgeItems(userId);;
       if (items.length === 0) {
         await replyAndSave(replyToken, [{
           type: "text",
@@ -4335,16 +4350,18 @@ ${itemList}
     // ─── 冷蔵庫を全部消す（食材なし）──────────────────────────────────────────────────────
     if (/冷蔵庫(?:の中身)?(?:を全部消して|を全消しして|を全部削除して|を空にして|をリセットして)$/.test(text.trim())) {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: 'text', text: `${displayName}さん、まずはこちらからログインしてください😊
-👉 https://app.kondatebiyori.com
+        await replyAndSave(replyToken, [{ type: 'text', text: `${displayName}さん、冷蔵庫の食材を登録すると、AIが在庫を活かした献立を提案できます！🥕
 
-ログインが完了したら、冷蔵庫の前に立ちながら
+まずはダッシュボードにログインして、冷蔵庫に食材を登録してみてください😊
+👉 https://app.kondatebiyori.com/fridge
+
+冷蔵庫の前に立ちながら
 「卵10個、牛乳1本、キャベツ半玉…」と
-音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+音声で話しかけるだけでも登録できますよ🎤` }]);
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
-      const deletedCount = await clearAllFridgeItems(userId);
+      const deletedCount = await clearAllFridgeItems(userId);;
       await replyAndSave(replyToken, [{
         type: 'text',
         text: deletedCount > 0
@@ -4360,7 +4377,7 @@ ${itemList}
         // ─── 買い物リスト全部冷蔵庫へ移動 ──────────────────────────────────────────────────────
     if (/買い物リストを全部冷蔵庫に移動して|買い物リストを冷蔵庫に移動して|買い物リスト.*全部.*冷蔵庫/.test(text)) {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、冷蔵庫の食材を登録すると、AIが在庫を活かした献立を提案できます！🥕\n\nまずはダッシュボードにログインして、冷蔵庫に食材を登録してみてください😊\n👉 https://app.kondatebiyori.com/fridge\n\n冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけでも登録できますよ🎤` }]);
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
@@ -4416,7 +4433,7 @@ ${itemList}
     // ─── 買い物リスト全部削除 ──────────────────────────────────────────────────────────────
     if (/買い物リストを全部削除して|買い物リストを削除して|買い物リスト.*全部.*削除/.test(text)) {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、冷蔵庫の食材を登録すると、AIが在庫を活かした献立を提案できます！🥕\n\nまずはダッシュボードにログインして、冷蔵庫に食材を登録してみてください😊\n👉 https://app.kondatebiyori.com/fridge\n\n冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけでも登録できますよ🎤` }]);
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
@@ -4442,12 +4459,14 @@ ${itemList}
     const isShoppingDone = /買い物リスト購入済み|買い物完了|買い物した|買い物おわった|買い物終わった|買い物終了|購入完了|全部買った|買い物全部完了/.test(text);
     if (isShoppingDone) {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊
-👉 https://app.kondatebiyori.com
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、冷蔵庫の食材を登録すると、AIが在庫を活かした献立を提案できます！🥕
 
-ログインが完了したら、冷蔵庫の前に立ちながら
+まずはダッシュボードにログインして、冷蔵庫に食材を登録してみてください😊
+👉 https://app.kondatebiyori.com/fridge
+
+冷蔵庫の前に立ちながら
 「卵10個、牛乳1本、キャベツ半玉…」と
-音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+音声で話しかけるだけでも登録できますよ🎤` }]);
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
@@ -4457,7 +4476,7 @@ ${itemList}
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
-      // 未チェックの買い物リストを全て完了に更新
+      const db2 = db; // チェックの買い物リストを全て完了に更新
       const result = await db
         .update(shoppingListItems)
         .set({ isChecked: true, updatedAt: new Date() })
@@ -4477,12 +4496,14 @@ ${itemList}
       if (!userId) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `${displayName}さん、まずはこちらからログインしてください😊
-👉 https://app.kondatebiyori.com
+           text: `${displayName}さん、冷蔵庫の食材を登録すると、AIが在庫を活かした献立を提案できます！🥕
 
-ログインが完了したら、冷蔵庫の前に立ちながら
+まずはダッシュボードにログインして、冷蔵庫に食材を登録してみてください😊
+👉 https://app.kondatebiyori.com/fridge
+
+冷蔵庫の前に立ちながら
 「卵10個、牛乳1本、キャベツ半玉…」と
-音声で話しかけるだけで食材を登録することもできますよ🎤`,
+音声で話しかけるだけでも登録できますよ🎤`,
         }]);
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
@@ -4548,7 +4569,7 @@ ${itemList}
     // ※「今日だけ特別：〇〇」（コロン付き）はこのifより前の specialTodayMatch で処理済み
     if (normalizedText === "今日だけ特別") {
       if (!userId) {
-        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤` }]);
+        await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、冷蔵庫の食材を登録すると、AIが在庫を活かした献立を提案できます！🥕\n\nまずはダッシュボードにログインして、冷蔵庫に食材を登録してみてください😊\n👉 https://app.kondatebiyori.com/fridge\n\n冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけでも登録できますよ🎤` }]);
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
       }
@@ -4827,7 +4848,7 @@ ${itemList}
       if (!userId) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
+          text: `${displayName}さん、冷蔵庫の食材を登録すると、AIが在庫を活かした献立を提案できます！🥕\n\nまずはダッシュボードにログインして、冷蔵庫に食材を登録してみてください😊\n👉 https://app.kondatebiyori.com/fridge\n\n冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけでも登録できますよ🎤`,
         }]);
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;
@@ -4869,7 +4890,7 @@ ${itemList}
       if (!userId) {
         await replyAndSave(replyToken, [{
           type: "text",
-          text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
+          text: `${displayName}さん、冷蔵庫の食材を登録すると、AIが在庫を活かした献立を提案できます！🥕\n\nまずはダッシュボードにログインして、冷蔵庫に食材を登録してみてください😊\n👉 https://app.kondatebiyori.com/fridge\n\n冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけでも登録できますよ🎤`,
         }]);
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
         return;

@@ -1,0 +1,18 @@
+{
+  "query": "\nSELECT lu.displayName, lu.userId, s.plan, s.status, s.stripeSubscriptionId, s.currentPeriodEnd\nFROM line_users lu\nLEFT JOIN subscriptions s ON lu.userId = s.userId\nWHERE lu.displayName LIKE '%舞%'\nLIMIT 5;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute \nSELECT lu.displayName, lu.userId, s.plan, s.status, s.stripeSubscriptionId, s.currentPeriodEnd\nFROM line_users lu\nLEFT JOIN subscriptions s ON lu.userId = s.userId\nWHERE lu.displayName LIKE '%舞%'\nLIMIT 5;\n",
+  "rows": [
+    {
+      "displayName": "舞",
+      "userId": "1200001",
+      "plan": "free",
+      "status": "trial",
+      "stripeSubscriptionId": "NULL",
+      "currentPeriodEnd": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "displayName\tuserId\tplan\tstatus\tstripeSubscriptionId\tcurrentPeriodEnd\n舞\t1200001\tfree\ttrial\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1864
+}

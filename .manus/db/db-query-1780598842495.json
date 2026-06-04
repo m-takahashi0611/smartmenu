@@ -1,0 +1,31 @@
+{
+  "query": "\nSELECT lu.displayName, lu.userId, s.plan, s.status, s.stripeSubscriptionId\nFROM line_users lu\nLEFT JOIN subscriptions s ON lu.userId = s.userId\nWHERE lu.displayName IN ('高橋導成', '舞', 'まき')\nORDER BY lu.displayName;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute \nSELECT lu.displayName, lu.userId, s.plan, s.status, s.stripeSubscriptionId\nFROM line_users lu\nLEFT JOIN subscriptions s ON lu.userId = s.userId\nWHERE lu.displayName IN ('高橋導成', '舞', 'まき')\nORDER BY lu.displayName;\n",
+  "rows": [
+    {
+      "displayName": "まき",
+      "userId": "690001",
+      "plan": "free",
+      "status": "trial",
+      "stripeSubscriptionId": "NULL"
+    },
+    {
+      "displayName": "舞",
+      "userId": "1200001",
+      "plan": "free",
+      "status": "trial",
+      "stripeSubscriptionId": "NULL"
+    },
+    {
+      "displayName": "高橋導成",
+      "userId": "1500001",
+      "plan": "free",
+      "status": "trial",
+      "stripeSubscriptionId": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "displayName\tuserId\tplan\tstatus\tstripeSubscriptionId\nまき\t690001\tfree\ttrial\tNULL\n舞\t1200001\tfree\ttrial\tNULL\n高橋導成\t1500001\tfree\ttrial\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1837
+}

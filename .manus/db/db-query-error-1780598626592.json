@@ -1,0 +1,8 @@
+{
+  "query": "\nSELECT lu.display_name, u.id as user_id, s.plan, s.status, s.trial_started_at, s.stripe_subscription_id\nFROM line_users lu\nJOIN users u ON lu.lineUserId = u.line_user_id\nLEFT JOIN subscriptions s ON u.id = s.userId\nWHERE lu.display_name LIKE '%舞%'\nLIMIT 5;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute \nSELECT lu.display_name, u.id as user_id, s.plan, s.status, s.trial_started_at, s.stripe_subscription_id\nFROM line_users lu\nJOIN users u ON lu.lineUserId = u.line_user_id\nLEFT JOIN subscriptions s ON u.id = s.userId\nWHERE lu.display_name LIKE '%舞%'\nLIMIT 5;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 2: Unknown column 'u.line_user_id' in 'on clause'"
+  ]
+}
