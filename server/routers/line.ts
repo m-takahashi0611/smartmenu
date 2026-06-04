@@ -1112,8 +1112,14 @@ async function handleIntentAction(
       const inferredMealType = intentResult.mealType;
       const inferredTheme = intentResult.theme || (items.length > 0 ? items.join('・') + 'を使った料理' : null);
       if (inferredMealType === 'dinner' || inferredMealType === 'breakfast' || inferredMealType === 'lunch') {
+        // ログイン未済の場合は通常の献立フローへ誘導（案内文付き）
         if (!userId) {
-          await replyLineMessage(replyToken, [{ type: 'text', text: 'ダッシュボードからログインすると、より精度の高い献立を提案できます！\n👉 https://app.kondatebiyori.com' }], lineUserId);
+          await handleLineWebhookEvent({
+            type: 'message',
+            source: { userId: lineUserId },
+            replyToken,
+            message: { type: 'text', text: '献立' },
+          }, true);
           return true;
         }
         try {
@@ -3961,22 +3967,12 @@ ${itemList}
           return;
         }
       }
-      if (!userId) {
-        await replyAndSave(replyToken, [
-          {
-            type: "text",
-            text: `${displayName}さん、まずはこちらからログインしてください😊\n👉 https://app.kondatebiyori.com\n\nログインが完了したら、冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけで食材を登録することもできますよ🎤`,
-          },
-        ]);
-        if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
-        return;
-      }
       // ─── 時間帯に応じた確認質問を返す ──────────────────────────────────────────────
       const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const currentHourJST = nowJST.getUTCHours();
-      // ─── トライアルユーザーの献立提案回数制限（日3回） ──────────────────────────────────────────
-      const _isTrialForMenu = await getUserIsTrial(userId);
-      if (_isTrialForMenu) {
+      // ─── トライアルユーザーの献立提案回数制限（日3回）※ログイン未済はスキップ ──────────────────────────────────────────
+      const _isTrialForMenu = userId ? await getUserIsTrial(userId) : false;
+      if (_isTrialForMenu && userId) {
         const todayStr = nowJST.toISOString().slice(0, 10);
         const todayPlans = await getMenuPlansByDateRange(userId, todayStr, todayStr);
         if (todayPlans.length >= 3) {
@@ -4110,7 +4106,8 @@ ${itemList}
             { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
             { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 明日まとめて', text: '明日の夕飯まで' } },
           ];
-      await replyAndSave(replyToken, [{ type: "text", text: questionText, quickReply: { items: qrItemsAfterShopping } }]);
+      const menuQuestionText = familyGuidePrefix ? `${familyGuidePrefix}${questionText}` : questionText;
+      await replyAndSave(replyToken, [{ type: "text", text: menuQuestionText, quickReply: { items: qrItemsAfterShopping } }]);
       if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
       return;
       } // end else (non-weekly menu)
