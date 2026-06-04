@@ -1222,20 +1222,28 @@ export default function Admin() {
                   <p className="text-sm text-muted-foreground">LINEアクティブ</p>
                 </CardContent>
               </Card>
-              <Card className="border-green-200">
+              <Card className="border-purple-200">
                 <CardContent className="p-4 text-center">
-                  <p className="text-3xl font-bold text-green-600">
-                    {lineUsers?.filter((lu) => lu.subscriptionStatus === "active").length ?? 0}
+                  <p className="text-3xl font-bold text-purple-600">
+                    {lineUsers?.filter((lu) => lu.subscriptionStatus === "active" && lu.subscriptionPlan === "premium").length ?? 0}
                   </p>
-                  <p className="text-sm text-muted-foreground">課金中</p>
+                  <p className="text-sm text-muted-foreground">👑 プレミアム</p>
+                </CardContent>
+              </Card>
+              <Card className="border-blue-200">
+                <CardContent className="p-4 text-center">
+                  <p className="text-3xl font-bold text-blue-600">
+                    {lineUsers?.filter((lu) => lu.subscriptionStatus === "trial").length ?? 0}
+                  </p>
+                  <p className="text-sm text-muted-foreground">🔵 トライアル</p>
                 </CardContent>
               </Card>
               <Card className="border-gray-200">
                 <CardContent className="p-4 text-center">
                   <p className="text-3xl font-bold text-gray-500">
-                    {lineUsers?.filter((lu) => lu.subscriptionStatus !== "active").length ?? 0}
+                    {lineUsers?.filter((lu) => lu.subscriptionStatus !== "active" && lu.subscriptionStatus !== "trial").length ?? 0}
                   </p>
-                  <p className="text-sm text-muted-foreground">無課金</p>
+                  <p className="text-sm text-muted-foreground">🟢 無料プラン</p>
                 </CardContent>
               </Card>
             </div>
@@ -1425,12 +1433,18 @@ export default function Admin() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {lu.subscriptionStatus === "active" ? (
-                              <Badge className="bg-green-100 text-green-800 border-green-300 text-xs">💳 課金中</Badge>
+                            {lu.subscriptionStatus === "active" && lu.subscriptionPlan === "premium" ? (
+                              <Badge className="bg-purple-100 text-purple-800 border-purple-300 text-xs">👑 プレミアム</Badge>
+                            ) : lu.subscriptionStatus === "trial" ? (
+                              <Badge className="bg-blue-100 text-blue-800 border-blue-300 text-xs">🔵 トライアル</Badge>
                             ) : lu.subscriptionStatus === "cancelled" ? (
-                              <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">解約済</Badge>
+                              <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">🟠 解約済</Badge>
+                            ) : lu.subscriptionStatus === "expired" ? (
+                              <Badge variant="outline" className="text-xs text-gray-500 border-gray-300">⚪ 期限切れ</Badge>
+                            ) : lu.subscriptionStatus === "active" && lu.subscriptionPlan === "free" ? (
+                              <Badge className="bg-green-100 text-green-800 border-green-300 text-xs">🟢 無料プラン</Badge>
                             ) : (
-                              <Badge variant="secondary" className="text-xs">無課金</Badge>
+                              <Badge variant="secondary" className="text-xs text-gray-500">⚪ 未登録</Badge>
                             )}
                           </TableCell>
                           <TableCell>
