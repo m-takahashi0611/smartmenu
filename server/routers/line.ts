@@ -2429,14 +2429,28 @@ ${dinnerResult.message}`;
 
   // ─── 実食記録ヒアリング待ちの場合 ─────────────────────────────────────────────────
   if (pending?.type === 'actual_meal_hearing') {
-    const { options, mealType, targetDate, menuPlanId } = pending as {
+    const { options, mealType, targetDate, menuPlanId, askedAt } = pending as {
       options: Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }>;
       mealType: 'breakfast' | 'lunch' | 'dinner';
       targetDate: string;
       menuPlanId: number;
+      askedAt?: number;
     };
     const trimmed = text.trim();
     const mealLabel = mealType === 'dinner' ? '夕食' : mealType === 'lunch' ? '昼食' : '朝食';
+
+    // ─── 24時間タイムアウト：古いpendingActionは自動クリアして通常フローへ ───
+    if (askedAt && Date.now() - askedAt > 24 * 60 * 60 * 1000) {
+      await setLineUserPendingAction(lineUserId, null);
+      return false; // 通常フローへ
+    }
+
+    // ─── 献立要求キーワードが来たらpendingをスキップして通常フローへ ───
+    const _isMealRequestKw = /^(献立|今日の献立|今夜の献立|明日の献立|献立お願い|献立提案|献立して|今日何作ろ|ご飯何作ろ|今夜何作ろ|今日のご飯)/.test(trimmed);
+    if (_isMealRequestKw) {
+      await setLineUserPendingAction(lineUserId, null);
+      return false; // 通常フローへ
+    }
 
     if (trimmed === 'あとで教える') {
       await setLineUserPendingAction(lineUserId, null);

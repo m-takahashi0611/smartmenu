@@ -1,0 +1,18 @@
+{
+  "query": "\nSELECT lineUserId, displayName, isProcessing, processingStartedAt, pendingAction, isBlocked\nFROM line_users\nWHERE lineUserId = 'U9e495fde5c2b4bd99fbd604f69ed1332';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute \nSELECT lineUserId, displayName, isProcessing, processingStartedAt, pendingAction, isBlocked\nFROM line_users\nWHERE lineUserId = 'U9e495fde5c2b4bd99fbd604f69ed1332';\n",
+  "rows": [
+    {
+      "lineUserId": "U9e495fde5c2b4bd99fbd604f69ed1332",
+      "displayName": "阿波　一雅~～⌘",
+      "isProcessing": "0",
+      "processingStartedAt": "NULL",
+      "pendingAction": "{\"askedAt\": 1780546137168, \"mealType\": \"dinner\", \"menuPlanId\": 2670001, \"options\": [\"鶏肉と彩り野菜の黒酢炒め\"], \"targetDate\": \"2026-06-03\", \"type\": \"actual_meal_hearing\"}",
+      "isBlocked": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "lineUserId\tdisplayName\tisProcessing\tprocessingStartedAt\tpendingAction\tisBlocked\nU9e495fde5c2b4bd99fbd604f69ed1332\t阿波　一雅~～⌘\t0\tNULL\t{\"askedAt\": 1780546137168, \"mealType\": \"dinner\", \"menuPlanId\": 2670001, \"options\": [\"鶏肉と彩り野菜の黒酢炒め\"], \"targetDate\": \"2026-06-03\", \"type\": \"actual_meal_hearing\"}\t0\n",
+  "stderr": "",
+  "execution_time_ms": 2666
+}

@@ -1,0 +1,100 @@
+{
+  "query": "\nSELECT \n  lu.lineUserId,\n  lu.displayName,\n  lu.referralCode,\n  lu.createdAt,\n  lu.userId,\n  u.name as userName,\n  u.createdAt as userCreatedAt\nFROM line_users lu\nLEFT JOIN users u ON lu.userId = u.id\nORDER BY lu.createdAt DESC\nLIMIT 10;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute \nSELECT \n  lu.lineUserId,\n  lu.displayName,\n  lu.referralCode,\n  lu.createdAt,\n  lu.userId,\n  u.name as userName,\n  u.createdAt as userCreatedAt\nFROM line_users lu\nLEFT JOIN users u ON lu.userId = u.id\nORDER BY lu.createdAt DESC\nLIMIT 10;\n",
+  "rows": [
+    {
+      "lineUserId": "U9e495fde5c2b4bd99fbd604f69ed1332",
+      "displayName": "阿波　一雅~～⌘",
+      "referralCode": "NULL",
+      "createdAt": "2026-06-03 10:07:38",
+      "userId": "1620001",
+      "userName": "阿波　一雅~～⌘",
+      "userCreatedAt": "2026-06-03 10:17:08"
+    },
+    {
+      "lineUserId": "U8f04b05bacc0c1b220b03b4b8aa5df81",
+      "displayName": "安藤 和也",
+      "referralCode": "NULL",
+      "createdAt": "2026-06-03 06:03:52",
+      "userId": "1590001",
+      "userName": "安藤 和也",
+      "userCreatedAt": "2026-06-03 06:06:05"
+    },
+    {
+      "lineUserId": "U60660b53679f3a70413468438e76860c",
+      "displayName": "山本康平",
+      "referralCode": "NULL",
+      "createdAt": "2026-06-02 13:28:07",
+      "userId": "1560001",
+      "userName": "山本康平",
+      "userCreatedAt": "2026-06-03 02:52:09"
+    },
+    {
+      "lineUserId": "U9a91180c1964f59532ca6e58df41d3be",
+      "displayName": "一井大祐",
+      "referralCode": "NULL",
+      "createdAt": "2026-05-13 06:13:10",
+      "userId": "NULL",
+      "userName": "NULL",
+      "userCreatedAt": "NULL"
+    },
+    {
+      "lineUserId": "U7db795355b54dc8c612c521dfd0f2e37",
+      "displayName": "吉野良平",
+      "referralCode": "NULL",
+      "createdAt": "2026-05-03 01:24:22",
+      "userId": "1530001",
+      "userName": "吉野良平",
+      "userCreatedAt": "2026-05-03 01:25:24"
+    },
+    {
+      "lineUserId": "U9c449669140f7d5cd91fa48155561a47",
+      "displayName": "Take",
+      "referralCode": "NULL",
+      "createdAt": "2026-04-20 04:28:47",
+      "userId": "NULL",
+      "userName": "NULL",
+      "userCreatedAt": "NULL"
+    },
+    {
+      "lineUserId": "U3a978d44ad16e83f704e5130e7e3298f",
+      "displayName": "高橋導成",
+      "referralCode": "NULL",
+      "createdAt": "2026-04-16 07:00:57",
+      "userId": "1500001",
+      "userName": "高橋導成",
+      "userCreatedAt": "2026-04-16 08:55:21"
+    },
+    {
+      "lineUserId": "Ud375a980e4e03532ebb598c932b0227a",
+      "displayName": "あゆ(藤重)",
+      "referralCode": "NULL",
+      "createdAt": "2026-04-15 08:06:27",
+      "userId": "1440002",
+      "userName": "あゆ(藤重)",
+      "userCreatedAt": "2026-04-15 08:14:55"
+    },
+    {
+      "lineUserId": "U86a223edaedf8ca8170f9f28be36f703",
+      "displayName": "Mifu",
+      "referralCode": "NULL",
+      "createdAt": "2026-04-15 00:28:51",
+      "userId": "1440001",
+      "userName": "Mifu",
+      "userCreatedAt": "2026-04-15 07:57:00"
+    },
+    {
+      "lineUserId": "Ua52b34ffa5f868abb1e03e9c59d49bb0",
+      "displayName": "なるみ",
+      "referralCode": "NULL",
+      "createdAt": "2026-04-14 02:10:00",
+      "userId": "1380001",
+      "userName": "なるみ",
+      "userCreatedAt": "2026-04-14 02:10:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "lineUserId\tdisplayName\treferralCode\tcreatedAt\tuserId\tuserName\tuserCreatedAt\nU9e495fde5c2b4bd99fbd604f69ed1332\t阿波　一雅~～⌘\tNULL\t2026-06-03 10:07:38\t1620001\t阿波　一雅~～⌘\t2026-06-03 10:17:08\nU8f04b05bacc0c1b220b03b4b8aa5df81\t安藤 和也\tNULL\t2026-06-03 06:03:52\t1590001\t安藤 和也\t2026-06-03 06:06:05\nU60660b53679f3a70413468438e76860c\t山本康平\tNULL\t2026-06-02 13:28:07\t1560001\t山本康平\t2026-06-03 02:52:09\nU9a91180c1964f59532ca6e58df41d3be\t一井大祐\tNULL\t2026-05-13 06:13:10\tNULL\tNULL\tNULL\nU7db795355b54dc8c612c521dfd0f2e37\t吉野良平\tNULL\t2026-05-03 01:24:22\t1530001\t吉野良平\t2026-05-03 01:25:24\nU9c449669140f7d5cd91fa48155561a47\tTake\tNULL\t2026-04-20 04:28:47\tNULL\tNULL\tNULL\nU3a978d44ad16e83f704e5130e7e3298f\t高橋導成\tNULL\t2026-04-16 07:00:57\t1500001\t高橋導成\t2026-04-16 08:55:21\nUd375a980e4e03532ebb598c932b0227a\tあゆ(藤重)\tNULL\t2026-04-15 08:06:27\t1440002\tあゆ(藤重)\t2026-04-15 08:14:55\nU86a223edaedf8ca8170f9f28be36f703\tMifu\tNULL\t2026-04-15 00:28:51\t1440001\tMifu\t2026-04-15 07:57:00\nUa52b34ffa5f868abb1e03e9c59d49bb0\tなるみ\tNULL\t2026-04-14 02:10:00\t1380001\tなるみ\t2026-04-14 02:10:00\n",
+  "stderr": "",
+  "execution_time_ms": 1828
+}

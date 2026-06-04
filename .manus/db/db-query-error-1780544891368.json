@@ -1,0 +1,8 @@
+{
+  "query": "\nSELECT \n  lu.lineUserId,\n  lu.displayName,\n  lu.referralCode,\n  lu.createdAt,\n  lu.followedAt,\n  lu.userId,\n  u.name as userName,\n  u.email as userEmail,\n  u.createdAt as userCreatedAt\nFROM line_users lu\nLEFT JOIN users u ON lu.userId = u.id\nORDER BY lu.createdAt DESC\nLIMIT 10;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute \nSELECT \n  lu.lineUserId,\n  lu.displayName,\n  lu.referralCode,\n  lu.createdAt,\n  lu.followedAt,\n  lu.userId,\n  u.name as userName,\n  u.email as userEmail,\n  u.createdAt as userCreatedAt\nFROM line_users lu\nLEFT JOIN users u ON lu.userId = u.id\nORDER BY lu.createdAt DESC\nLIMIT 10;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 2: Unknown column 'lu.followedat' in 'field list'"
+  ]
+}
