@@ -637,4 +637,71 @@ export const richMenuRouter = router({
       await switchToPremiumMenu(input.lineUserId);
       return { success: true };
     }),
+  // キャンペーン：全アクティブユーザーにプレミアムメニューを一括適用
+  campaignApplyPremiumMenuToAll: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続失敗" });
+      const allActiveUsers = await db
+        .select({ lineUserId: lineUsers.lineUserId, displayName: lineUsers.displayName })
+        .from(lineUsers)
+        .where(eq(lineUsers.isActive, true));
+      let applied = 0;
+      const errors: string[] = [];
+      for (const u of allActiveUsers) {
+        if (!u.lineUserId) continue;
+        try {
+          await switchToPremiumMenu(u.lineUserId);
+          applied++;
+          // LINE API レート制限対策: 少し待機
+          await new Promise(r => setTimeout(r, 100));
+        } catch (e: any) {
+          errors.push(`${u.displayName ?? u.lineUserId}: ${e?.message}`);
+        }
+      }
+      return { applied, total: allActiveUsers.length, errors };
+    }),
+  // キャンペーン終了：全ユーザーをプランに応じたメニューに戻す
+  campaignRevertMenuAll: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者のみ操作できます" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB接続失敗" });
+      const allActiveUsers = await db
+        .select({ lineUserId: lineUsers.lineUserId, displayName: lineUsers.displayName, userId: lineUsers.userId })
+        .from(lineUsers)
+        .where(eq(lineUsers.isActive, true));
+      let premiumCount = 0;
+      let normalCount = 0;
+      const errors: string[] = [];
+      for (const u of allActiveUsers) {
+        if (!u.lineUserId) continue;
+        try {
+          // プレミアムユーザー（active or premium+trial）はプレミアムメニューを維持
+          let isPremiumUser = false;
+          if (u.userId) {
+            const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, u.userId)).limit(1);
+            if (sub && (sub.status === "active" || (sub.plan === "premium" && sub.status === "trial"))) {
+              isPremiumUser = true;
+            }
+          }
+          if (isPremiumUser) {
+            await switchToPremiumMenu(u.lineUserId);
+            premiumCount++;
+          } else {
+            await switchToNormalMenu(u.lineUserId);
+            normalCount++;
+          }
+          await new Promise(r => setTimeout(r, 100));
+        } catch (e: any) {
+          errors.push(`${u.displayName ?? u.lineUserId}: ${e?.message}`);
+        }
+      }
+      return { premiumCount, normalCount, total: allActiveUsers.length, errors };
+    }),
 });

@@ -992,6 +992,25 @@ export default function Admin() {
     onError: (err) => toast.error("プレミアムメニュー作成に失敗しました", { description: err.message }),
   });
 
+  // キャンペーン用: 全ユーザーにプレミアムメニューを一括適用
+  const campaignApplyPremiumMenuToAll = trpc.richMenu.campaignApplyPremiumMenuToAll.useMutation({
+    onSuccess: (result) => {
+      toast.success(`🎉 キャンペーン開始: ${result.applied}/${result.total}名にプレミアムメニューを適用しました`, {
+        description: result.errors.length > 0 ? `エラー: ${result.errors.join(", ")}` : undefined,
+      });
+    },
+    onError: (err) => toast.error("一括切り替えに失敗しました", { description: err.message }),
+  });
+  // キャンペーン終了: 全ユーザーをプランに応じたメニューに戻す
+  const campaignRevertMenuAll = trpc.richMenu.campaignRevertMenuAll.useMutation({
+    onSuccess: (result) => {
+      toast.success(`✅ キャンペーン終了: プレミアム${result.premiumCount}名・通常${result.normalCount}名に戻しました`, {
+        description: result.errors.length > 0 ? `エラー: ${result.errors.join(", ")}` : undefined,
+      });
+    },
+    onError: (err) => toast.error("メニュー戻しに失敗しました", { description: err.message }),
+  });
+
   const utils = trpc.useUtils();
 
   const broadcast = trpc.admin.broadcastMenus.useMutation({
@@ -1674,6 +1693,45 @@ export default function Admin() {
                         {deleteRichMenu.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "削除"}
                       </Button>
                     )}
+                  </div>
+
+                  {/* オープン記念キャンペーン: リッチメニュー一括切り替え */}
+                  <div className="border-t pt-4 mt-2">
+                    <p className="text-sm font-semibold mb-1 text-orange-600">🎉 オープン記念キャンペーン（6/5 10:00～6/6 12:00）</p>
+                    <p className="text-xs text-muted-foreground mb-3">全アクティブユーザーのリッチメニューを一括切り替えます。プレミアム機能の開放はコードで自動制御されます。</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        onClick={() => {
+                          if (confirm("🎉 キャンペーン開始\n全アクティブユーザー（23名）のリッチメニューをプレミアムメニューに切り替えます。\n実行しますか？")) {
+                            campaignApplyPremiumMenuToAll.mutate();
+                          }
+                        }}
+                        disabled={campaignApplyPremiumMenuToAll.isPending}
+                        className="bg-orange-500 hover:bg-orange-600 text-white"
+                      >
+                        {campaignApplyPremiumMenuToAll.isPending ? (
+                          <><Loader2 className="h-4 w-4 animate-spin mr-2" />切り替え中...しばらくお待ちください</>
+                        ) : (
+                          "🎉 キャンペーン開始: 全員プレミアムメニューに切り替え"
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          if (confirm("✅ キャンペーン終了\n全ユーザーをプランに応じたメニューに戻します。\nプレミアムユーザーはプレミアムメニューを維持、それ以外は通常メニューに戻ります。\n実行しますか？")) {
+                            campaignRevertMenuAll.mutate();
+                          }
+                        }}
+                        disabled={campaignRevertMenuAll.isPending}
+                        className="border-gray-400 text-gray-700 hover:bg-gray-50"
+                      >
+                        {campaignRevertMenuAll.isPending ? (
+                          <><Loader2 className="h-4 w-4 animate-spin mr-2" />戻し中...しばらくお待ちください</>
+                        ) : (
+                          "✅ キャンペーン終了: 元のメニューに戻す"
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </>
               )}

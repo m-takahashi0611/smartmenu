@@ -381,7 +381,21 @@ export async function getMenuPlansByDateRange(userId: number, fromDate: string, 
  *   ③ プレミアム  : plan=premium, status=active    → isPremium=true,  isTrial=false
  *   ④ 無課金解約済: plan=free,    status=cancelled → isPremium=false, isTrial=false
  */
+/**
+ * オープン記念キャンペーン期間中かどうかを返す
+ * 6/5（金）10:00 JST 〜 6/6（月）12:00 JST
+ */
+export function isOpenCampaignActive(): boolean {
+  const now = new Date();
+  // JST = UTC+9
+  const start = new Date("2026-06-05T01:00:00Z"); // 6/5 10:00 JST
+  const end   = new Date("2026-06-06T03:00:00Z"); // 6/6 12:00 JST
+  return now >= start && now <= end;
+}
+
 export async function getUserIsPremium(userId: number): Promise<boolean> {
+  // オープン記念キャンペーン期間中は全員プレミアム扱い
+  if (isOpenCampaignActive()) return true;
   const db = await getDb();
   if (!db) return false;
   const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
@@ -486,6 +500,8 @@ export async function getDeliveryLogs(limit = 50) {
  * ① のみ true。② (plan=premium, status=trial) は false（プレミアム扱い）
  */
 export async function getUserIsTrial(userId: number): Promise<boolean> {
+  // オープン記念キャンペーン期間中はトライアル扱いにしない（全員プレミアム相当）
+  if (isOpenCampaignActive()) return false;
   const db = await getDb();
   if (!db) return true; // DB接続不可の場合は安全側にトライアル扱い
   const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
