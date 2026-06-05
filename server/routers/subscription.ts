@@ -50,13 +50,17 @@ export const subscriptionRouter = router({
     }
 
     // トライアル残日数を計算
+    // ① plan=free, status=trial  → カード未登録のトライアル。期限なし（ずっとトライアル）
+    // ② plan=premium, status=trial → カード登録済み・20日間無料期間。trialDaysで残日数管理
     const trialStarted = new Date(sub.trialStartedAt);
     const now = new Date();
     const daysPassed = Math.floor(
       (now.getTime() - trialStarted.getTime()) / (1000 * 60 * 60 * 24)
     );
     const trialDaysLeft = Math.max(0, sub.trialDays - daysPassed);
-    const isTrialActive = sub.status === "trial" && trialDaysLeft > 0;
+    // ①トライアル（plan=free）は期限なし → 常にisTrialActive=true
+    // ②課金無料期間（plan=premium）は残日数が0より大きい間だけアクティブ
+    const isTrialActive = sub.status === "trial" && (sub.plan === "free" || trialDaysLeft > 0);
 
     // プレミアム判定（設計書準拠）:
     //   ① plan=free, status=trial     → isPremium=false

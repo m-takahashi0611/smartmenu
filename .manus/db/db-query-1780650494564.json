@@ -1,0 +1,19 @@
+{
+  "query": "SELECT userId, plan, status, trialStartedAt, trialDays, DATEDIFF(NOW(), trialStartedAt) as daysPassed, trialDays - DATEDIFF(NOW(), trialStartedAt) as trialDaysLeft FROM subscriptions WHERE userId = 1170001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute SELECT userId, plan, status, trialStartedAt, trialDays, DATEDIFF(NOW(), trialStartedAt) as daysPassed, trialDays - DATEDIFF(NOW(), trialStartedAt) as trialDaysLeft FROM subscriptions WHERE userId = 1170001;",
+  "rows": [
+    {
+      "userId": "1170001",
+      "plan": "free",
+      "status": "trial",
+      "trialStartedAt": "2026-04-07 07:28:59",
+      "trialDays": "45",
+      "daysPassed": "59",
+      "trialDaysLeft": "-14"
+    }
+  ],
+  "messages": [],
+  "stdout": "userId\tplan\tstatus\ttrialStartedAt\ttrialDays\tdaysPassed\ttrialDaysLeft\n1170001\tfree\ttrial\t2026-04-07 07:28:59\t45\t59\t-14\n",
+  "stderr": "",
+  "execution_time_ms": 3493
+}
