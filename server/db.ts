@@ -383,13 +383,13 @@ export async function getMenuPlansByDateRange(userId: number, fromDate: string, 
  */
 /**
  * オープン記念キャンペーン期間中かどうかを返す
- * 6/5（金）10:00 JST 〜 6/6（月）12:00 JST
+ * 6/5（金）10:00 JST 〜 6/8（日）12:00 JST
  */
 export function isOpenCampaignActive(): boolean {
   const now = new Date();
   // JST = UTC+9
   const start = new Date("2026-06-05T01:00:00Z"); // 6/5 10:00 JST
-  const end   = new Date("2026-06-06T03:00:00Z"); // 6/6 12:00 JST
+  const end   = new Date("2026-06-08T03:00:00Z"); // 6/8 12:00 JST
   return now >= start && now <= end;
 }
 

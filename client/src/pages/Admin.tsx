@@ -1697,12 +1697,12 @@ export default function Admin() {
 
                   {/* オープン記念キャンペーン: リッチメニュー一括切り替え */}
                   <div className="border-t pt-4 mt-2">
-                    <p className="text-sm font-semibold mb-1 text-orange-600">🎉 オープン記念キャンペーン（6/5 10:00～6/6 12:00）</p>
+                    <p className="text-sm font-semibold mb-1 text-orange-600">🎉 オープン記念キャンペーン（6/5 10:00～6/8 12:00）</p>
                     <p className="text-xs text-muted-foreground mb-3">全アクティブユーザーのリッチメニューを一括切り替えます。プレミアム機能の開放はコードで自動制御されます。</p>
                     <div className="flex flex-wrap gap-2">
                       <Button
                         onClick={() => {
-                          if (confirm("🎉 キャンペーン開始\n全アクティブユーザー（23名）のリッチメニューをプレミアムメニューに切り替えます。\n実行しますか？")) {
+                          if (confirm("🎉 キャンペーン開始\n全アクティブユーザーのリッチメニューをプレミアムメニューに切り替えます。\n実行しますか？")) {
                             campaignApplyPremiumMenuToAll.mutate();
                           }
                         }}
