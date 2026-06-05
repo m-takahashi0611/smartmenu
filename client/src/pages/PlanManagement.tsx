@@ -196,7 +196,8 @@ export default function PlanManagement() {
             </div>
 
             {/* トライアル残日数 */}
-            {isTrialActive && (
+            {/* 無料トライアル残日数：②課金無料期間（plan=premium, status=trial）のみ表示 */}
+            {isTrialActive && plan?.plan === "premium" && (
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">無料トライアル残日数</span>
                 <span className="font-semibold text-blue-600">{trialDaysLeft}日</span>
