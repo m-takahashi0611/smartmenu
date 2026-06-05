@@ -4556,6 +4556,8 @@ ${itemList}
     // ─── リッチメニュー「今日だけ特別」ボタン（課金ユーザー専用）────────────────────────────────
     // ※「今日だけ特別：〇〇」（コロン付き）はこのifより前の specialTodayMatch で処理済み
     if (normalizedText === "今日だけ特別") {
+      // 「今日だけ特別」ボタンが来たら古いpendingActionを無条件クリア（タイムアウトリセット防止）
+      await setLineUserPendingAction(lineUserId, null);
       if (!userId) {
         await replyAndSave(replyToken, [{ type: "text", text: `${displayName}さん、冷蔵庫の食材を登録すると、AIが在庫を活かした献立を提案できます！🥕\n\nまずはダッシュボードにログインして、冷蔵庫に食材を登録してみてください😊\n👉 https://app.kondatebiyori.com/fridge\n\n冷蔵庫の前に立ちながら\n「卵10個、牛乳1本、キャベツ半玉…」と\n音声で話しかけるだけでも登録できますよ🎤` }]);
         if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});
@@ -4592,6 +4594,8 @@ ${itemList}
     const specialTodayMatch = text.match(/^今日だけ特別[：::](.+)$/);
     if (specialTodayMatch && userId) {
       const specialTheme = specialTodayMatch[1].trim();
+      // 「今日だけ特別：〇〇」が来たら古いpendingActionを無条件クリア（タイムアウトリセット防止）
+      await setLineUserPendingAction(lineUserId, null);
       // 「記念日」の場合は誰の記念日か確認する
       if (specialTheme.includes("記念日")) {
         // 記念日の種類を確認するクイックリプライ
