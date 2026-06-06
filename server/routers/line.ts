@@ -1407,22 +1407,24 @@ async function handleFridgeRegistration(
         const hourJST = nowJST.getUTCHours();
         const retryQR = hourJST >= 5 && hourJST < 15
           ? [
-              { type: 'action' as const, action: { type: 'message' as const, label: '🌅 朝食・昼食', text: '今日の朝食・昼食' } },
-              { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕飯', text: '今夜の夕飯' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '🌅 今日の朝食', text: '今日の朝食' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '☀️ 今日の昼食', text: '今日の昼食' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕食', text: '今夜の夕食' } },
               { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
             ]
           : hourJST >= 15 && hourJST < 22
           ? [
-              { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜だけ', text: '今夜の夕飯だけ' } },
-              { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日朝食も', text: '今夜＋明日の朝食まで' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕食', text: '今夜の夕食' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
               { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
             ]
           : [
               { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
-              { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 明日まとめて', text: '明日の夕飯まで' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '☀️ 明日の昼食', text: '明日の昼食' } },
+              { type: 'action' as const, action: { type: 'message' as const, label: '🌙 明日の夕食', text: '明日の夕食' } },
               { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
             ];
-        await replyLineMessage(replyToken, [{ type: 'text', text: '番号か「夕飯」「朝食」などで教えてください😊\n\n👇 下のボタンから選んでね！', quickReply: { items: retryQR } }], lineUserId);
+        await replyLineMessage(replyToken, [{ type: 'text', text: '番号か「夕食」「朝食」などで教えてください😊\n\n👇 下のボタンから選んでね！', quickReply: { items: retryQR } }], lineUserId);
       } else if (pendingType === 'menu_option_selection') {
         const opts = originalPending.options ?? [];
         const optLines = opts.map((o: any, i: number) => `${['1️⃣','2️⃣','3️⃣'][i] ?? `${i+1}.`} ${o.name}`).join('\n');
@@ -1515,96 +1517,67 @@ async function handleFridgeRegistration(
     let questionText: string;
     let pendingChoices: Record<string, string>;
     const shopNote = willShop ? '買い物を考慮した献立を提案します！' : '今ある食材で作れる献立を提案します！';
+    const cancelQR = { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } };
+    let qrItems: Array<{ type: 'action'; action: { type: 'message'; label: string; text: string } }>;
 
     if (hourJST >= 5 && hourJST < 15) {
-      // 朝〜昼：朝食/昼食か夕飯か
+      // 朝〜昼：朝食・昼食・夕食から個別選択
       questionText = `${shopNote}
 
 どの献立を考えましょうか？
 
-1️⃣ 今日の朝食・昼食
-2️⃣ 今夜の夕飯
+1️⃣ 今日の朝食
+2️⃣ 今日の昼食
+3️⃣ 今夜の夕食
 
-番号か「朝食」「夕飯」などで教えてください😊`;
+番号か「朝食」「昼食」「夕食」などで教えてください😊`;
       pendingChoices = {
-        '1': 'breakfast',
-        '今日の朝食・昼食': 'breakfast',
-        '朝食・昼食': 'breakfast',
-        '朝食': 'breakfast',
-        '朝': 'breakfast',
-        '昼食': 'lunch',
-        'ランチ': 'lunch',
-        '2': 'dinner',
-        '今夜の夕飯': 'dinner',
-        '夕飯': 'dinner',
-        '夕食': 'dinner',
-        '今夜': 'dinner',
-        '晩ごはん': 'dinner',
+        '1': 'breakfast', '朝食': 'breakfast', '朝': 'breakfast', '今日の朝食': 'breakfast',
+        '2': 'lunch', '昼食': 'lunch', '昼': 'lunch', 'ランチ': 'lunch', '今日の昼食': 'lunch',
+        '3': 'dinner', '夕食': 'dinner', '夕飯': 'dinner', '今夜': 'dinner', '晩ごはん': 'dinner', '今夜の夕食': 'dinner',
       };
+      qrItems = [
+        { type: 'action' as const, action: { type: 'message' as const, label: '🌅 今日の朝食', text: '今日の朝食' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '☀️ 今日の昼食', text: '今日の昼食' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕食', text: '今夜の夕食' } },
+        cancelQR,
+      ];
     } else if (hourJST >= 15 && hourJST < 22) {
-      // 夕方〜夜：今晩か明日分まとめてか
+      // 夕方〜夜：今夜の夕食か明日の朝食か
       questionText = `${shopNote}
-
-今夜の献立ですか？それとも明日分まで考えますか？
-
-1️⃣ 今夜の夕飯だけ
-2️⃣ 今夜＋明日の朝食まで`;
+どの献立を考えましょうか？
+1️⃣ 今夜の夕食
+2️⃣ 明日の朝食
+番号か「夕食」「朝食」などで教えてください😊`;
       pendingChoices = {
-        '1': 'dinner',
-        '今夜': 'dinner',
-        '今日': 'dinner',
-        '夕飯': 'dinner',
-        '夕食': 'dinner',
-        '今夜の夕飯だけ': 'dinner',
-        '2': 'dinner_and_tomorrow_breakfast',
-        '明日も': 'dinner_and_tomorrow_breakfast',
-        'まとめて': 'dinner_and_tomorrow_breakfast',
-        '両方': 'dinner_and_tomorrow_breakfast',
-        '今夜＋明日の朝食まで': 'dinner_and_tomorrow_breakfast',
-        '今夜の夕飯＋明日の朝食': 'dinner_and_tomorrow_breakfast',
+        '1': 'dinner', '夕食': 'dinner', '夕飯': 'dinner', '今夜': 'dinner', '今夜の夕食': 'dinner',
+        '2': 'tomorrow_breakfast', '朝食': 'tomorrow_breakfast', '明日の朝食': 'tomorrow_breakfast', '明日': 'tomorrow_breakfast',
       };
+      qrItems = [
+        { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕食', text: '今夜の夕食' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
+        cancelQR,
+      ];
     } else {
-      // 深夜（22時以降）：明日の朝食か夕飯までまとめてか
+      // 深夜（22時以降）：明日の朝食・昼食・夕食から個別選択
       questionText = `${shopNote}
-
 明日の献立を考えましょうか？
-
 1️⃣ 明日の朝食
-2️⃣ 明日の夕飯まで（朝・昼・夕）`;
+2️⃣ 明日の昼食
+3️⃣ 明日の夕食
+番号か「朝食」「昼食」「夕食」などで教えてください😊`;
       pendingChoices = {
-        '1': 'tomorrow_breakfast',
-        '朝食': 'tomorrow_breakfast',
-        '朝': 'tomorrow_breakfast',
-        '明日の朝食': 'tomorrow_breakfast',
-        '2': 'tomorrow_dinner',
-        '夕飯': 'tomorrow_dinner',
-        '夕食': 'tomorrow_dinner',
-        '全部': 'tomorrow_dinner',
-        'まとめて': 'tomorrow_dinner',
-        '明日の夕飯まで': 'tomorrow_dinner',
-        '明日まとめて': 'tomorrow_dinner',
+        '1': 'tomorrow_breakfast', '朝食': 'tomorrow_breakfast', '朝': 'tomorrow_breakfast', '明日の朝食': 'tomorrow_breakfast',
+        '2': 'lunch', '昼食': 'lunch', '昼': 'lunch', '明日の昼食': 'lunch',
+        '3': 'dinner', '夕食': 'dinner', '夕飯': 'dinner', '明日の夕食': 'dinner',
       };
+      qrItems = [
+        { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '☀️ 明日の昼食', text: '明日の昼食' } },
+        { type: 'action' as const, action: { type: 'message' as const, label: '🌙 明日の夕食', text: '明日の夕食' } },
+        cancelQR,
+      ];
     }
-
-    // クイックリプライアイテムを時間帯に合わせて生成
-    const cancelQR = { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } };
-    const qrItems = hourJST >= 5 && hourJST < 15
-      ? [
-          { type: 'action' as const, action: { type: 'message' as const, label: '🌅 朝食・昼食', text: '今日の朝食・昼食' } },
-          { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕飯', text: '今夜の夕飯' } },
-          cancelQR,
-        ]
-      : hourJST >= 15 && hourJST < 22
-      ? [
-          { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜だけ', text: '今夜の夕飯だけ' } },
-          { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日朝食も', text: '今夜＋明日の朝食まで' } },
-          cancelQR,
-        ]
-      : [
-          { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
-          { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 明日まとめて', text: '明日の夕飯まで' } },
-          cancelQR,
-        ];
     await setLineUserPendingAction(lineUserId, {
       type: 'menu_type_selection',
       choices: pendingChoices,
@@ -1684,19 +1657,21 @@ async function handleFridgeRegistration(
       const _hourJST2 = _nowJST2.getUTCHours();
       const _retryQR = _hourJST2 >= 5 && _hourJST2 < 15
         ? [
-            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 朝食・昼食', text: '今日の朝食・昼食' } },
-            { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕飯', text: '今夜の夕飯' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 今日の朝食', text: '今日の朝食' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '☀️ 今日の昼食', text: '今日の昼食' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕食', text: '今夜の夕食' } },
             { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
           ]
         : _hourJST2 >= 15 && _hourJST2 < 22
         ? [
-            { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜だけ', text: '今夜の夕飯だけ' } },
-            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日朝食も', text: '今夜＋明日の朝食まで' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕食', text: '今夜の夕食' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
             { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
           ]
         : [
             { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
-            { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 明日まとめて', text: '明日の夕飯まで' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '☀️ 明日の昼食', text: '明日の昼食' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '🌙 明日の夕食', text: '明日の夕食' } },
             { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
           ];
       await replyLineMessage(replyToken, [
@@ -1744,22 +1719,35 @@ ${breakfastResult.message}`;
           });
         }
       } else if (selectedType === 'tomorrow_dinner') {
-        // 明日の朝食＋昼食＋夕食を順に生成
-        const bfResult = await generateMenuPlan(userId, tomorrow, 'tomorrow_breakfast', pendingWillShop);
-        const lunchResult = await generateMenuPlan(userId, tomorrow, 'lunch', pendingWillShop);
+        // 明日の夕食を単独で生成（3食まとめは廃止）
         const dinnerResult = await generateMenuPlan(userId, tomorrow, 'dinner', pendingWillShop);
-        const combinedMessage = `🌟 明日の献立をまとめて提案します！
-
-${bfResult.message}
-
-―――――――――――――――――
-
-${lunchResult.message}
-
-―――――――――――――――――
-
-${dinnerResult.message}`;
-        await replyLineMessage(replyToken, [{ type: 'text', text: combinedMessage }], lineUserId);
+        if (dinnerResult.options && dinnerResult.options.length > 0) {
+          const qrMenuItems = [
+            ...dinnerResult.options.slice(0, 3).map((o, i) => ({
+              type: 'action' as const,
+              action: { type: 'message' as const, label: `${i + 1}. ${o.name.slice(0, 16)}`, text: o.name },
+            })),
+            ...dinnerResult.options.slice(0, 3).map((o) => ({
+              type: 'action' as const,
+              action: { type: 'message' as const, label: `📖 ${o.name.slice(0, 14)}のレシピ`, text: `${o.name}のレシピ教えて` },
+            })),
+            { type: 'action' as const, action: { type: 'message' as const, label: '🔄 献立をやり直す', text: '献立をやり直す' } },
+            { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } },
+          ];
+          await replyLineMessage(replyToken, [{ type: 'text', text: dinnerResult.message + '\n\n👇 下のボタンから選んでね！', quickReply: { items: qrMenuItems } }], lineUserId);
+          if (dinnerResult.menuPlanId) {
+            await setLineUserPendingAction(lineUserId, {
+              type: 'menu_option_selection',
+              options: dinnerResult.options,
+              mealType: 'dinner',
+              targetDate: tomorrow,
+              menuPlanId: dinnerResult.menuPlanId,
+              askedAt: Date.now(),
+            });
+          }
+        } else {
+          await replyLineMessage(replyToken, [{ type: 'text', text: dinnerResult.message }], lineUserId);
+        }
         sendMenuUpsellIfNeeded(lineUserId, userId).catch(() => {});
       } else {
         // 単一食事タイプ
@@ -4117,79 +4105,49 @@ ${itemList}
       let questionText: string;
       let pendingChoices: Record<string, string>;
 
+      const _cancelQR2 = { type: 'action' as const, action: { type: 'message' as const, label: '❌ やっぱりやめる', text: 'キャンセル' } };
+      let qrItemsAfterShopping: Array<{ type: 'action'; action: { type: 'message'; label: string; text: string } }>;
       if (currentHourJST >= 5 && currentHourJST < 15) {
-        // 朝〜昼：朝食/昼食の提案か夕飯か
-        questionText = `どの献立を考えましょうか？\n\n1️⃣ 今日の朝食・昼食\n2️⃣ 今夜の夕飯\n\n番号か「朝食」「夕飯」などで教えてください😊`;
+        // 朝〜昼：朝食・昼食・夕食から個別選択
+        questionText = `どの献立を考えましょうか？\n\n1️⃣ 今日の朝食\n2️⃣ 今日の昼食\n3️⃣ 今夜の夕食\n\n番号か「朝食」「昼食」「夕食」などで教えてください😊`;
         pendingChoices = {
-          "1": "breakfast",
-          "朝食": "breakfast",
-          "今日の朝食・昼食": "breakfast",
-          "朝食・昼食": "breakfast",
-          "昼食": "lunch",
-          "ランチ": "lunch",
-          "2": "dinner",
-          "夕飯": "dinner",
-          "夕食": "dinner",
-          "晩ごはん": "dinner",
-          "ディナー": "dinner",
-          "今夜の夕飯": "dinner",
+          "1": "breakfast", "朝食": "breakfast", "朝": "breakfast", "今日の朝食": "breakfast",
+          "2": "lunch", "昼食": "lunch", "昼": "lunch", "ランチ": "lunch", "今日の昼食": "lunch",
+          "3": "dinner", "夕食": "dinner", "夕飯": "dinner", "今夜": "dinner", "晩ごはん": "dinner", "今夜の夕食": "dinner",
         };
+        qrItemsAfterShopping = [
+          { type: 'action' as const, action: { type: 'message' as const, label: '🌅 今日の朝食', text: '今日の朝食' } },
+          { type: 'action' as const, action: { type: 'message' as const, label: '☀️ 今日の昼食', text: '今日の昼食' } },
+          { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕食', text: '今夜の夕食' } },
+          _cancelQR2,
+        ];
       } else if (currentHourJST >= 15 && currentHourJST < 22) {
-        // 夕方〜夜：今晩か明日分まとめてか
-        questionText = `今夜の献立ですか？それとも明日分まで考えますか？\n\n1️⃣ 今夜の夕飯だけ\n2️⃣ 今夜＋明日の朝食まで\n\n`;
+        // 夕方〜夜：今夜の夕食か明日の朝食か
+        questionText = `どの献立を考えましょうか？\n\n1️⃣ 今夜の夕食\n2️⃣ 明日の朝食\n\n番号か「夕食」「朝食」などで教えてください😊`;
         pendingChoices = {
-          "1": "dinner",
-          "今夜": "dinner",
-          "今日": "dinner",
-          "夕飯": "dinner",
-          "夕食": "dinner",
-          "今夜の夕飯だけ": "dinner",
-          "2": "dinner_and_tomorrow_breakfast",
-          "明日も": "dinner_and_tomorrow_breakfast",
-          "まとめて": "dinner_and_tomorrow_breakfast",
-          "両方": "dinner_and_tomorrow_breakfast",
-          "今夜＋明日の朝食まで": "dinner_and_tomorrow_breakfast",
+          "1": "dinner", "夕食": "dinner", "夕飯": "dinner", "今夜": "dinner", "今夜の夕食": "dinner",
+          "2": "tomorrow_breakfast", "朝食": "tomorrow_breakfast", "明日の朝食": "tomorrow_breakfast", "明日": "tomorrow_breakfast",
         };
+        qrItemsAfterShopping = [
+          { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕食', text: '今夜の夕食' } },
+          { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
+          _cancelQR2,
+        ];
       } else {
-        // 夜（22時〜）：明日の朝食か夕飯まで考えるか
-        questionText = `明日の献立を考えましょうか？\n\n1️⃣ 明日の朝食\n2️⃣ 明日の夕飯まで（朝・昼・夕）\n\n`;
+        // 深夜（22時〜）：明日の朝食・昼食・夕食から個別選択
+        questionText = `明日の献立を考えましょうか？\n\n1️⃣ 明日の朝食\n2️⃣ 明日の昼食\n3️⃣ 明日の夕食\n\n番号か「朝食」「昼食」「夕食」などで教えてください😊`;
         pendingChoices = {
-          "1": "tomorrow_breakfast",
-          "朝食": "tomorrow_breakfast",
-          "朝": "tomorrow_breakfast",
-          "明日の朝食": "tomorrow_breakfast",
-          "2": "tomorrow_dinner",
-          "夕飯": "tomorrow_dinner",
-          "夕食": "tomorrow_dinner",
-          "全部": "tomorrow_dinner",
-          "まとめて": "tomorrow_dinner",
-          "明日の夕飯まで": "tomorrow_dinner",
-          "明日まとめて": "tomorrow_dinner",
+          "1": "tomorrow_breakfast", "朝食": "tomorrow_breakfast", "朝": "tomorrow_breakfast", "明日の朝食": "tomorrow_breakfast",
+          "2": "lunch", "昼食": "lunch", "昼": "lunch", "明日の昼食": "lunch",
+          "3": "dinner", "夕食": "dinner", "夕飯": "dinner", "明日の夕食": "dinner",
         };
+        qrItemsAfterShopping = [
+          { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
+          { type: 'action' as const, action: { type: 'message' as const, label: '☀️ 明日の昼食', text: '明日の昼食' } },
+          { type: 'action' as const, action: { type: 'message' as const, label: '🌙 明日の夕食', text: '明日の夕食' } },
+          _cancelQR2,
+        ];
       }
-
-      // pendingActionに選択待ち状態をセット
-      await setLineUserPendingAction(lineUserId, {
-        type: 'menu_type_selection',
-        choices: pendingChoices,
-        askedAt: Date.now(),
-      });
-
-      // クイックリプライアイテムを時間帯に合わせて生成
-      const qrItemsAfterShopping = currentHourJST >= 5 && currentHourJST < 15
-        ? [
-            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 朝食・昼食', text: '今日の朝食・昼食' } },
-            { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜の夕飯', text: '今夜の夕飯' } },
-          ]
-        : currentHourJST >= 15 && currentHourJST < 22
-        ? [
-            { type: 'action' as const, action: { type: 'message' as const, label: '🌙 今夜だけ', text: '今夜の夕飯だけ' } },
-            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日朝食も', text: '今夜＋明日の朝食まで' } },
-          ]
-        : [
-            { type: 'action' as const, action: { type: 'message' as const, label: '🌅 明日の朝食', text: '明日の朝食' } },
-            { type: 'action' as const, action: { type: 'message' as const, label: '🍽️ 明日まとめて', text: '明日の夕飯まで' } },
-          ];
       const menuQuestionText = familyGuidePrefix ? `${familyGuidePrefix}${questionText}` : questionText;
       await replyAndSave(replyToken, [{ type: "text", text: menuQuestionText, quickReply: { items: qrItemsAfterShopping } }]);
       if (!_skipHistory) await setLineUserProcessing(lineUserId, false).catch(() => {});

@@ -90,10 +90,15 @@ export async function generateMenuPlan(
       })();
       // 同じ食事タイプのデータがあればそのまま返す
       if (existingData?.mealType === resolvedMealType) {
+        // dinner/tomorrow_breakfastは既存の候補もoptionsに含めてクイックリプライを機能させる
+        const existingOptions = (resolvedMealType === "dinner" || resolvedMealType === "tomorrow_breakfast")
+          ? (existingData?.dinnerOptions as Array<{ name: string; mainIngredients: string[]; usedFridgeItems: string[] }> | undefined)
+          : undefined;
         return {
           message: existing.messageText ?? "本日の献立は既に生成されています。",
           menuPlanId: existing.id,
           shoppingList: existingData?.shoppingList ?? [],
+          options: existingOptions,
         };
       }
     }
