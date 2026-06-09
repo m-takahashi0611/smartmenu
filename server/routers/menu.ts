@@ -121,8 +121,8 @@ export async function generateMenuPlan(
   });
 
   // 過去の献立を取得（重複回避用）
-  const recentPlans = await getRecentMenuPlans(userId, 7);
-  const recentDishes = recentPlans
+  const recentPlans = await getRecentMenuPlans(userId, 14);
+  const recentDishNames = recentPlans
     .flatMap((p) => {
       try {
         const data = typeof p.menuData === "string" ? JSON.parse(p.menuData) : p.menuData;
@@ -132,8 +132,10 @@ export async function generateMenuPlan(
       } catch {
         return [];
       }
-    })
-    .join("、");
+    });
+  const recentDishes = recentDishNames.join("、");
+  // 直近3件の料理名（案③の直近ジャンル回避用）
+  const recentThreeDishes = recentDishNames.slice(0, 3).join("、");
 
   // 天気情報を取得
   const weather = await getWeatherInfo(35.68, 139.69, planDate);
@@ -301,14 +303,19 @@ ${childPrefRules.join("\n")}
 
     systemPrompt = `あなたは日本の主婦向け献立提案AIアシスタントです。
 冷蔵庫の食材を活かした${targetMeal}を3案提案してください。${premiumPromptExtra}
-${childCareInstruction ? `${childCareInstruction}\n` : ''}${priorityInstruction ? `${priorityInstruction}\n` : ''}【重要ルール】
+${childCareInstruction ? `${childCareInstruction}\n` : ''}${priorityInstruction ? `${priorityInstruction}\n` : ''}【共通ルール】
 1. アレルギー食材は絶対に使用しないこと
 2. ⚠️【要使用】マークの食材は必ずいずれかの案に使うこと
-3. 冷蔵庫にある食材をできるだけ使い切ること
-4. 同じ料理を７日間繰り返さないこと
-5. 家族構成（年齢・食事量）に合った内容にすること
-6. 各案は料理名と主な使用食材のみ（レシピは不要）${theme ? `
-7. 【絶対厳守・最優先ルール】${theme}。このテーマに合わない案は絶対不可。全て3案ともこのテーマに従うこと。` : ''}
+3. 同じ料理を７日間繰り返さないこと
+4. 家族構成（年齢・食事量）に合った内容にすること
+5. 各案は料理名と主な使用食材のみ（レシピは不要）${theme ? `
+6. 【絶対厳守・最優先ルール】${theme}。このテーマに合わない案は絶対不可。全て3案ともこのテーマに従うこと。` : ''}
+
+【各案の戦略】←必ず各案で異なるアプローチを取ること
+案①：冷蔵庫優先・好み傑向案―冷蔵庫の食材を最大限使い切り、過去の献立履歴から好まれそうな料理を選ぶこと
+案②：ジャンル・調理法分散案―直近の献立とジャンル（和食・洋食・中華・エスニック等）および調理法（炊く・炒める・焼く・揚げる・生等）が被らない料理を選ぶこと
+案③：直近回避案―直近3件（${recentThreeDishes || 'なし'}）と同じジャンル・食材・調理法を全て避け、最も新鮮味のあるアイデアを選ぶこと
+
 以下のJSON形式で返答してください：
 {
   "options": [
@@ -316,8 +323,8 @@ ${childCareInstruction ? `${childCareInstruction}\n` : ''}${priorityInstruction 
     {"name": "料理名2", "mainIngredients": ["食材C", "食材D"], "usedFridgeItems": ["冷蔵庫食材"]},
     {"name": "料理名3", "mainIngredients": ["食材E", "食材F"], "usedFridgeItems": ["冷蔵庫食材"]}
   ],
-  "shoppingList": ["不足食材1（分量）", "不足食材2（分量）"]${hasChild ? `,
-  "childNote": "子供への配慮として何をしたか、冷蔵庫の状況を根拠に含め『〇〇だったので、〇〇しました』の形で1文で説明"` : ''}
+  "shoppingList": ["不足食材１（分量）", "不足食材２（分量）"]${hasChild ? `,
+  "childNote": "子供への配慮として何をしたか、冷蔵庫の状況を根拠に含め『〇〇だったので、〇〇しました』の形で１文で説明"` : ''}
 }`;
 
     userPrompt = `【日付・天気】${planDate}（${weatherDesc}）

@@ -319,10 +319,10 @@ export async function getMenuPlanByDate(userId: number, planDate: string) {
   return result[0];
 }
 
-export async function getRecentMenuPlans(userId: number, limit = 7) {
+export async function getRecentMenuPlans(userId: number, limit = 14) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(menuPlans).where(eq(menuPlans.userId, userId)).limit(limit);
+  return db.select().from(menuPlans).where(eq(menuPlans.userId, userId)).orderBy(desc(menuPlans.createdAt)).limit(limit);
 }
 
 export async function insertMenuPlan(data: InsertMenuPlan) {

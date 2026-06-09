@@ -1,0 +1,8 @@
+{
+  "query": "\n-- Stripeのサブスクリプションが存在するのにDBのstatusがactiveになっていないユーザーを確認\nSELECT \n  s.id,\n  s.user_id,\n  s.plan,\n  s.status,\n  s.stripe_subscription_id,\n  s.stripe_customer_id,\n  s.current_period_end,\n  s.created_at,\n  s.updated_at\nFROM subscriptions s\nWHERE s.stripe_subscription_id IS NOT NULL\n  AND s.stripe_subscription_id != ''\nORDER BY s.updated_at DESC\nLIMIT 50;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3J5KDBVUjsrxvHe.root --database cX9NcQmb35cA4KMDW3eQdK --execute \n-- Stripeのサブスクリプションが存在するのにDBのstatusがactiveになっていないユーザーを確認\nSELECT \n  s.id,\n  s.user_id,\n  s.plan,\n  s.status,\n  s.stripe_subscription_id,\n  s.stripe_customer_id,\n  s.current_period_end,\n  s.created_at,\n  s.updated_at\nFROM subscriptions s\nWHERE s.stripe_subscription_id IS NOT NULL\n  AND s.stripe_subscription_id != ''\nORDER BY s.updated_at DESC\nLIMIT 50;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 3: Unknown column 's.updated_at' in 'order clause'"
+  ]
+}
