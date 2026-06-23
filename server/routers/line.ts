@@ -648,6 +648,35 @@ ${isTodayCold ? "【今日は寒い】体を温める料理を優先して提案
   }
 }
 
+// ─── Postback データ解析ユーティリティ ─────────────────────────────────────────
+function parsePostbackData(data: string): string | null {
+  if (!data) return null;
+
+  // キー=値のペアを解析
+  const params = new URLSearchParams(data);
+  const action = params.get("action");
+  const type = params.get("type");
+  const value = params.get("value");
+  const label = params.get("label");
+
+  // 既知のアクションをテキストに変換
+  if (action === "menu" && type === "dinner") return "夕食";
+  if (action === "menu" && type === "lunch") return "昼食";
+  if (action === "menu" && type === "breakfast") return "朝食";
+  if (action === "theme") return `献立テーマ:${value ?? label ?? ""}`.trim();
+  if (action === "fridge") return "冷蔵庫";
+  if (action === "recipe") return `${value ?? ""}のレシピ`;
+
+  // シンプルなkey=valueの場合（例：action=menu,type=dinner）
+  if (data.includes("=")) {
+    // データをそのまま返すか、パースして返す
+    return null; // fallback to raw data
+  }
+
+  // 直接テキストが入っている場合
+  return data;
+}
+
 // ─── LINE上での冷蔵庫食材登録処理（会話フロー対応版） ─────────────────────────
 
 // 商品名正規化ルール（語尾・キーワードベース）
@@ -5056,7 +5085,44 @@ ${itemList}
       await setLineUserProcessing(lineUserId, false).catch(() => {});
     }
   }
-  } // end else if (type === "message")
+  } else if (type === "postback") {
+    // ─── ボタン選択（postback）イベント処理 ──────────────────────────────────
+    // postback.data を解析してテキストメッセージとして処理
+    const data = event.postback?.data ?? "";
+    console.log(`[LINE] Postback received: ${data}`);
+
+    // data をテキストメッセージに変換して、既存のメッセージ処理ロジックを再利用
+    const parsedMessage = parsePostbackData(data);
+    if (parsedMessage) {
+      // postback を text イベントとして再度ハンドル（既存のテキスト処理ロジックを活用）
+      await handleLineWebhookEvent(
+        {
+          type: "message",
+          source,
+          replyToken,
+          message: {
+            type: "text",
+            text: parsedMessage,
+          },
+        },
+        _skipHistory
+      );
+    } else {
+      // fallback: data をそのままテキストとして扱う
+      await handleLineWebhookEvent(
+        {
+          type: "message",
+          source,
+          replyToken,
+          message: {
+            type: "text",
+            text: data,
+          },
+        },
+        _skipHistory
+      );
+    }
+  }
 }
 // ─── tRPC router ──────────────────────────────────────────────────────────────
 
