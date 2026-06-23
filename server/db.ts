@@ -505,14 +505,19 @@ export async function getUserIsTrial(userId: number): Promise<boolean> {
   const db = await getDb();
   if (!db) return true; // DB接続不可の場合は安全側にトライアル扱い
   const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
-  if (!sub) return true; // サブスクリプションなし = トライアル
+  if (!sub) return true; // ① サブスクリプションなし = トライアル
   // ② plan=premium かつ status=trial は「課金無料期間中」→ トライアルでない
   if (sub.plan === "premium" && sub.status === "trial") return false;
   // ③ active = 課金継続中 → トライアルでない
   if (sub.status === "active") return false;
-  // ④ cancelled = 解約済み → トライアルでない
-  if (sub.status === "cancelled") return false;
-  // ① plan=free かつ status=trial = トライアル
+  // ④ cancelled = 解約済み
+  if (sub.status === "cancelled") {
+    // 期限内ならプレミアム扱い（トライアルではない）
+    if (sub.currentPeriodEnd != null && new Date(sub.currentPeriodEnd) > new Date()) return false;
+    // 期限切れなら献立提案のみ（トライアル扱い）
+    return true;
+  }
+  // その他のステータス = トライアル扱い
   return true;
 }
 
